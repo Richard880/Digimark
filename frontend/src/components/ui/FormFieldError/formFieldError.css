@@ -1,0 +1,28 @@
+/* ==========================================================
+   WEMPA UI Library
+   FormFieldError Component
+========================================================== */
+
+.wempa-form-feedback {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.wempa-form-feedback-error {
+  color: var(--color-danger);
+}
+
+.wempa-form-feedback-success {
+  color: var(--color-success);
+}
+
+.wempa-form-feedback-warning {
+  color: var(--color-warning);
+}
+
+.wempa-form-feedback-info {
+  color: var(--color-info);
+}

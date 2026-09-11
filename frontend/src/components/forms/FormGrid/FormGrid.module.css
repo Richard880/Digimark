@@ -1,0 +1,18 @@
+/* src/components/forms/FormGrid/FormGrid.module.css */
+
+.grid {
+  display: grid;
+  /* Premium column metrics to prevent horizontal input layout stretching */
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.75rem 1.5rem;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+/* Adjust layout on mobile devices to preserve natural text pacing */
+@media (max-width: 576px) {
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+}

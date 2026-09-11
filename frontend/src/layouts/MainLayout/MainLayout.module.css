@@ -1,0 +1,147 @@
+/* ==========================================================================
+   Base & Layout Wrapper
+   ========================================================================== */
+.sokodigi-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.sokodigi-main {
+  flex: 1;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  /* 🎯 Cushion layout frame to account for the top floating navigation pill container */
+  margin-top: 100px; 
+}
+
+
+/* 🎯 REMOVE TOP BUFFER ON HOME PAGE: Allows the hero image to slide completely under the header overlay */
+:global(.sokodigi-main:has(.sokodigi-home)),
+:global(.sokodigi-main:has([class*="landing-shell"])) {
+  margin-top: 0 !important;
+}
+
+
+/* ==========================================================================
+   Header & Navigation
+   ========================================================================== */
+.sokodigi-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: #ffffff; /* Clean white tone for absolute clarity */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.sokodigi-header__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Logo Constraints (Fixes the "very big" image issue) */
+.sokodigi-brand {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.sokodigi-brand__logo {
+  height: 50px; /* Constrained target height */
+  width: auto;   /* Maintains original aspect ratio */
+  max-width: 160px; 
+  object-fit: contain;
+  display: block;
+}
+
+/* Navigation Menu */
+.sokodigi-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.sokodigi-nav a,
+.sokodigi-nav button {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #4b5563;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sokodigi-nav a:hover,
+.sokodigi-nav button:hover {
+  color: #111827; /* Darkens clearly on hover */
+}
+
+/* Special styling to make logout/login look discrete but actionable */
+.sokodigi-nav button {
+  color: #9ca3af;
+}
+.sokodigi-nav button:hover {
+  color: #ef4444; /* Soft red for logout intent */
+}
+
+/* ==========================================================================
+   Main Content Area
+   ========================================================================== */
+
+
+/* ==========================================================================
+   Footer
+   ========================================================================== */
+.sokodigi-footer {
+  background-color: #ffffff;
+  border-top: 1px solid #e5e7eb;
+}
+
+.sokodigi-footer__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.sokodigi-footer p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+/* ==========================================================================
+   Responsive Breakpoints
+   ========================================================================== */
+@media (max-width: 640px) {
+  .sokodigi-header__inner {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .sokodigi-brand__logo {
+    height: 35px; /* Marginally smaller on tight screens */
+  }
+
+  .sokodigi-nav {
+    gap: 1.25rem;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .sokodigi-main {
+    padding: 1.5rem 1rem;
+  }
+}

@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Studio | Videos</title>
+    <!-- Place this in your <head> above your own script -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FIXED Font Awesome Link -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com" />
+    <style>
+      body {
+        background-color: #020617;
+        color: #f8fafc;
+        margin: 0;
+      }
+      .glass {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .sidebar-link {
+        @apply flex items-center px-4 py-3 rounded-xl transition-all text-slate-400 hover:text-white hover:bg-white/5 mb-1;
+      }
+      .sidebar-link.active {
+        @apply bg-emerald-500/10 text-emerald-400 border border-emerald-500/20;
+      }
+      .video-card:hover .play-overlay {
+        opacity: 1;
+      }
+      /* Custom scrollbar for a cleaner look */
+      ::-webkit-scrollbar {
+        width: 5px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 10px;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen flex overflow-hidden">
+    <!-- LEFT SIDEBAR - Fixed Vertical Column -->
+    <aside
+      class="w-64 glass border-r border-slate-700 p-6 flex flex-col h-screen shrink-0 overflow-y-auto"
+    >
+      <!-- Logo Section -->
+      <div class="flex items-center gap-3 mb-10 shrink-0">
+        <div class="bg-emerald-500 p-2 rounded-lg">
+          <i class="fas fa-shop text-white"></i>
+        </div>
+        <h1 class="text-xl font-bold tracking-tight text-white">
+          myShop <span class="text-emerald-500">Pro</span>
+        </h1>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav class="flex flex-col flex-1">
+        <a href="inventory.html" class="sidebar-link"
+          ><i class="fas fa-box w-5 mr-3"></i> Inventory</a
+        >
+        <a href="#" class="sidebar-link"
+          ><i class="fas fa-chart-line w-5 mr-3"></i> Sales Data</a
+        >
+        <a href="#" class="sidebar-link">
+          <i class="fas fa-shopping-cart w-5 mr-3"></i> Orders
+          <span
+            class="ml-auto bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold"
+            >4</span
+          >
+        </a>
+
+        <!-- MyStudio Section with Categories -->
+        <div
+          class="mt-8 mb-2 px-4 text-[10px] uppercase font-bold text-slate-500 tracking-widest"
+        >
+          My Studio
+        </div>
+        <a href="myVideos.html" class="sidebar-link active"
+          ><i class="fas fa-video w-5 mr-3"></i> All Videos</a
+        >
+        <a href="advideos.html" class="sidebar-link"
+          ><i class="fas fa-bolt w-5 mr-3"></i> SokoShorts</a
+        >
+        <a
+          href="#"
+          onclick="loadUserVideos(currentUserId, 'long')"
+          class="sidebar-link"
+          ><i class="fas fa-film w-5 mr-3"></i> Long Videos</a
+        >
+
+        <div
+          class="mt-8 mb-2 px-4 text-[10px] uppercase font-bold text-slate-500 tracking-widest"
+        >
+          Platform
+        </div>
+        <a href="onDisplay.html" class="sidebar-link"
+          ><i class="fas fa-bullhorn w-5 mr-3"></i> OnDisplay</a
+        >
+        <a href="Markethub.html" class="sidebar-link"
+          ><i class="fas fa-shopping-bag w-5 mr-3"></i> Marketplace</a
+        >
+        <a href="library.html" class="sidebar-link"
+          ><i class="fas fa-play-circle w-5 mr-3"></i> Streamnet</a
+        >
+      </nav>
+
+      <!-- Bottom Action -->
+      <div class="mt-auto pt-6 border-t border-slate-800 shrink-0">
+        <button
+          class="w-full bg-slate-800 hover:bg-slate-700 text-emerald-400 p-3 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
+        >
+          <i class="fas fa-plus-circle"></i> Record Sale
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT CONTENT AREA -->
+    <main class="flex-1 h-screen overflow-y-auto p-8">
+      <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-8">
+          <div>
+            <h1 class="text-4xl font-bold tracking-tight text-white">
+              My Video Studio
+            </h1>
+            <p class="text-slate-400 mt-1" id="userWelcome">
+              Loading library...
+            </p>
+          </div>
+          <!-- Check this button in your main dashboard HTML -->
+          <button
+            onclick="toggleUploadModal()"
+            class="bg-emerald-600 hover:bg-emerald-500 px-6 py-2.5 rounded-full font-semibold transition-all shadow-lg shadow-emerald-500/20"
+          >
+            + New Upload
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+          <div class="glass p-5 rounded-2xl border-l-4 border-emerald-500">
+            <p
+              class="text-xs text-slate-400 uppercase font-bold tracking-wider"
+            >
+              Total Videos
+            </p>
+            <h3 class="text-3xl font-bold mt-1" id="statCount">0</h3>
+          </div>
+        </div>
+
+        <!-- Video Grid -->
+        <div
+          id="videoGrid"
+          class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
+        >
+          <div class="animate-pulse glass h-64 rounded-2xl"></div>
+          <div class="animate-pulse glass h-64 rounded-2xl"></div>
+          <div class="animate-pulse glass h-64 rounded-2xl"></div>
+        </div>
+
+        <div id="emptyState" class="hidden text-center py-20">
+          <div class="text-7xl mb-4 opacity-20">📂</div>
+          <h2 class="text-xl font-semibold">No videos found here</h2>
+          <p class="text-slate-400 mt-2">
+            Try switching categories or upload something new.
+          </p>
+        </div>
+      </div>
+    </main>
+    <!-- MODAL OVERLAY -->
+    <div
+      id="uploadModal"
+      class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4"
+    >
+      <div
+        class="glass w-full max-w-md p-8 rounded-3xl border border-slate-700 shadow-2xl relative"
+      >
+        <!-- BACK / CLOSE BUTTON -->
+        <button
+          onclick="toggleUploadModal()"
+          class="absolute top-6 left-6 text-slate-400 hover:text-emerald-400 transition-colors flex items-center gap-2 text-xs font-bold uppercase tracking-widest"
+        >
+          <i class="fas fa-arrow-left"></i> Back
+        </button>
+
+        <div class="text-center mt-4 mb-8">
+          <h2 class="text-2xl font-bold text-white">Upload Video</h2>
+          <p class="text-slate-500 text-xs mt-1">Add content to your library</p>
+        </div>
+
+        <form id="uploadForm" class="space-y-4">
+          <!-- Drag & Drop Zone -->
+          <div
+            id="dropZone"
+            class="group border-2 border-dashed border-slate-700 rounded-2xl p-8 text-center transition-all hover:border-emerald-500 hover:bg-emerald-500/5 cursor-pointer"
+          >
+            <input
+              type="file"
+              id="video"
+              accept="video/*"
+              required
+              class="hidden"
+            />
+            <div class="text-slate-400 group-hover:text-emerald-400">
+              <i class="fas fa-cloud-upload-alt text-4xl mb-3"></i>
+              <p class="text-sm font-bold" id="fileNameDisplay">
+                Drag & drop video or
+                <span class="text-emerald-500">browse</span>
+              </p>
+            </div>
+          </div>
+
+          <input
+            type="text"
+            id="title"
+            placeholder="Video Title"
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
+          />
+          <input
+            type="text"
+            id="tags"
+            placeholder="Tags (comma separated)"
+            class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:border-emerald-500 outline-none"
+          />
+
+          <button
+            type="submit"
+            id="submitBtn"
+            class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-emerald-600/20"
+          >
+            Start Upload
+          </button>
+        </form>
+
+        <!-- CIRCULAR PROGRESS UI -->
+        <div
+          class="progress-wrapper mt-6 hidden flex flex-col items-center justify-center"
+          id="progressWrapper"
+        >
+          <div class="relative w-32 h-32">
+            <svg class="w-full h-full transform -rotate-90">
+              <circle
+                cx="64"
+                cy="64"
+                r="58"
+                stroke="currentColor"
+                stroke-width="8"
+                fill="transparent"
+                class="text-slate-800"
+              />
+              <circle
+                id="progressBarCircle"
+                cx="64"
+                cy="64"
+                r="58"
+                stroke="currentColor"
+                stroke-width="8"
+                stroke-linecap="round"
+                fill="transparent"
+                stroke-dasharray="364.4"
+                stroke-dashoffset="364.4"
+                class="text-emerald-500 transition-all duration-300"
+              />
+            </svg>
+            <div class="absolute inset-0 flex items-center justify-center">
+              <span id="percentText" class="text-2xl font-bold text-white"
+                >0%</span
+              >
+            </div>
+          </div>
+          <span id="statusText" class="text-slate-400 italic mt-4 text-xs"
+            >Uploading...</span
+          >
+          <button
+            type="button"
+            onclick="toggleUploadModal()"
+            class="mt-4 text-red-400 text-[10px] font-bold uppercase tracking-widest hover:underline"
+          >
+            Cancel Upload
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API_BASE = "http://localhost:3000/api/videos";
+      let currentUserId = null;
+
+      async function initDashboard() {
+        const userStr = localStorage.getItem("mlm_user");
+        if (!userStr) {
+          window.location.href = "login.html";
+          return;
+        }
+        const user = JSON.parse(userStr);
+        currentUserId = user.id;
+        document.getElementById("userWelcome").innerText =
+          `Managing content for ${user.name}`;
+        await loadUserVideos(user.id);
+      }
+
+      async function loadUserVideos(userId, filter = "all") {
+        const grid = document.getElementById("videoGrid");
+        const statCount = document.getElementById("statCount");
+        try {
+          const response = await fetch(`${API_BASE}/user/${userId}`);
+          const data = await response.json();
+          let videos = data.videos || [];
+
+          if (filter === "long") {
+            videos = videos.filter((v) => (v.duration || 0) > 60);
+          }
+
+          grid.innerHTML = "";
+          statCount.innerText = videos.length;
+
+          if (videos.length === 0) {
+            document.getElementById("emptyState").classList.remove("hidden");
+            return;
+          }
+          document.getElementById("emptyState").classList.add("hidden");
+          videos
+            .reverse()
+            .forEach((video) => grid.appendChild(createVideoCard(video)));
+        } catch (err) {
+          grid.innerHTML = `<p class="text-red-400 text-center col-span-full">Failed to load content.</p>`;
+        }
+      }
+
+      function createVideoCard(video) {
+        const div = document.createElement("div");
+        div.className =
+          "video-card group relative glass rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-2";
+        const isReady = video.status === "READY";
+        div.innerHTML = `
+          <div class="aspect-video bg-slate-900 relative">
+            ${isReady ? `<img src="http://localhost:3000/${video.thumbnail}" class="w-full h-full object-cover" />` : `<div class="flex items-center justify-center h-full text-slate-500 italic">Processing...</div>`}
+            <div class="play-overlay absolute inset-0 bg-black/50 opacity-0 flex items-center justify-center transition-opacity cursor-pointer">
+              <div class="w-14 h-14 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-2xl transform scale-90 group-hover:scale-100 transition-transform">
+                <i class="fas fa-play text-xl ml-1"></i>
+              </div>
+            </div>
+            <div class="absolute top-4 right-4">
+              <span class="px-2.5 py-1 text-[10px] font-black rounded-lg uppercase tracking-widest ${isReady ? "bg-emerald-500 text-white" : "bg-amber-500 text-black"}">
+                ${video.status}
+              </span>
+            </div>
+          </div>
+          <div class="p-5">
+            <h4 class="font-bold text-slate-100 text-lg truncate">${video.title}</h4>
+            <div class="flex justify-between items-center mt-3">
+              <span class="text-xs text-slate-500 font-medium tracking-tight">${new Date(video.createdAt).toLocaleDateString()}</span>
+              <button onclick="window.location.href='/watch.html?id=${video.id}'" class="text-emerald-400 hover:text-emerald-300 text-sm font-black uppercase tracking-tighter">VIEW PROJECT</button>
+            </div>
+          </div>
+        `;
+        return div;
+      }
+
+      initDashboard();
+
+      // 1. Initialize Socket FIRST (Needs the CDN link in head to work)
+
+      const socket = io("http://localhost:3000", {
+        withCredentials: true,
+      });
+
+      let activeXHR = null;
+      let currentUploadingVideoId = null;
+
+      // 2. Define Toggle Function FIRST so the button can always find it
+      function toggleUploadModal() {
+        const modal = document.getElementById("uploadModal");
+        const form = document.getElementById("uploadForm");
+        const progress = document.getElementById("progressWrapper");
+
+        if (!modal) return console.error("Modal element not found");
+
+        if (!modal.classList.contains("hidden")) {
+          // If closing while uploading
+          if (activeXHR && activeXHR.readyState !== 4) {
+            if (!confirm("Cancel upload and go back?")) return;
+            activeXHR.abort();
+            activeXHR = null;
+          }
+          modal.classList.add("hidden");
+          if (form) form.reset();
+          if (progress) progress.classList.add("hidden");
+        } else {
+          modal.classList.remove("hidden");
+        }
+      }
+
+      // 3. Wait for DOM to load before attaching other events
+      document.addEventListener("DOMContentLoaded", () => {
+        const uploadForm = document.getElementById("uploadForm");
+        const videoInput = document.getElementById("video");
+        const dropZone = document.getElementById("dropZone");
+        const fileNameDisplay = document.getElementById("fileNameDisplay");
+        const progressBarCircle = document.getElementById("progressBarCircle");
+        const percentText = document.getElementById("percentText");
+        const statusText = document.getElementById("statusText");
+
+        if (!uploadForm) return;
+
+        // Drag & Drop Logic
+        dropZone.onclick = () => videoInput.click();
+        videoInput.onchange = () => {
+          if (videoInput.files[0])
+            fileNameDisplay.innerText = videoInput.files[0].name;
+        };
+
+        // Socket Listeners
+        if (socket) {
+          socket.on("ffmpeg-progress", (data) => {
+            if (data.videoId === currentUploadingVideoId) {
+              const circumference = 364.4;
+              const offset =
+                circumference - (data.percent / 100) * circumference;
+              if (progressBarCircle)
+                progressBarCircle.style.strokeDashoffset = offset;
+              if (percentText) percentText.innerText = `${data.percent}%`;
+              if (statusText)
+                statusText.innerText = `Processing: ${data.step}...`;
+            }
+          });
+
+          socket.on("ffmpeg-done", (data) => {
+            if (data.videoId === currentUploadingVideoId) {
+              statusText.innerText = "✅ Complete! Reloading...";
+              setTimeout(() => location.reload(), 1500);
+            }
+          });
+        }
+
+        // Submit Logic
+        uploadForm.onsubmit = (e) => {
+          e.preventDefault();
+          const file = videoInput.files[0];
+          const userStr = localStorage.getItem("mlm_user");
+          if (!file || !userStr)
+            return alert("Select a file and ensure you are logged in.");
+
+          const user = JSON.parse(userStr);
+          const formData = new FormData();
+          formData.append("video", file);
+          formData.append("userId", user.id || user._id);
+          formData.append(
+            "title",
+            document.getElementById("title").value || file.name,
+          );
+          formData.append("tags", document.getElementById("tags").value);
+
+          uploadForm.classList.add("hidden");
+          document.getElementById("progressWrapper").classList.remove("hidden");
+
+          activeXHR = new XMLHttpRequest();
+          activeXHR.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const percent = Math.round((event.loaded / event.total) * 100);
+              const circumference = 364.4;
+              if (progressBarCircle)
+                progressBarCircle.style.strokeDashoffset =
+                  circumference - (percent / 100) * circumference;
+              if (percentText) percentText.innerText = `${percent}%`;
+              if (statusText) statusText.innerText = "Uploading to Studio...";
+            }
+          };
+
+          activeXHR.onload = () => {
+            try {
+              const res = JSON.parse(activeXHR.responseText);
+              currentUploadingVideoId = res.videoId;
+              statusText.innerText = "Upload finished. Processing...";
+            } catch (e) {
+              console.error("Parse error", e);
+            }
+          };
+
+          activeXHR.open("POST", "http://localhost:3000/api/videos");
+          activeXHR.send(formData);
+        };
+      });
+    </script>
+  </body>
+</html>

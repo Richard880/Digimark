@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Product Details | MarketHub</title>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        background: #f8fafc;
+        margin: 0;
+        padding: 40px;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 20px;
+        overflow: hidden;
+        display: flex;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+      }
+      .image-section {
+        flex: 1;
+        background: #f1f5f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .image-section img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .details-section {
+        flex: 1;
+        padding: 40px;
+      }
+      .back-link {
+        display: inline-block;
+        margin-bottom: 20px;
+        color: #2563eb;
+        text-decoration: none;
+        font-weight: 600;
+      }
+      .price {
+        font-size: 28px;
+        font-weight: 800;
+        color: #0f172a;
+        margin: 20px 0;
+      }
+      .badge {
+        background: #e2e8f0;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <button onclick="smartBack()" class="back-link">← Back to Gallery</button>
+
+    <div id="detailsContainer" class="container">
+      <div style="padding: 40px">Loading product details...</div>
+    </div>
+
+    <script>
+      const BACKEND_URL = "http://localhost:3000";
+
+      async function loadProductDetails() {
+        // 1. Get ID from URL (?id=123)
+        const params = new URLSearchParams(window.location.search);
+        const productId = params.get("id");
+
+        if (!productId) {
+          document.getElementById("detailsContainer").innerHTML =
+            "No product ID found.";
+          return;
+        }
+
+        try {
+          // 2. Fetch specific product
+          const response = await fetch(
+            `${BACKEND_URL}/api/products/${productId}`,
+          );
+          if (!response.ok)
+            throw new Error(
+              "Product not found",
+            ); /*what i think....where the error is  the respose is not what is expected so the details from market hub doesn't show, console error: localhost:3000/api/products/30c0bf5e-591b-4d2e-85e5-0e9cf0745b86:1  Failed to load resource: the server responded with a status of 404 (Not Found)*/
+
+          const p = await response.json();
+
+          // 3. Render
+          const imageName = (p.imageUrl || "").split("/").pop();
+          const fullImageUrl = `${BACKEND_URL}/images/${imageName}`;
+
+          document.getElementById("detailsContainer").innerHTML = `
+                    <div class="image-section">
+                        <img src="${fullImageUrl}" onerror="this.src='https://placehold.co'">
+                    </div>
+                    <div class="details-section">
+                        <span class="badge">${p.category}</span>
+                        <h1>${p.name}</h1>
+                        <p style="color: #64748b;">Sold by: <strong>${p.brandName || "Independent"}</strong></p>
+                        <div class="price">Ksh ${parseFloat(p.price).toLocaleString()}</div>
+                        <p><strong>Stock:</strong> ${p.quantity} units</p>
+                        <p><strong>Delivery:</strong> Ksh ${p.deliveryFee}</p>
+                        <button style="width: 100%; padding: 15px; background: #2563eb; color: white; border: none; border-radius: 10px; font-weight: 700; cursor: pointer;">Add to Cart</button>
+                    </div>
+                `;
+        } catch (err) {
+          document.getElementById("detailsContainer").innerHTML =
+            `Error: ${err.message}`;
+        }
+      }
+
+      function smartBack() {
+        const referrer = document.referrer;
+
+        // Check if the previous page was MyStudio
+        if (referrer.includes("onDisplay.html")) {
+          window.location.href = "onDisplay.html";
+        }
+        // Otherwise, default to Library
+        else {
+          window.location.href = "Markethub.html";
+        }
+      }
+
+      loadProductDetails();
+    </script>
+  </body>
+</html>

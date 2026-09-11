@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>E2EE Chat with Local Persistence</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        padding: 20px;
+        max-width: 600px;
+        margin: auto;
+        background: #f4f7f6;
+      }
+      .chat-container {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      #chat-box {
+        border: 1px solid #eee;
+        height: 300px;
+        overflow-y: auto;
+        padding: 15px;
+        margin: 10px 0;
+        background: #fafafa;
+        display: flex;
+        flex-direction: column;
+      }
+      .msg {
+        margin-bottom: 12px;
+        padding: 10px;
+        border-radius: 10px;
+        max-width: 80%;
+        font-size: 14px;
+      }
+      .sent {
+        background: #007bff;
+        color: white;
+        align-self: flex-end;
+      }
+      .received {
+        background: #e9ecef;
+        color: #333;
+        align-self: flex-start;
+      }
+      input,
+      textarea,
+      button {
+        padding: 12px;
+        width: 100%;
+        margin-top: 10px;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+      }
+      button {
+        background: #28a745;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="chat-container">
+      <h2>🔒 Secure Messenger</h2>
+      <div id="login-form">
+        <input type="text" id="myId" placeholder="Your User ID (u_...)" />
+        <!-- For the Connect Button -->
+        <button type="button" onclick="connect(event)">
+          Connect & Update Key
+        </button>
+      </div>
+      <div id="chat-ui" style="display: none">
+        <div id="chat-box"></div>
+        <!-- Inside <div id="chat-ui"> -->
+        <input type="text" id="targetId" placeholder="Recipient ID" />
+        <div
+          id="typing-status"
+          style="font-size: 12px; color: #666; height: 15px; margin-bottom: 5px"
+        ></div>
+
+        <textarea
+          id="message"
+          placeholder="Type an encrypted message..."
+        ></textarea>
+        <button type="button" onclick="sendEncrypted(event)">
+          Send Securely
+        </button>
+        <!-- ADD THIS BUTTON -->
+        <button
+          type="button"
+          onclick="logoutAndBurn()"
+          style="background: #dc3545; margin-top: 20px"
+        >
+          Logout & Burn Keys
+        </button>
+      </div>
+    </div>
+
+    <script>
+  let socket, myKeyPair;
+  const keyCache = {};
+  const SERVER_URL = "http://localhost:3000";
+  const DB_NAME = "E2EE_KV_Store";
+  const STORE_NAME = "keys";
+  let typingTimeout;
+
+  // --- INDEXEDDB HELPERS ---
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore(STORE_NAME);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  async function saveKey(id, key) {
+    const db = await openDB();
+    return db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).put(key, id);
+  }
+
+  async function getKey(id) {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const req = db.transaction(STORE_NAME).objectStore(STORE_NAME).get(id);
+      req.onsuccess = () => resolve(req.result);
+    });
+  }
+
+  async function deleteKeys(userId) {
+    const db = await openDB();
+    return db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).delete(`keypair_${userId}`);
+  }
+
+  // --- CRYPTO HELPERS ---
+  async function getRecipientKey(userId) {
+    if (keyCache[userId]) return keyCache[userId];
+    try {
+      const response = await fetch(`${SERVER_URL}/api/mlm/users/${userId}/public-key`);
+      if (!response.ok) throw new Error("Public key not found");
+      const data = await response.json();
+      const importedKey = await window.crypto.subtle.importKey(
+        "jwk",
+        data.publicKey,
+        { name: "ECDH", namedCurve: "P-256" },
+        true,
+        []
+      );
+      keyCache[userId] = importedKey;
+      return importedKey;
+    } catch (err) {
+      console.error("Key Fetch Error:", err);
+      return null;
+    }
+  }
+
+  async function derive(privateKey, publicKey) {
+    return await window.crypto.subtle.deriveKey(
+      { name: "ECDH", public: publicKey },
+      privateKey,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+  }
+
+  async function decryptData(encryptedB64, ivArray, senderPubKey) {
+    try {
+      const shared = await derive(myKeyPair.privateKey, senderPubKey);
+      const encryptedBuffer = Uint8Array.from(atob(encryptedB64), (c) => c.charCodeAt(0));
+      const decrypted = await window.crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: new Uint8Array(ivArray) },
+        shared,
+        encryptedBuffer
+      );
+      return new TextDecoder().decode(decrypted);
+    } catch (e) {
+      console.warn("Decryption failed:", e.message);
+      return "[Decryption Error: Key mismatch]";
+    }
+  }
+
+  // --- UI HELPERS ---
+  function renderMessage(sender, text, type) {
+    const box = document.getElementById("chat-box");
+    const div = document.createElement("div");
+    div.className = `msg ${type}`;
+    div.innerText = `${sender}: ${text}`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // --- CORE CHAT LOGIC ---
+  async function connect(event) {
+    if (event) event.preventDefault();
+    const userId = document.getElementById("myId").value.trim();
+    if (!userId) return alert("Enter your User ID");
+
+    // 1. Key Logic
+    let existingKey = await getKey(`keypair_${userId}`);
+    if (existingKey) {
+      myKeyPair = existingKey;
+    } else {
+      myKeyPair = await window.crypto.subtle.generateKey(
+        { name: "ECDH", namedCurve: "P-256" },
+        true,
+        ["deriveKey"]
+      );
+      await saveKey(`keypair_${userId}`, myKeyPair);
+    }
+
+    const pubJWK = await window.crypto.subtle.exportKey("jwk", myKeyPair.publicKey);
+
+    // 2. Server Registration
+    await fetch(`${SERVER_URL}/api/mlm/users/update-key`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, publicKey: pubJWK }),
+    });
+
+    // 3. Initialize Socket
+    socket = io(SERVER_URL, { transports: ["websocket"] });
+    socket.emit("join_inbox", userId);
+
+    // 4. LOAD LISTENERS (Moved here to fix the 'undefined' error)
+    socket.on("new_message", async (data) => {
+      const senderPubKey = await getRecipientKey(data.from);
+      if (senderPubKey) {
+        const decrypted = await decryptData(data.content, data.iv, senderPubKey);
+        renderMessage(data.from, decrypted, "received");
+      }
+    });
+
+    socket.on("user_typing", (data) => {
+      const statusDiv = document.getElementById("typing-status");
+      if (statusDiv) {
+        statusDiv.innerText = data.isTyping ? `${data.from} is typing...` : "";
+      }
+    });
+
+    // Handle Local Typing Input
+    document.getElementById("message").addEventListener("input", () => {
+      const targetId = document.getElementById("targetId").value.trim();
+      if (!targetId || !socket) return;
+
+      socket.emit("typing", {
+        recipientId: targetId,
+        senderId: userId,
+        isTyping: true,
+      });
+
+      clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => {
+        socket.emit("typing", {
+          recipientId: targetId,
+          senderId: userId,
+          isTyping: false,
+        });
+      }, 3000);
+    });
+
+    // 5. UI Setup
+    await loadHistory(userId);
+    document.getElementById("login-form").style.display = "none";
+    document.getElementById("chat-ui").style.display = "block";
+  }
+
+  async function loadHistory(userId) {
+    try {
+      const res = await fetch(`${SERVER_URL}/api/messaging/history/${userId}`);
+      if (!res.ok) return;
+      const history = await res.json();
+      document.getElementById("chat-box").innerHTML = "";
+
+      for (const msg of history) {
+        const isSent = msg.senderId === userId;
+        const partnerId = isSent ? msg.recipientId : msg.senderId;
+        const partnerKey = await getRecipientKey(partnerId);
+
+        const content = partnerKey
+          ? await decryptData(msg.encryptedBlob || msg.content, msg.iv, partnerKey)
+          : "[Partner Key Missing]";
+
+        renderMessage(msg.senderId, content, isSent ? "sent" : "received");
+      }
+    } catch (err) {
+      console.error("History error:", err);
+    }
+  }
+
+  async function sendEncrypted(event) {
+    if (event) event.preventDefault();
+    const targetId = document.getElementById("targetId").value.trim();
+    const text = document.getElementById("message").value;
+    const myId = document.getElementById("myId").value;
+
+    const recipientPubKey = await getRecipientKey(targetId);
+    if (!recipientPubKey) return alert("Recipient not found!");
+
+    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const sharedKey = await derive(myKeyPair.privateKey, recipientPubKey);
+    const encrypted = await window.crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      sharedKey,
+      new TextEncoder().encode(text)
+    );
+
+    socket.emit("send_encrypted_msg", {
+      recipientId: targetId,
+      senderId: myId,
+      encryptedBlob: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
+      iv: Array.from(iv),
+    });
+
+    renderMessage("Me", text, "sent");
+    document.getElementById("message").value = "";
+  }
+
+  async function logoutAndBurn() {
+    const userId = document.getElementById("myId").value;
+    await deleteKeys(userId);
+    location.reload();
+  }
+</script>
+
+  </body>
+</html>

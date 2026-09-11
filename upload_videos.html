@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CloudStream | Video Upload</title>
+    <style>
+      :root {
+        --primary: #3b82f6;
+        --primary-hover: #2563eb;
+        --bg: #0f172a;
+        --card: #1e293b;
+        --text: #f8fafc;
+        --border: #334155;
+      }
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+      }
+      .upload-container {
+        background: var(--card);
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        width: 100%;
+        max-width: 450px;
+        border: 1px solid var(--border);
+      }
+      h2 {
+        margin-top: 0;
+        font-weight: 700;
+        color: white;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .form-group {
+        margin-bottom: 1.25rem;
+      }
+      label {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: #94a3b8;
+      }
+      input {
+        width: 100%;
+        padding: 10px 12px;
+        background: #0f172a;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: white;
+        box-sizing: border-box;
+        transition: border-color 0.2s;
+      }
+      input:focus {
+        outline: none;
+        border-color: var(--primary);
+      }
+      button {
+        width: 100%;
+        padding: 12px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      button:hover {
+        background: var(--primary-hover);
+      }
+      button:disabled {
+        background: #475569;
+        cursor: not-allowed;
+      }
+
+      /* Progress Bar Styles */
+      .progress-wrapper {
+        display: none;
+        margin-top: 1.5rem;
+      }
+      .progress-info {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        margin-bottom: 0.5rem;
+      }
+      .progress-bar-bg {
+        background: #0f172a;
+        height: 8px;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .progress-bar-fill {
+        background: var(--primary);
+        width: 0%;
+        height: 100%;
+        transition: width 0.1s linear;
+      }
+
+      pre {
+        margin-top: 1.5rem;
+        background: #020617;
+        padding: 12px;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        color: #38bdf8;
+        overflow-x: auto;
+        border: 1px solid var(--border);
+      }
+      .back-link {
+        display: block;
+        text-align: center;
+        margin-top: 1rem;
+        color: #94a3b8;
+        font-size: 0.85rem;
+        text-decoration: none;
+      }
+      .back-link:hover {
+        color: white;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="upload-container">
+      <h2><span>🎬</span> Upload Video</h2>
+
+      <form id="uploadForm">
+        <!-- <div class="form-group">
+          <label>User ID</label>
+          <input
+            type="text"
+            id="userId"
+            placeholder="Enter uploader ID"
+            required
+          />
+        </div> -->
+
+        <div class="form-group">
+          <label>Video File</label>
+          <input type="file" id="video" accept="video/*" required />
+        </div>
+
+        <div class="form-group">
+          <label>Title</label>
+          <input type="text" id="title" placeholder="Give your video a name" />
+        </div>
+
+        <div class="form-group">
+          <label>Tags</label>
+          <input type="text" id="tags" placeholder="music, amapiano, live" />
+        </div>
+
+        <button type="submit" id="submitBtn">Start Upload</button>
+      </form>
+
+      <div class="progress-wrapper" id="progressWrapper">
+        <div class="progress-info">
+          <span id="statusText">Uploading...</span>
+          <span id="percentText">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progressBar"></div>
+        </div>
+      </div>
+
+      <pre id="output" style="display: none"></pre>
+
+      <a href="./details.html" class="back-link">← Back to Home</a>
+    </div>
+
+    <script>
+      const form = document.getElementById("uploadForm");
+      const output = document.getElementById("output");
+      const submitBtn = document.getElementById("submitBtn");
+      const progressWrapper = document.getElementById("progressWrapper");
+      const progressBar = document.getElementById("progressBar");
+      const percentText = document.getElementById("percentText");
+      const statusText = document.getElementById("statusText");
+
+      /**
+       * 1. GET USER ID FROM LOCALSTORAGE
+       * Safely extracts the logged-in user's ID
+       */
+      function getLoggedUserId() {
+        const userStr = localStorage.getItem("mlm_user");
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr);
+            return user.id || user._id;
+          } catch (e) {
+            console.error("Error parsing user from localStorage", e);
+            return null;
+          }
+        }
+        return null;
+      }
+
+      /**
+       * 2. SECURITY CHECK
+       * Immediately redirect if no user is found in session
+       */
+      const currentUserId = getLoggedUserId();
+      if (!currentUserId) {
+        alert("⚠️ Please login first to upload videos.");
+        window.location.href = "login.html";
+      }
+
+      /**
+       * 3. SUBMIT HANDLER
+       */
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const videoInput = document.getElementById("video");
+        const videoFile = videoInput.files[0]; // Fix: added [0] index for file object
+
+        if (!videoFile) return alert("Please select a video file");
+
+        // Fetch fresh ID from storage for the request
+        const userId = getLoggedUserId();
+        if (!userId) return alert("Session expired. Please log in again.");
+
+        // Prepare Multipart Data
+        const formData = new FormData();
+        formData.append("userId", userId);
+        formData.append(
+          "title",
+          document.getElementById("title").value || videoFile.name,
+        );
+        formData.append("tags", document.getElementById("tags").value);
+        formData.append("video", videoFile);
+
+        // Update UI State
+        submitBtn.disabled = true;
+        progressWrapper.style.display = "block";
+        output.style.display = "none";
+        progressBar.style.width = "0%";
+        percentText.innerText = "0%";
+        statusText.innerText = "Connecting to server...";
+
+        const xhr = new XMLHttpRequest();
+
+        // Track Progress
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            progressBar.style.width = percent + "%";
+            percentText.innerText = percent + "%";
+
+            if (percent === 100) {
+              statusText.innerText = "Saving to cloud & processing...";
+            } else {
+              statusText.innerText = `Uploading: ${percent}%`;
+            }
+          }
+        });
+
+        // Handle Response
+        xhr.onload = () => {
+          output.style.display = "block";
+          submitBtn.disabled = false;
+
+          try {
+            const response = JSON.parse(xhr.responseText);
+            if (xhr.status >= 200 && xhr.status < 300) {
+              statusText.innerText = "✅ Upload Successful!";
+              output.innerHTML = `<strong>Success!</strong> Video is now processing.<br>Video ID: ${response.videoId}`;
+              form.reset(); // Clear form on success
+            } else {
+              statusText.innerText = "❌ Upload Failed";
+              output.innerHTML =
+                "Error: " + (response.error || "Unknown server error");
+            }
+          } catch (err) {
+            output.innerHTML = "Server returned an invalid response.";
+          }
+        };
+
+        // Handle Network Errors
+        xhr.onerror = () => {
+          statusText.innerText = "❌ Network Error";
+          submitBtn.disabled = false;
+        };
+
+        // Send Request
+        xhr.open("POST", "http://localhost:3000/api/videos");
+
+        // Add Token if your route is protected by JWT
+        const token = localStorage.getItem("mlm_token");
+        if (token) {
+          xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        }
+
+        xhr.send(formData);
+      });
+    </script>
+  </body>
+</html>

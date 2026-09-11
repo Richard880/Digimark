@@ -1,0 +1,11 @@
+# Local Dependencies
+node_modules/
+dist/
+build/
+.env
+.env.local
+
+# Firebase & OS logs
+.firebase/
+.firebaserc
+.DS_Store

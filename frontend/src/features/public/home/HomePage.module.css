@@ -1,0 +1,352 @@
+/* ==========================================================================
+   Structural Page Reset & Base Colors
+   ========================================================================== */
+.landing-shell {
+  background-color: #f1f6f0; /* Perfect light matcha cream background */
+  min-height: 100vh;
+  color: #2d3a2e;
+  font-family: system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  padding-top: 1.5rem; /* Reserves space for floating navbar */
+}
+
+/* ==========================================================================
+   Scenic Above-The-Fold Hero Canvas
+   ========================================================================== */
+.hero-canvas {
+  position: relative;
+  width: calc(100% - 3rem);
+  max-width: 1280px;
+  height: 520px;
+  margin: 0 auto;
+  padding: 4rem 4rem 6rem 4rem;
+  box-sizing: border-box;
+  background-size: cover;
+  background-position: center 65%;
+  display: flex;
+  align-items: center;
+  border-radius: 32px; /* Generous soft curvature mirroring the image */
+  overflow: visible; /* Allows the lower capsule to break out safely */
+}
+
+.hero-canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(15, 30, 15, 0.5) 0%, rgba(15, 23, 42, 0.1) 100%);
+  z-index: 1;
+  border-radius: 32px;
+}
+
+.hero-content {
+  position: relative;
+  z-index: 5;
+  color: #ffffff;
+  max-width: 580px;
+}
+
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(46, 125, 50, 0.4);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 0.4rem 1rem;
+  border-radius: 100px;
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 1.25rem;
+}
+
+.hero-headline {
+  font-size: 3.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin: 0 0 1rem 0;
+}
+
+.hero-subtext {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.6;
+  margin: 0 0 1.75rem 0;
+  font-weight: 400;
+}
+
+.hero-btn {
+  background-color: #2e7d32; /* Rich Forest Green */
+  color: #ffffff;
+  border: none;
+  padding: 0.75rem 1.75rem;
+  border-radius: 100px;
+  font-size: 0.825rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, background-color 0.2s ease;
+}
+
+.hero-btn:hover {
+  background-color: #1b5e20;
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   🎯 THE FLOATING CAPSULE BAR: Exact Match with Split Dividers
+   ========================================================================== */
+.capsule-dock-bar {
+  position: absolute;
+  bottom: -36px; /* Hangs seamlessly below the bottom hero arc */
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 6rem);
+  max-width: 860px;
+  z-index: 20;
+  background-color: #b9d7b4; /* Perfectly matched light sage border framing */
+  padding: 0.65rem;
+  border-radius: 100px;
+  box-sizing: border-box;
+}
+
+.capsule-inner-split {
+  background-color: #ffffff;
+  border-radius: 100px;
+  padding: 0.35rem 0.35rem 0.35rem 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.input-split-zone {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.capsule-input-mesh {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.capsule-input-mesh input {
+  width: 100%;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  font-size: 0.875rem;
+  color: #2d3a2e;
+}
+
+.track-divider {
+  width: 1px;
+  height: 24px;
+  background-color: #e0e6df;
+  margin: 0 1.25rem;
+}
+
+.capsule-action-btn {
+  background-color: #2e7d32;
+  color: #ffffff;
+  border: none;
+  padding: 0.85rem 2.25rem;
+  border-radius: 100px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.capsule-action-btn:hover {
+  background-color: #1b5e20;
+}
+
+/* ==========================================================================
+   Asymmetrical Split Info Panel (Welcome Row)
+   ========================================================================== */
+.intro-section {
+  max-width: 1160px;
+  margin: 9rem auto 5rem auto;
+  padding: 0 2rem;
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 5rem;
+  align-items: center;
+}
+
+.intro-graphic-frame {
+  position: relative;
+  border-radius: 28px;
+  overflow: visible;
+  aspect-ratio: 4/3;
+}
+
+.intro-graphic-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 28px;
+  box-shadow: 0 12px 32px rgba(45, 58, 46, 0.06);
+}
+
+.intro-badge-icon {
+  position: absolute;
+  top: -16px;
+  left: -16px;
+  width: 48px;
+  height: 48px;
+  background-color: #2e7d32;
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(46, 125, 50, 0.25);
+  z-index: 10;
+}
+
+.intro-text-pane {
+  text-align: left;
+}
+
+.intro-headline {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #1b261c;
+  margin: 0 0 1.25rem 0;
+}
+
+.intro-paragraph {
+  font-size: 0.95rem;
+  color: #556356;
+  line-height: 1.7;
+  margin: 0 0 2rem 0;
+}
+
+/* ==========================================================================
+   Catalog Product Grid Section
+   ========================================================================== */
+.catalog-outer {
+  max-width: 1200px;
+  margin: 6rem auto;
+  padding: 0 2rem;
+  text-align: center;
+}
+
+.catalog-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #1b261c;
+  margin-bottom: 3.5rem;
+}
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2.5rem;
+}
+
+.product-card {
+  background-color: #ffffff;
+  border-radius: 28px;
+  overflow: hidden;
+  border: 1px solid #e5ebe4;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 35px rgba(45, 58, 46, 0.06);
+  border-color: #b9d7b4;
+}
+
+.card-img-wrapper {
+  aspect-ratio: 1.35;
+  width: 100%;
+  overflow: hidden;
+}
+
+.card-img-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card-body {
+  padding: 1.75rem;
+  text-align: left;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.card-header-row h4 {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #1b261c;
+  margin: 0 0 0.5rem 0;
+}
+
+.card-desc {
+  font-size: 0.85rem;
+  color: #6c7e6d;
+  line-height: 1.6;
+  margin: 0 0 1.75rem 0;
+}
+
+.card-footer-btn {
+  width: 100%;
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+  padding: 0.75rem;
+  border-radius: 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.card-footer-btn:hover {
+  background-color: #2e7d32;
+  border-color: #2e7d32;
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   Responsive Collapse System
+   ========================================================================== */
+@media (max-width: 992px) {
+  .intro-section {
+    grid-template-columns: 1fr;
+    gap: 3rem;
+    margin-top: 12rem;
+  }
+  .hero-canvas {
+    width: calc(100% - 1.5rem);
+    height: auto;
+    padding: 4rem 2rem 6rem 2rem;
+  }
+  .hero-headline {
+    font-size: 2.5rem;
+  }
+  .capsule-dock-bar {
+    width: calc(100% - 2rem);
+    bottom: -60px;
+  }
+  .capsule-inner-split {
+    flex-direction: column;
+    border-radius: 24px;
+    padding: 1.25rem;
+    gap: 1rem;
+  }
+  .track-divider { display: none; }
+  .input-split-zone { width: 100%; flex-direction: column; gap: 0.75rem; }
+  .capsule-action-btn { width: 100%; }
+}

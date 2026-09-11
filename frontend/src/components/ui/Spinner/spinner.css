@@ -1,0 +1,86 @@
+/* ==========================================================
+   WEMPA UI Library
+   Spinner Component
+========================================================== */
+
+.wempa-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wempa-spinner-circle {
+  border-style: solid;
+  border-radius: 50%;
+  animation: wempa-spin 0.8s linear infinite;
+}
+
+/* Sizes */
+
+.wempa-spinner-sm .wempa-spinner-circle {
+  width: 1rem;
+  height: 1rem;
+  border-width: 2px;
+}
+
+.wempa-spinner-md .wempa-spinner-circle {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-width: 3px;
+}
+
+.wempa-spinner-lg .wempa-spinner-circle {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-width: 4px;
+}
+
+/* Variants */
+
+.wempa-spinner-primary .wempa-spinner-circle {
+  border-color: var(--color-primary);
+  border-top-color: transparent;
+}
+
+.wempa-spinner-secondary .wempa-spinner-circle {
+  border-color: var(--color-secondary);
+  border-top-color: transparent;
+}
+
+.wempa-spinner-success .wempa-spinner-circle {
+  border-color: var(--color-success);
+  border-top-color: transparent;
+}
+
+.wempa-spinner-danger .wempa-spinner-circle {
+  border-color: var(--color-danger);
+  border-top-color: transparent;
+}
+
+.wempa-spinner-warning .wempa-spinner-circle {
+  border-color: var(--color-warning);
+  border-top-color: transparent;
+}
+
+.wempa-spinner-info .wempa-spinner-circle {
+  border-color: var(--color-info);
+  border-top-color: transparent;
+}
+
+.wempa-spinner-light .wempa-spinner-circle {
+  border-color: var(--color-light);
+  border-top-color: transparent;
+}
+
+.wempa-spinner-dark .wempa-spinner-circle {
+  border-color: var(--color-dark);
+  border-top-color: transparent;
+}
+
+/* Animation */
+
+@keyframes wempa-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MLM Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com" rel="stylesheet" />
+    <style>
+      .glass {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+      }
+      #out::-webkit-scrollbar {
+        width: 8px;
+      }
+      #out::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+  <body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
+    <!-- Auth Overlay -->
+    <div
+      id="auth-screen"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm"
+    >
+      <div
+        class="glass p-8 rounded-2xl shadow-2xl w-full max-w-md border border-white mx-4"
+      >
+        <div class="flex justify-between items-center mb-6">
+          <h2 id="auth-title" class="text-2xl font-bold text-indigo-600">
+            Register Account
+          </h2>
+          <button
+            onclick="toggleAuth()"
+            id="auth-toggle"
+            class="text-sm text-slate-500 hover:text-indigo-500 font-semibold underline"
+          >
+            Switch to Login
+          </button>
+        </div>
+
+        <!-- Registration Form -->
+        <div id="reg-fields" class="space-y-3">
+          <!-- Profile Image Input -->
+          <div
+            class="flex items-center gap-4 mb-4 p-2 bg-indigo-50 rounded-xl border border-indigo-100"
+          >
+            <div
+              id="preview-container"
+              class="w-14 h-14 rounded-full bg-white border-2 border-indigo-200 flex items-center justify-center overflow-hidden shrink-0"
+            >
+              <span id="img-placeholder" class="text-indigo-300 text-xl"
+                ><i class="fa-solid fa-user"></i
+              ></span>
+              <img id="img-preview" class="hidden w-full h-full object-cover" />
+            </div>
+            <div class="flex-1">
+              <label
+                class="block text-[10px] font-bold text-indigo-500 uppercase mb-1"
+                >Profile Photo</label
+              >
+              <input
+                id="profile-img"
+                type="file"
+                accept="image/*"
+                class="block w-full text-xs text-slate-500 file:mr-3 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
+              />
+            </div>
+          </div>
+
+          <input
+            id="name"
+            type="text"
+            placeholder="Full Name"
+            class="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none text-sm"
+          />
+          <input
+            id="email"
+            type="email"
+            placeholder="Email Address"
+            class="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none text-sm"
+          />
+          <div class="grid grid-cols-2 gap-3">
+            <input
+              id="phone"
+              type="text"
+              placeholder="Phone"
+              class="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none text-sm"
+            />
+            <select
+              id="gender"
+              class="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none text-sm"
+            >
+              <option value="">Gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+          <input
+            id="pass"
+            type="password"
+            placeholder="Password"
+            class="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none text-sm"
+          />
+          <input
+            id="confirmPass"
+            type="password"
+            placeholder="Confirm Password"
+            class="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none text-sm"
+          />
+          <input
+            id="sponsor"
+            type="text"
+            placeholder="Sponsor ID (Optional)"
+            class="w-full px-4 py-2.5 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none text-sm"
+          />
+        </div>
+
+        <!-- Login Form -->
+        <div id="login-fields" class="hidden space-y-4">
+          <input
+            id="login-email"
+            type="email"
+            placeholder="Email Address"
+            class="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none"
+          />
+          <input
+            id="login-pass"
+            type="password"
+            placeholder="Password"
+            class="w-full px-4 py-3 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-400 outline-none"
+          />
+        </div>
+
+        <button
+          onclick="handleAuth()"
+          class="w-full mt-6 bg-indigo-600 text-white font-semibold py-3 rounded-lg hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition active:scale-95"
+        >
+          Continue
+        </button>
+      </div>
+    </div>
+
+    <!-- Updated Main Dashboard Header -->
+    <header
+      class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4"
+    >
+      <div class="flex items-center gap-4">
+        <!-- Live Profile Image Circle -->
+        <div
+          id="header-avatar"
+          class="w-14 h-14 rounded-full bg-white border-2 border-indigo-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0"
+        >
+          <i class="fa-solid fa-user text-slate-300"></i>
+        </div>
+        <div>
+          <h1 class="text-3xl font-extrabold text-slate-900">MLM Dashboard</h1>
+          <p id="user-display" class="text-slate-500">Checking session...</p>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button
+          onclick="logout()"
+          class="px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg"
+        >
+          Logout
+        </button>
+        <a
+          href="./advideos.html"
+          class="px-4 py-2 bg-white border border-slate-200 rounded-lg shadow-sm hover:bg-slate-50 text-sm font-semibold flex items-center gap-2"
+        >
+          <i class="fa-solid fa-house"></i> Home
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Dashboard -->
+    <div class="max-w-6xl mx-auto p-6">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <aside class="lg:col-span-4 space-y-4">
+          <div
+            class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100"
+          >
+            <h3
+              class="font-bold text-slate-400 text-xs uppercase tracking-wider mb-4"
+            >
+              Account Actions
+            </h3>
+            <nav class="space-y-2">
+              <button
+                onclick="showTree()"
+                class="w-full text-left px-4 py-3 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition flex items-center gap-3"
+              >
+                <i class="fa-solid fa-sitemap"></i> Network Tree
+              </button>
+              <button
+                onclick="suggest()"
+                class="w-full text-left px-4 py-3 rounded-xl hover:bg-indigo-50 hover:text-indigo-700 transition flex items-center gap-3"
+              >
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Suggest Slots
+              </button>
+              <button
+                onclick="commissions()"
+                class="w-full text-left px-4 py-3 rounded-xl hover:bg-emerald-50 hover:text-emerald-700 transition flex items-center gap-3"
+              >
+                <i class="fa-solid fa-coins"></i> Commissions
+              </button>
+              <button
+                onclick="activate()"
+                class="w-full text-left px-4 py-3 rounded-xl hover:bg-slate-100 transition flex items-center gap-3"
+              >
+                <i class="fa-solid fa-power-off"></i> Toggle Status
+              </button>
+              <button
+                onclick="upgrade()"
+                class="w-full text-left px-4 py-3 rounded-xl hover:bg-amber-50 hover:text-amber-700 transition flex items-center gap-3"
+              >
+                <i class="fa-solid fa-up-long"></i> Upgrade User
+              </button>
+            </nav>
+          </div>
+        </aside>
+
+        <main class="lg:col-span-8">
+          <div
+            class="bg-slate-900 rounded-2xl shadow-xl overflow-hidden h-[500px] flex flex-col"
+          >
+            <div
+              class="bg-slate-800 px-4 py-2 flex items-center justify-between"
+            >
+              <div class="flex gap-1.5">
+                <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                <div class="w-3 h-3 rounded-full bg-amber-500"></div>
+                <div class="w-3 h-3 rounded-full bg-emerald-500"></div>
+              </div>
+              <span class="text-[10px] text-slate-500 font-mono uppercase"
+                >API Response</span
+              >
+            </div>
+            <pre
+              id="out"
+              class="p-6 text-emerald-400 font-mono text-sm overflow-auto h-full"
+            >
+Ready.</pre
+            >
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <script>
+      const API = "http://localhost:3000/api/mlm";
+      const out = document.getElementById("out");
+      let isLogin = false;
+
+      function toggleAuth() {
+        isLogin = !isLogin;
+        document.getElementById("auth-title").innerText = isLogin
+          ? "Login"
+          : "Register Account";
+        document.getElementById("auth-toggle").innerText = isLogin
+          ? "Switch to Register"
+          : "Switch to Login";
+        document
+          .getElementById("reg-fields")
+          .classList.toggle("hidden", isLogin);
+        document
+          .getElementById("login-fields")
+          .classList.toggle("hidden", !isLogin);
+      }
+
+      let base64Image = "";
+
+      // Handle Image Preview and Conversion
+      document
+        .getElementById("profile-img")
+        .addEventListener("change", function (e) {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = function (event) {
+              base64Image = event.target.result;
+              const preview = document.getElementById("img-preview");
+              const placeholder = document.getElementById("img-placeholder");
+              preview.src = base64Image;
+              preview.classList.remove("hidden");
+              placeholder.classList.add("hidden");
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+
+      async function handleAuth() {
+        if (isLogin) {
+          // LOGIN LOGIC
+          const email = document.getElementById("login-email").value;
+          const password = document.getElementById("login-pass").value;
+
+          try {
+            const res = await fetch(`${API}/login`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email, password }),
+            });
+            const user = await res.json();
+            if (user.id) loginSuccess(user);
+          } catch (e) {
+            alert("Login failed");
+          }
+        } else {
+          // REGISTRATION LOGIC
+          const userData = {
+            name: document.getElementById("name").value,
+            email: document.getElementById("email").value,
+            phone: document.getElementById("phone").value,
+            gender: document.getElementById("gender").value,
+            password: document.getElementById("pass").value,
+            confirmPassword: document.getElementById("confirmPass").value,
+            sponsor: document.getElementById("sponsor").value,
+            profilePic: base64Image, // This sends the image to the DB
+          };
+
+          try {
+            const res = await fetch(`${API}/register`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(userData),
+            });
+            const result = await res.json();
+            if (result.id) loginSuccess(result);
+          } catch (e) {
+            alert("Registration failed");
+          }
+        }
+      }
+
+      function processAuthResponse(j) {
+        if (j.error) {
+          out.textContent = "Error: " + JSON.stringify(j, null, 2);
+          alert(j.error);
+        } else {
+          localStorage.setItem("mlm_token", j.token);
+          localStorage.setItem("mlm_user", JSON.stringify(j.user));
+          checkSession();
+        }
+      }
+
+      function checkSession() {
+        const userStr = localStorage.getItem("mlm_user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          document.getElementById("auth-screen").classList.add("hidden");
+          document.getElementById("user-display").innerHTML =
+            `Welcome, <span class="font-bold text-indigo-600">${user.name}</span> (${user.id})`;
+        }
+      }
+
+      function logout() {
+        localStorage.clear();
+        location.reload();
+      }
+
+      // --- Secured API Actions ---
+      const getHeaders = () => ({
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("mlm_token")}`,
+      });
+
+      async function showTree() {
+        const user = JSON.parse(localStorage.getItem("mlm_user"));
+        const id = prompt("User ID to inspect:", user.id);
+        if (!id) return;
+        const r = await fetch(`${API}/user/${id}/tree`, {
+          headers: getHeaders(),
+        });
+        out.textContent = JSON.stringify(await r.json(), null, 2);
+      }
+
+      async function suggest() {
+        const user = JSON.parse(localStorage.getItem("mlm_user"));
+        const r = await fetch(`${API}/user/${user.id}/suggest`, {
+          headers: getHeaders(),
+        });
+        out.textContent = JSON.stringify(await r.json(), null, 2);
+      }
+
+      async function activate() {
+        const id = prompt("Enter User ID to toggle status:");
+        if (!id) return;
+        const r = await fetch(`${API}/user/${id}/activate`, {
+          method: "POST",
+          headers: getHeaders(),
+          body: JSON.stringify({ active: true }),
+        });
+        out.textContent = JSON.stringify(await r.json(), null, 2);
+      }
+
+      async function upgrade() {
+        const id = prompt("Target User ID to upgrade:");
+        const user = JSON.parse(localStorage.getItem("mlm_user"));
+        if (!id) return;
+
+        const r = await fetch(`${API}/user/${id}/upgrade`, {
+          method: "POST",
+          headers: getHeaders(),
+          body: JSON.stringify({ sponsorId: user.id }),
+        });
+        out.textContent = JSON.stringify(await r.json(), null, 2);
+      }
+
+      function loginSuccess(user) {
+        localStorage.setItem("mlm_user", JSON.stringify(user));
+
+        // Hide the auth screen
+        const authScreen = document.getElementById("auth-screen");
+        if (authScreen) authScreen.classList.add("hidden");
+
+        // Update the name display
+        const userDisplay = document.getElementById("user-display");
+        if (userDisplay) userDisplay.innerText = `Welcome back, ${user.name}`;
+
+        // Update the profile image from the server's unique ID
+        const avatar = document.getElementById("header-avatar");
+        if (avatar && user.profilePic) {
+          avatar.innerHTML = `<img src="http://localhost:3000/uploads/${user.profilePic}" class="w-full h-full object-cover">`;
+        }
+      }
+
+      // Replace whatever is at the bottom of your script with this:
+      window.onload = () => {
+        const userStr = localStorage.getItem("mlm_user");
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr);
+            // Instead of checkSession, we use our loginSuccess function
+            loginSuccess(user);
+          } catch (e) {
+            console.error("Session restoration failed", e);
+            localStorage.removeItem("mlm_user");
+          }
+        }
+      };
+    </script>
+  </body>
+</html>

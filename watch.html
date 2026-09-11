@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StreamNet | Premium Cinema</title>
+    
+  
+    <!-- 2. Load Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+      body {
+        background: radial-gradient(circle at top, #1e1b4b, #020617);
+        color: white;
+        font-family: "Inter", sans-serif;
+      }
+      .glass {
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .lvl-1 { border: 3px solid #ef4444; box-shadow: 0 0 10px #ef4444; }
+      .lvl-2 { border: 3px solid #22c55e; box-shadow: 0 0 10px #22c55e; }
+      .lvl-3 { border: 3px solid #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+      .lvl-4 { border: 3px solid #fbbf24; box-shadow: 0 0 15px #fbbf24; }
+      video::backdrop { background: black; }
+      #playerContainer:hover #videoControls { opacity: 1; }
+      #progressBar { transition: width 0.1s linear; }
+      input[type="range"] { cursor: pointer; }
+    </style>
+</head>
+
+  <body class="min-h-screen">
+    <!-- Navigation Bar -->
+    <nav
+      class="p-4 border-b border-white/10 flex justify-between items-center glass sticky top-0 z-50"
+    >
+    <div class="flex items-center gap-4">
+      <!-- Smart Back Button -->
+      <button onclick="smartBack()" class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition text-slate-300 hover:text-white group">
+          <svg class="w-5 h-5 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+          <span class="text-sm font-bold">Back</span>
+      </button>
+  
+      <h1 class="text-2xl font-black text-red-600 tracking-tighter cursor-pointer" onclick="location.href = 'library.html'">
+        STREAMNET
+      </h1>
+    </div>
+      <div class="flex items-center gap-4">
+        <div id="navUser" class="text-sm font-medium text-slate-300"></div>
+        <div
+          class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center font-bold"
+        >
+          ?
+        </div>
+      </div>
+    </nav>
+
+    <main
+      class="max-w-7xl mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-3 gap-8"
+    >
+      <!-- LEFT COLUMN: PLAYER & INFO -->
+      <div class="lg:col-span-2 space-y-6">
+        <!-- Video Stage -->
+        <!-- THE PLAYER STAGE -->
+        <div
+          class="relative group rounded-3xl overflow-hidden shadow-2xl bg-black border border-white/5 aspect-video"
+          id="playerContainer"
+        >
+          <!-- Removed 'controls' attribute -->
+          <!-- Change this in your HTML -->
+          <video
+            id="video"
+            class="w-full h-full"
+            crossorigin="anonymous"
+          ></video>
+
+          <!-- CUSTOM CONTROLS OVERLAY -->
+          <div
+            id="videoControls"
+            class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col gap-3"
+          >
+            <!-- Progress Bar -->
+            <div
+              class="relative w-full h-1.5 bg-white/20 rounded-full overflow-hidden cursor-pointer"
+              id="progressArea"
+            >
+              <div
+                id="progressBar"
+                class="absolute top-0 left-0 h-full bg-red-600 w-0"
+              ></div>
+            </div>
+
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-6">
+                <!-- Play/Pause -->
+                <button id="playBtn" class="hover:scale-110 transition">
+                  <svg
+                    class="w-6 h-6 fill-white"
+                    viewBox="0 0 24 24"
+                    id="playIcon"
+                  >
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </button>
+
+                <!-- Volume -->
+                <div class="flex items-center gap-2 group/vol">
+                  <button id="muteBtn">
+                    <svg
+                      class="w-5 h-5 fill-white"
+                      viewBox="0 0 24 24"
+                      id="volIcon"
+                    >
+                      <path
+                        d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"
+                      />
+                    </svg>
+                  </button>
+                  <input
+                    type="range"
+                    id="volumeSlider"
+                    class="w-0 group-hover/vol:w-20 transition-all accent-white cursor-pointer"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value="1"
+                  />
+                </div>
+
+                <!-- Time display -->
+                <span class="text-xs font-mono text-slate-300"
+                  ><span id="currTime">0:00</span> /
+                  <span id="durTime">0:00</span></span
+                >
+              </div>
+
+              <div class="flex items-center gap-4">
+                <!-- Quality (Moved inside controls) -->
+                <select
+                  id="resSelect"
+                  class="bg-transparent text-[10px] font-bold border border-white/20 rounded px-2 py-0.5 outline-none text-white uppercase"
+                ></select>
+
+                <!-- Fullscreen -->
+                <button id="fullScreenBtn">
+                  <svg class="w-5 h-5 fill-white" viewBox="0 0 24 24">
+                    <path
+                      d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Video Header -->
+        <div class="glass p-6 rounded-3xl space-y-4">
+          <div class="flex justify-between items-start">
+            <div>
+              <h1
+                id="playingTitle"
+                class="text-2xl font-bold tracking-tight text-white uppercase"
+              >
+                Loading...
+              </h1>
+              <div class="flex gap-2 mt-2" id="playingTags"></div>
+            </div>
+            <div class="text-right text-slate-400">
+              <div class="text-xl font-bold text-white">
+                4.8 <span class="text-amber-400 text-sm">★</span>
+              </div>
+              <div class="text-xs">1.2k Ratings</div>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-6 py-4 border-y border-white/10">
+            <div class="flex items-center gap-1 text-slate-400 text-sm">
+              <span class="text-indigo-400 font-bold">128k</span> Views
+            </div>
+            <div class="flex items-center gap-1 text-slate-400 text-sm">
+              <span class="text-indigo-400 font-bold">2.4k</span> Reviews
+            </div>
+          </div>
+
+          <!-- Uploader Profile -->
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <div
+                id="uploaderAvatar"
+                class="w-14 h-14 rounded-full overflow-hidden flex items-center justify-center bg-slate-800 transition-all duration-500"
+              >
+                <!-- Placeholder Initials if no image -->
+                <span class="text-xl font-bold" id="uploaderInitial">U</span>
+              </div>
+              <div>
+                <h4 id="uploaderName" class="font-bold text-white text-lg">
+                  Uploader Name
+                </h4>
+                <p class="text-slate-400 text-xs">
+                  Level <span id="uploaderLevel">1</span> Partner
+                </p>
+              </div>
+            </div>
+            <button
+              class="bg-white text-black px-6 py-2 rounded-full font-bold hover:bg-indigo-500 hover:text-white transition shadow-lg"
+              onclick="this.innerText = 'Connected!'"
+            >
+              Connect
+            </button>
+          </div>
+        </div>
+
+        <!-- Comments Preview -->
+        <div class="glass p-6 rounded-3xl">
+          <h3 class="font-bold mb-4 flex justify-between">
+            Comments <span class="text-indigo-400 text-sm">View All</span>
+          </h3>
+          <div class="flex gap-4 items-start">
+            <div class="w-10 h-10 rounded-full bg-slate-700 shrink-0"></div>
+            <div
+              class="flex-1 bg-white/5 p-3 rounded-xl border border-white/10 text-sm text-slate-300 italic"
+            >
+              "This video changed my perspective! Pure entertainment."
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+      
+        <!-- RIGHT COLUMN: SIDEBAR -->
+        <div class="space-y-4">
+          <div class="flex justify-between items-center px-2 mb-4">
+            <h3
+              class="text-sm font-bold text-slate-400 uppercase tracking-widest"
+            >
+              Up Next...
+            </h3>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold text-slate-500">AUTOPLAY</span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="autoplayToggle"
+                  class="sr-only peer"
+                  checked
+                />
+                <div
+                  class="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"
+                ></div>
+              </label>
+            </div>
+          </div>
+          <div id="recommended-list" class="space-y-4">
+            <!-- Recommendations mapped here -->
+          </div>
+        </div>
+
+        <div id="recommended-list" class="space-y-4">
+          <!-- Recommendations will be injected here -->
+        </div>
+      </div>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script>
+      const SERVER = "http://localhost:3000";
+      const API_BASE = `${SERVER}/api/videos`;
+      const urlParams = new URLSearchParams(window.location.search);
+      const VIDEO_ID = urlParams.get("id");
+      let nextVideoId = null;
+
+      async function loadPage() {
+        console.log("🚀 Initializing Page for ID:", VIDEO_ID);
+        if (!VIDEO_ID) {
+          document.getElementById("playingTitle").innerText = "No Video Selected";
+          return;
+        }
+
+        try {
+          const res = await fetch(`${API_BASE}/${VIDEO_ID}`);
+          if (!res.ok) throw new Error("Metadata 404");
+          const video = await res.json();
+
+          document.getElementById("playingTitle").innerText = video.title || "Untitled";
+          document.getElementById("uploaderName").innerText = video.userId || "Anonymous";
+          document.getElementById("uploaderInitial").innerText = (video.userId || "U").charAt(0).toUpperCase();
+
+          const lvl = video.level || 1;
+          const avatar = document.getElementById("uploaderAvatar");
+          if (avatar) {
+            document.getElementById("uploaderLevel").innerText = lvl;
+            avatar.className = `w-14 h-14 rounded-full flex items-center justify-center bg-slate-800 lvl-${lvl}`;
+          }
+
+          await startStream(); // Logic below
+          await loadSidebar();
+        } catch (err) {
+          console.error("❌ Page Load Error:", err);
+        }
+      }
+
+      async function startStream() {
+        const videoElem = document.getElementById("video");
+        const previewUrl = `${SERVER}/api/videos/${VIDEO_ID}/preview/master.m3u8`;
+        const fullUrl = `${SERVER}/api/videos/${VIDEO_ID}/full/master.m3u8`;
+        
+        // Fetch User ID from your specific storage key
+        const mlmUser = JSON.parse(localStorage.getItem("mlm_user") || "{}");
+        const userId = mlmUser.id;
+
+        if (!userId) {
+            alert("Please log in first.");
+            return;
+        }
+
+        let streamToken = null;
+
+        if (window.Hls && Hls.isSupported()) {
+          const hls = new Hls({
+            xhrSetup: (xhr) => {
+              if (streamToken) xhr.setRequestHeader("X-Stream-Token", streamToken);
+            }
+          });
+
+          hls.attachMedia(videoElem);
+          setupCustomControls(videoElem);
+
+          // 1. Show Preview immediately while we check subscription
+          hls.loadSource(previewUrl);
+
+          // 2. THE GATEKEEPER: Check float balance via token request
+          console.log("🛡️ Checking float balance...");
+          try {
+            const tokenRes = await fetch(`${SERVER}/api/stream/token?videoId=${VIDEO_ID}`, {
+              headers: { "x-user-id": userId }
+            });
+
+            if (tokenRes.status === 402) {
+              // NO FLOAT: Prompt for purchase
+              const buy = confirm("🎬 Account Inactive\n\nYou need an active Float to watch the full video. Buy subscription now?");
+              if (buy) window.location.href = "subscription.html"; 
+              return; 
+            }
+
+            if (tokenRes.ok) {
+              const data = await tokenRes.json();
+              streamToken = data.token;
+              
+              // ACCOUNT ACTIVE: Upgrade to Full Video
+              console.log("✅ Float Active. Loading Full Video...");
+              hls.loadSource(fullUrl); 
+             // videoElem.muted = true;
+              videoElem.play();
+            }
+          } catch (err) {
+            console.error("Auth check failed", err);
+          }
+        }
+      }
+
+      function setupCustomControls(video) {
+        const playBtn = document.getElementById("playBtn");
+        const playIcon = document.getElementById("playIcon");
+        const progressBar = document.getElementById("progressBar");
+        const progressArea = document.getElementById("progressArea");
+
+        playBtn.onclick = () => video.paused ? video.play() : video.pause();
+        
+        video.ontimeupdate = () => {
+          const percent = (video.currentTime / video.duration) * 100;
+          progressBar.style.width = percent + "%";
+          document.getElementById("currTime").innerText = formatTime(video.currentTime);
+          document.getElementById("durTime").innerText = formatTime(video.duration);
+        };
+
+        progressArea.onclick = (e) => {
+          const rect = progressArea.getBoundingClientRect();
+          video.currentTime = ((e.pageX - rect.left) / rect.width) * video.duration;
+        };
+
+        function formatTime(s) {
+          let m = Math.floor(s / 60);
+          let sec = Math.floor(s % 60);
+          return m + ":" + (sec < 10 ? "0" + sec : sec);
+        }
+      }
+
+
+      async function loadSidebar(){
+        try {
+          const res = await fetch(
+            `${SERVER}/api/feed/recommendations/${VIDEO_ID}`,
+          );
+          const result = await res.json();
+          
+          const list = document.getElementById("recommended-list");
+          if (result.success && result.data.length > 0) {
+            list.innerHTML = result.data
+              .map((v) => {
+                // 1. PLACE LOGIC HERE: Check if this item is the one currently playing
+                const isPlayingStyle =
+                  v.id === VIDEO_ID
+                    ? "border: 2px solid #60a5fa; background: #334155;"
+                    : "";
+                const nowPlayingBadge =
+                  v.id === VIDEO_ID
+                    ? '<span style="color: #60a5fa; font-size: 10px;">▶ NOW PLAYING</span><br>'
+                    : "";
+
+                // 2. APPLY STYLE TO THE DIV:
+                return `
+                <div class="glass flex gap-3 p-2 rounded-2xl cursor-pointer" onclick="location.href='watch.html?id=${v.id}'">
+                  <img src="${SERVER}/${v.thumbnail}" class="w-24 aspect-video rounded-lg object-cover">
+                  <div>
+                    <h4 class="text-xs font-bold text-white">${v.title}</h4>
+                    <p class="text-[10px] text-slate-500">${v.userId}</p>
+                  </div>
+                </div>
+              `;
+              })
+              .join("");
+          } else {
+            recList.innerHTML = "No related videos yet.";
+          }
+        } catch (err) {
+          console.error("Feed error:", err);
+        }
+      }
+
+
+   
+      function smartBack() {
+        const referrer = document.referrer;
+    
+        // Check if the previous page was MyStudio
+        if (referrer.includes('myVideos.html') || referrer.includes('myStudio')) {
+            window.location.href = 'myVideos.html';
+        } 
+        // Otherwise, default to Library
+        else {
+            window.location.href = 'library.html';
+        }
+    }
+     
+    
+      
+
+      window.onload = loadPage;
+</script>
+
+  </body>
+</html>

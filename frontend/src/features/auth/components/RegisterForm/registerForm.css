@@ -1,0 +1,244 @@
+/* ==========================================================================
+   WIDESCREEN REGISTRATION TWIN COLUMN PLATFORM MESH (Modal Variant)
+   ========================================================================== */
+.sokodigi-auth-grid-reg {
+  width: 100%;
+  max-width: 1000px;
+  height: auto;
+  max-height: 85vh; /* Keep form inside viewport proportions */
+  background: #ffffff;
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  overflow: hidden; 
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* 🟢 LEFT COL: LOCKED STATIONARY EMERALD GREEN GRADIENT CANVAS */
+.auth-hero-side-reg {
+  background: #065f46; 
+  background: linear-gradient(135deg, #059669 0%, #064e3b 100%);
+  padding: 3.5rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* 🌀 DECORATIVE GLASS CIRCLES (Premium Aesthetic Mesh) */
+.circle-shape-reg {
+  position: absolute;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100__);
+  pointer-events: none;
+}
+
+.top-bubble-reg { 
+  width: 340px; 
+  height: 340px; 
+  top: -10%; 
+  left: -25%; 
+  background: rgba(16, 185, 129, 0.3); 
+}
+.center-bubble-reg { 
+  width: 200px; 
+  height: 200px; 
+  bottom: 5%; 
+  right: -8%; 
+  background: linear-gradient(135deg, #064e3b 0%, #059669 100__); 
+  box-shadow: -10px 10px 30px rgba(15, 23, 42, 0.15); 
+}
+.bottom-bubble-reg { 
+  width: 240px; 
+  height: 240px; 
+  bottom: -15%; 
+  left: -10%; 
+  background: rgba(4, 120, 87, 0.4); 
+}
+
+/* 🏠 BACK TO HOME LINK REGISTRATION VARIANT */
+.back-to-home-wrapper-reg {
+  position: absolute;
+  top: 1.5rem;
+  left: 2rem;
+  z-index: 20;
+}
+
+.back-home-link-reg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.back-home-link-reg:hover {
+  color: #34d399; /* Bright mint highlight */
+  transform: translateX(-3px);
+}
+
+/* HERO BRAND TEXT SHAPES */
+.hero-content-overlay-reg {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.hero-logo-frame-reg {
+  width: 76px;
+  height: 76px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(6, 78, 59, 0.2);
+  padding: 0.5rem;
+  box-sizing: border-box;
+  z-index: 10;
+}
+
+.hero-logo-image-reg {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.logo-ring-pulse-reg {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sokodigi-title-reg { font-size: 2.35rem; font-weight: 800; color: #ffffff; margin: 0; letter-spacing: 0.05em; line-height: 1.1; }
+.sokodigi-headline-reg { font-size: 0.9rem; font-weight: 700; color: rgba(255, 255, 255, 0.85); text-transform: uppercase; letter-spacing: 0.08em; margin: 0.5rem 0 1.25rem 0; }
+.sokodigi-subtitle-reg { font-size: 0.825rem; font-weight: 400; color: rgba(240, 253, 244, 0.75); line-height: 1.6; margin: 0; max-width: 290px; }
+
+/* ✍️ RIGHT COLUMN: CLEAN INTERNALLY SCROLLABLE INPUT MATRIX SHEET */
+.auth-input-side-reg {
+  padding: 3rem 3.5rem;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: #ffffff;
+  overflow-y: auto; 
+  max-height: 85vh;
+}
+
+.input-side-header-reg { margin-bottom: 1.5rem; text-align: left; }
+.welcome-text-reg { font-size: 1.85rem; font-weight: 700; color: #0f172a; margin: 0 0 0.25rem 0; }
+.welcome-subtext-reg { font-size: 0.75rem; color: #64748b; margin: 0; }
+
+.register-form-ws { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.form-section-ws {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.form-section-title-ws {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #047857; /* Deep emerald descriptor headers */
+  margin: 0 0 0.25rem 0;
+  font-weight: 700;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 0.25rem;
+}
+
+.form-row-ws {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.terms-checkbox-wrapper {
+  margin: 0.25rem 0;
+}
+
+/* 🟢 BUTTON STYLING OVERHAUL (Premium Emerald Green Core Accent) */
+.register-button-ws {
+  background: #065f46 !important;
+  color: #ffffff !important;
+  border: none !important;
+  height: 46px !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  border-radius: 0.5rem !important;
+  cursor: pointer;
+  width: 100%;
+  box-shadow: 0 4px 14px rgba(6, 95, 70, 0.15);
+  transition: all 0.2s ease !important;
+}
+
+.register-button-ws:hover {
+  background: #047857 !important;
+  box-shadow: 0 6px 20px rgba(4, 120, 87, 0.2);
+}
+
+.register-footer-ws { 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  gap: 0.35rem; 
+  margin-top: 0.25rem; 
+  font-size: 0.8rem; 
+  color: #64748b; 
+}
+
+/* ==========================================================================
+   RESPONSIVE SCALING LAYOUT COUPLINGS
+   ========================================================================== */
+@media (max-width: 992px) {
+  .sokodigi-auth-grid-reg {
+    max-width: 480px;
+    grid-template-columns: 1fr;
+    max-height: 90vh;
+    margin: 0 auto;
+  }
+  .auth-hero-side-reg {
+    padding: 3rem 2rem 2rem;
+    align-items: center;
+    text-align: center;
+  }
+  .hero-content-overlay-reg { align-items: center; }
+  .sokodigi-subtitle-reg { max-width: 100%; }
+  .auth-input-side-reg {
+    padding: 2.5rem 2rem;
+    max-height: none;
+    overflow-y: visible;
+  }
+  .back-to-home-wrapper-reg {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 480px) {
+  .sokodigi-auth-grid-reg {
+    border-radius: 0;
+    max-height: 100vh;
+    height: 100vh;
+  }
+  .form-row-ws {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+}

@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Marketplace | MarketHub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com" />
+    <style>
+      :root {
+        --primary: #2563eb;
+        --bg: #f8fafc;
+        --text: #0f172a;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+      }
+
+      .glass {
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(10px);
+      }
+      .sidebar-link {
+        display: flex;
+        align-items: center;
+        padding: 12px 16px;
+        color: #94a3b8;
+        border-radius: 12px;
+        transition: 0.3s;
+        text-decoration: none;
+        margin-bottom: 4px;
+      }
+      .sidebar-link:hover,
+      .sidebar-link.active {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+      }
+
+      .main-wrapper {
+        display: flex;
+        min-height: 100vh;
+      }
+      .content-area {
+        flex-grow: 1;
+        padding: 40px;
+        overflow-y: auto;
+      }
+
+      .product-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 25px;
+        max-width: 1200px;
+      }
+      .card {
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transition: 0.3s;
+        cursor: pointer;
+      }
+      .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      }
+      .img-container {
+        width: 100%;
+        height: 200px;
+        background: #f1f5f9;
+        position: relative;
+      }
+      .img-container img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .content {
+        padding: 20px;
+      }
+      .brand {
+        color: var(--primary);
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      .title {
+        font-size: 17px;
+        font-weight: 600;
+        margin: 6px 0;
+        color: var(--text);
+      }
+      .price {
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--text);
+      }
+      .footer {
+        padding: 15px 20px;
+        background: #f8fafc;
+        border-top: 1px solid #f1f5f9;
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        color: #64748b;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main-wrapper">
+      <!-- SIDEBAR -->
+      <aside
+        class="w-64 glass border-r border-slate-700 p-6 flex flex-col h-screen sticky top-0"
+      >
+        <div class="flex items-center gap-3 mb-10">
+          <div class="bg-emerald-500 p-2 rounded-lg">
+            <i class="fas fa-shop text-white"></i>
+          </div>
+          <h1 class="text-xl font-bold tracking-tight text-white">
+            myShop <span class="text-emerald-500">Pro</span>
+          </h1>
+        </div>
+        <nav class="flex-1 overflow-y-auto">
+          <a href="myShop.html" class="sidebar-link"
+            ><i class="fas fa-box w-5 mr-3"></i> Inventory</a
+          >
+          <a href="#" class="sidebar-link"
+            ><i class="fas fa-chart-line w-5 mr-3"></i> Sales Data</a
+          >
+          <a href="#" class="sidebar-link"
+            ><i class="fas fa-shopping-cart w-5 mr-3"></i> Orders</a
+          >
+          <a href="onDisplay.html" class="sidebar-link"
+            ><i class="fas fa-bullhorn w-5 mr-3"></i> OnDisplay</a
+          >
+          <a href="markethub.html" class="sidebar-link active"
+            ><i class="fas fa-globe w-5 mr-3"></i> Marketplace</a
+          >
+          <a href="advideos.html" class="sidebar-link"
+            ><i class="fas fa-play-circle w-5 mr-3"></i> SokoShorts</a
+          >
+          <a href="library.html" class="sidebar-link"
+            ><i class="fas fa-play-circle w-5 mr-3"></i> Streamnet</a
+          >
+          <a href="wallet_test.html" class="sidebar-link"
+            ><i class="fas fa-wallet w-5 mr-3"></i> Soko-Wallet</a
+          >
+          <a href="myVideos.html" class="sidebar-link"
+            ><i class="fas fa-microphone w-5 mr-3"></i> MyStudio</a
+          >
+        </nav>
+        <div class="mt-auto pt-6 border-t border-slate-800">
+          <button
+            onclick="window.location.href = '#'"
+            class="w-full bg-slate-800 hover:bg-slate-700 text-emerald-400 p-3 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
+          >
+            <i class="fas fa-plus-circle"></i> Profile
+          </button>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT -->
+      <main class="content-area">
+        <div class="flex justify-between items-center mb-8">
+          <h1 class="text-3xl font-bold text-slate-800">MarketHub</h1>
+          <div class="relative w-full max-w-md">
+            <i
+              class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            ></i>
+            <input
+              type="text"
+              id="searchInput"
+              placeholder="Search brands, products or categories..."
+              onkeyup="handleSearchUpdate()"
+              class="w-full pl-12 pr-10 py-3 rounded-xl border border-slate-200 outline-none focus:ring-4 focus:ring-blue-500/10 transition"
+            />
+            <button
+              id="clearBtn"
+              onclick="clearSearch()"
+              class="hidden absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              &times;
+            </button>
+          </div>
+        </div>
+
+        <div id="statusMessage" class="text-center py-20 text-slate-500">
+          Exploring the market...
+        </div>
+        <div class="product-grid" id="productGrid"></div>
+      </main>
+    </div>
+
+    <script>
+      let allProducts = []; // Store products globally for filtering
+
+      async function loadProducts() {
+        const grid = document.getElementById("productGrid");
+        const status = document.getElementById("statusMessage");
+
+        // 1. Get the JSON string from localStorage
+        const userJsonString = localStorage.getItem("mlm_user");
+
+        if (!userJsonString) {
+          status.innerText = "❌ Please log in to view your personalized feed.";
+          return;
+        }
+
+        let currentUserId;
+        try {
+          // 2. Parse the JSON string into an object and extract the ID
+          const userObj = JSON.parse(userJsonString);
+          currentUserId = userObj.id;
+        } catch (err) {
+          console.error("Error parsing mlm_user JSON:", err);
+          status.innerText = "❌ Session corrupted. Please log in again.";
+          return;
+        }
+
+        if (!currentUserId) {
+          status.innerText =
+            "❌ Invalid user session token. Please log in again.";
+          return;
+        }
+
+        try {
+          // 3. Send the clean ID string to your backend route
+          const response = await fetch(
+            `http://localhost:3000/api/products/market?userId=${currentUserId}`,
+          );
+
+          if (!response.ok) throw new Error("Network response was not ok");
+
+          allProducts = await response.json();
+          status.style.display = "none";
+          displayProducts(allProducts);
+        } catch (err) {
+          console.error("Fetch Error:", err);
+          status.innerText =
+            "❌ Error connecting to server. Is it running on port 3000?";
+          status.style.color = "red";
+        }
+      }
+
+      function displayProducts(products) {
+        const grid = document.getElementById("productGrid");
+        const statusMessage = document.getElementById("statusMessage");
+
+        if (!products || products.length === 0) {
+          grid.innerHTML = "";
+          statusMessage.style.display = "block";
+          statusMessage.innerText = "No products found matching your search.";
+          return;
+        }
+
+        statusMessage.style.display = "none";
+        grid.innerHTML = products
+          .map((p) => {
+            const fileName = (p.imageUrl || "").split("/").pop();
+            const fullImageUrl = `http://localhost:3000/images/${fileName}`;
+            const productId = p._id || p.id;
+            const cleanCategory = (p.category || "General").replace(
+              /'/g,
+              "\\'",
+            );
+
+            return `
+              <div class="card" onclick="handleProductClick('${productId}', '${cleanCategory}')">
+                  <!-- Renders a structural badge if the item belongs to their direct team connection -->
+                  ${p.fromNetwork ? `<div class="badge-network" style="background:#007bff; color:#fff; padding:4px 8px; font-size:11px; width:fit-content; border-radius:4px; margin-bottom:8px;">My Network</div>` : ""}
+                  <div class="img-container">
+                      <img src="${fullImageUrl}" onerror="this.src='https://placehold.co';">
+                  </div>
+                    <div class="content">
+                        <span class="brand">Shop: ${p.brandName || "Independent"}</span>
+                        <h3 class="title">${p.name || "Untitled Product"}</h3>
+                        <span class="price">Ksh ${parseFloat(p.price || 0).toLocaleString()}</span>
+                    </div>
+                    <div class="footer">
+                        <span class="delivery">🚚 Delivery: Ksh ${p.deliveryFee || 0}</span>
+                        <span>${p.quantity || 0} in stock</span>
+                    </div>
+                </div>
+            `;
+          })
+          .join("");
+      }
+
+      // INTERACTION ENGINE: Ensures the user behavior trends save BEFORE redirection drops connection context
+      async function handleProductClick(productId, productCategory) {
+        const userJsonString = localStorage.getItem("mlm_user");
+
+        if (userJsonString) {
+          try {
+            const userObj = JSON.parse(userJsonString);
+            const currentUserId = userObj.id;
+            if (currentUserId) {
+              // Await blocks page jumping until the backend records the action
+              await trackUserEngagement(currentUserId, productCategory);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        goToDetails(productId);
+      }
+
+      async function trackUserEngagement(userId, productCategory) {
+        try {
+          await fetch("http://localhost:3000/api/products/interact", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: userId,
+              category: productCategory,
+              type: "click",
+            }),
+          });
+        } catch (err) {
+          console.error("Engagement logging failed:", err);
+        }
+      }
+
+      function goToDetails(productId) {
+        if (!productId) return;
+        window.location.href = `./product-details.html?id=${productId}`;
+      }
+
+      function handleSearchUpdate() {
+        const input = document.getElementById("searchInput");
+        const clearBtn = document.getElementById("clearBtn");
+        if (clearBtn) clearBtn.style.display = input.value ? "block" : "none";
+        filterProducts();
+      }
+
+      function filterProducts() {
+        const query = (
+          document.getElementById("searchInput").value || ""
+        ).toLowerCase();
+        const filtered = allProducts.filter((p) => {
+          const name = (p.name || "").toLowerCase();
+          const brand = (p.brandName || "").toLowerCase();
+          const category = (p.category || "").toLowerCase();
+          return (
+            name.includes(query) ||
+            brand.includes(query) ||
+            category.includes(query)
+          );
+        });
+        displayProducts(filtered);
+      }
+
+      function clearSearch() {
+        const input = document.getElementById("searchInput");
+        input.value = "";
+        const clearBtn = document.getElementById("clearBtn");
+        if (clearBtn) clearBtn.style.display = "none";
+        displayProducts(allProducts);
+      }
+
+      loadProducts();
+    </script>
+  </body>
+</html>

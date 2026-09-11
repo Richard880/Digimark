@@ -1,0 +1,14 @@
+{
+    "ignore": [
+      "tmp/*",
+      "storage/*",
+      "storage/videos/*",
+      "*.json",
+      "data/*.json",
+      "temp_uploads/*",
+      "streams/*"
+    ] ,
+    "delay": 2500
+
+  }
+  

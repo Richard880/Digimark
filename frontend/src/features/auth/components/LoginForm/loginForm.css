@@ -1,0 +1,236 @@
+/* ==========================================================================
+   CARD MATRIX FRAME SPECIFICATIONS (Modal Bound Variant)
+   ========================================================================== */
+.sokodigi-auth-grid {
+  width: 100%;
+  max-width: 1000px;
+  min-height: 480px;
+  height: auto;
+  max-height: 85vh; /* Prevents overflow clipping past screens */
+  background: #ffffff;
+  display: grid;
+  grid-template-columns: 1fr 1.05fr;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* 🟢 LEFT COLUMN: LOCKED STATIONARY EMERALD GREEN CANVASES */
+.auth-hero-side {
+  background: #065f46; 
+  background: linear-gradient(135deg, #059669 0%, #064e3b 100%);
+  padding: 3.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* 🏠 BACK TO HOME LINK */
+.back-to-home-wrapper {
+  position: absolute;
+  top: 1.5rem;
+  left: 2rem;
+  z-index: 20;
+}
+
+.back-home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.back-home-link:hover {
+  color: #34d399; /* Bright mint text highlight */
+  transform: translateX(-3px);
+}
+
+/* 🛡️ LOGO FRAME */
+.hero-logo-frame {
+  width: 80px;
+  height: 80px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(6, 78, 59, 0.2);
+  padding: 0.5rem;
+  box-sizing: border-box;
+  z-index: 10;
+}
+
+.hero-logo-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.logo-ring-pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* 🌀 DECORATIVE CIRCLES */
+.circle-shape {
+  position: absolute;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+
+.top-bubble { width: 320px; height: 320px; top: -15%; left: -20%; background: rgba(16, 185, 129, 0.3); }
+.center-bubble { width: 180px; height: 180px; bottom: 10%; right: -5%; background: linear-gradient(135deg, #064e3b 0%, #059669 100%); box-shadow: -10px 10px 30px rgba(15, 23, 42, 0.15); }
+.bottom-bubble { width: 220px; height: 220px; bottom: -20%; left: -15%; background: rgba(4, 120, 87, 0.4); }
+
+.hero-content-overlay {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.sokodigi-title-ws { font-size: 2.5rem; font-weight: 800; color: #ffffff; margin: 0; letter-spacing: 0.05em; line-height: 1.1; }
+.sokodigi-headline-ws { font-size: 0.95rem; font-weight: 700; color: rgba(255, 255, 255, 0.85); text-transform: uppercase; letter-spacing: 0.08em; margin: 0.5rem 0 1.25rem 0; }
+.sokodigi-subtitle-ws { font-size: 0.825rem; font-weight: 400; color: rgba(240, 253, 244, 0.75); line-height: 1.6; margin: 0; max-width: 290px; }
+
+/* ✍️ RIGHT COLUMN: CLEAN FORMS */
+.auth-input-side {
+  padding: 3rem 3.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  background: #ffffff;
+  position: relative;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.auth-input-side::-webkit-scrollbar {
+  display: none;
+}
+
+.auth-input-side::after {
+  content: '';
+  position: absolute;
+  width: 90px;
+  height: 90px;
+  bottom: -30px;
+  right: -20px;
+  background: rgba(4, 120, 87, 0.1);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.input-side-header { margin-bottom: 1.75rem; text-align: left; }
+.welcome-text-ws { font-size: 2rem; font-weight: 700; color: #0f172a; margin: 0 0 0.25rem 0; }
+.welcome-subtext-ws { font-size: 0.75rem; color: #64748b; margin: 0; }
+
+.login-form-ws { display: flex; flex-direction: column; gap: 1.1rem; }
+
+/* 🔒 Input Icons */
+.input-with-icon-wrapper { position: relative; width: 100%; }
+.input-field-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 1.15rem; z-index: 10; pointer-events: none; }
+.input-with-icon-wrapper input { padding-left: 2.75rem !important; }
+
+.login-options-ws { display: flex; justify-content: space-between; align-items: center; gap: 1rem; font-size: 0.8rem; }
+.login-options-ws label { color: #64748b; font-size: 0.8rem; }
+
+.forgot-password-link-ws, .register-link-ws { color: #059669; font-size: 0.8rem; font-weight: 600; text-decoration: none; }
+.forgot-password-link-ws:hover, .register-link-ws:hover { text-decoration: underline; }
+
+/* 🟢 CORE ACTION ACTION BUTTON (Premium Emerald Green Theme Accent) */
+.login-button-ws {
+  background: #065f46 !important;
+  color: white !important;
+  border: none !important;
+  height: 46px !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  border-radius: 0.5rem !important;
+  cursor: pointer;
+  width: 100%;
+  box-shadow: 0 4px 14px rgba(6, 95, 70, 0.15);
+  transition: all 0.2s ease !important;
+}
+
+.login-button-ws:hover {
+  background: #047857 !important;
+  box-shadow: 0 6px 20px rgba(4, 120, 87, 0.2);
+}
+
+.login-footer-ws { display: flex; justify-content: center; align-items: center; gap: 0.35rem; margin-top: 0.5rem; font-size: 0.8rem; color: #64748b; }
+
+/* 🖥️ BIG SCREEN SPECIFIC FIXES */
+@media (min-width: 1024px) {
+  .sokodigi-auth-grid {
+    height: 540px; /* Force consistent height on desktop */
+    min-height: auto;
+  }
+  .auth-input-side {
+    overflow-y: hidden; /* No scroll needed if height is forced */
+  }
+}
+
+/* 📱 RESPONSIVE COLLAPSE (Tablets & Phones) */
+@media (max-width: 992px) {
+  .sokodigi-auth-grid {
+    max-width: 480px;
+    grid-template-columns: 1fr;
+    max-height: 90vh;
+    margin: 0 auto;
+  }
+
+  .auth-hero-side {
+    padding: 3rem 2rem 2rem;
+    align-items: center;
+    text-align: center;
+  }
+
+  .hero-content-overlay { align-items: center; }
+  .sokodigi-subtitle-ws { max-width: 100%; }
+
+  .auth-input-side {
+    padding: 2.5rem 2rem;
+    overflow-y: auto; /* Let parent scroll handle mobile */
+  }
+
+  .auth-input-side::after { display: none; }
+  
+  .back-to-home-wrapper {
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 480px) {
+  .sokodigi-auth-grid {
+    border-radius: 0;
+    height: 100vh;
+    max-height: 100vh;
+  }
+  
+  .login-options-ws {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+}

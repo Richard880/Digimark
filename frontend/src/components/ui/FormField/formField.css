@@ -1,0 +1,27 @@
+.wempa-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  margin-bottom: 1.25rem;
+}
+
+.wempa-form-field-label {
+  font-size: .95rem;
+  font-weight: 600;
+  color: #212529;
+}
+
+.wempa-form-field-required {
+  color: #dc3545;
+  margin-left: .25rem;
+}
+
+.wempa-form-field-helper {
+  color: #6c757d;
+  font-size: .85rem;
+}
+
+.wempa-form-field-error {
+  color: #dc3545;
+  font-size: .85rem;
+}

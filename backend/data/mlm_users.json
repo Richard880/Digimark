@@ -1,0 +1,16 @@
+[
+  {
+    "id": "u_5c3622ec8cea",
+    "name": "Richard Fehr",
+    "email": "richardfehr0226@gmail.com",
+    "password": "$2b$10$UqSZYw8JPelEHKQ2xACjge26P4pyFy3i42NicfdnswT.2DAp0OfXG",
+    "phone": "0713093502",
+    "gender": "male",
+    "nationalId": null,
+    "sponsorId": null,
+    "parentId": null,
+    "referrals": [],
+    "active": true,
+    "createdAt": "2026-09-05T21:34:17.257Z"
+  }
+]

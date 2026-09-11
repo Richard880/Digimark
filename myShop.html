@@ -1,0 +1,1418 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>myShop | Professional Inventory</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com" />
+
+    <style>
+      @import url("https://fonts.googleapis.com");
+      body {
+        font-family: "Inter", sans-serif;
+        background: #0f172a;
+        color: #f8fafc;
+      }
+      .glass {
+        background: rgba(30, 41, 59, 0.7);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .sidebar-link {
+        display: flex;
+        align-items: center;
+        padding: 12px 16px;
+        color: #94a3b8; /* Slate-400 */
+        text-decoration: none;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+        margin-bottom: 4px;
+      }
+
+      .sidebar-link:hover {
+        background: rgba(16, 185, 129, 0.1); /* Emerald-500 with opacity */
+        color: #10b981; /* Emerald-500 */
+      }
+
+      .sidebar-link.active {
+        background: #10b981;
+        color: white;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+      }
+
+      /* This pushes the badge to the end of the flex container */
+      .sidebar-link span.ml-auto {
+        margin-left: auto;
+      }
+
+      .status-pill {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: bold;
+      }
+      .modal {
+        display: none; /* Hidden by default */
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.8); /* Dark Slate overlay */
+        backdrop-filter: blur(4px);
+        z-index: 100;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+    </style>
+  </head>
+  <body class="flex min-h-screen">
+    <!-- SIDEBAR -->
+    <aside
+      class="w-64 glass border-r border-slate-700 p-6 flex flex-col h-screen sticky top-0"
+    >
+      <div class="flex items-center gap-3 mb-10">
+        <div class="bg-emerald-500 p-2 rounded-lg">
+          <i class="fas fa-shop text-white"></i>
+        </div>
+        <h1 class="text-xl font-bold tracking-tight text-white">
+          myShop <span class="text-emerald-500">Pro</span>
+        </h1>
+      </div>
+
+      <nav class="flex-1">
+        <a href="#" class="sidebar-link active">
+          <i class="fas fa-box w-5 mr-3"></i> Inventory
+        </a>
+
+        <a
+          href="#"
+          id="salesDataMenuLink"
+          onclick="showSalesLogView(event)"
+          class="sidebar-link flex items-center justify-between p-3 rounded hover:bg-slate-800 text-slate-300"
+        >
+          <div class="flex items-center gap-3">
+            <span>📊</span>
+            <span>Sales Data</span>
+          </div>
+          <!-- Existing orders badge -->
+          <span
+            class="bg-emerald-500 text-xs px-2 py-0.5 rounded-full font-bold text-white"
+            >0</span
+          >
+        </a>
+
+        <a href="#" class="sidebar-link">
+          <i class="fas fa-shopping-cart w-5 mr-3"></i> Orders
+          <span
+            class="ml-auto bg-emerald-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold"
+            >4</span
+          >
+        </a>
+        <a href="onDisplay.html" class="sidebar-link">
+          <i class="fas fa-bullhorn w-5 mr-3"></i> OnDisplay
+        </a>
+        <a href="Markethub.html" class="sidebar-link">
+          <i class="fas fa-bullhorn w-5 mr-3"></i> Marketplace
+        </a>
+        <a href="advideos.html" class="sidebar-link"
+          ><i class="fas fa-play-circle w-5 mr-3"></i> SokoShorts</a
+        >
+        <a href="library.html" class="sidebar-link">
+          <i class="fas fa-bullhorn w-5 mr-3"></i>Streamnet
+        </a>
+        <a href="wallet_test.html" class="sidebar-link">
+          <i class="fas fa-bullhorn w-5 mr-3"></i> Soko-Wallet
+        </a>
+        <a href="myVideos.html" class="sidebar-link">
+          <i class="fas fa-bullhorn w-5 mr-3"></i> MyStudio
+        </a>
+      </nav>
+
+      <!-- QUICK ACTION SECTION -->
+      <div class="mt-auto pt-6 border-t border-slate-800">
+        <button
+          onclick="openModal('saleModal')"
+          class="w-full bg-slate-800 hover:bg-slate-700 text-emerald-400 p-3 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
+        >
+          <i class="fas fa-plus-circle"></i> Record Sale
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 p-8 overflow-y-auto">
+      <header class="flex justify-between items-center mb-8">
+        <div>
+          <h2 id="userWelcome" class="text-2xl font-bold">Loading...</h2>
+          <div
+            class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-4 shadow-lg min-w-[200px]"
+          >
+            <div
+              class="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg font-bold text-xl"
+            >
+              💳
+            </div>
+            <div>
+              <div
+                class="text-[10px] text-slate-400 font-bold uppercase tracking-wider"
+              >
+                Sokodigi Balance
+              </div>
+              <div
+                id="topWalletBalanceDisplay"
+                class="text-lg font-extrabold text-emerald-400 font-mono"
+              >
+                KES 0.00
+              </div>
+            </div>
+          </div>
+
+          <p class="text-slate-400 text-sm">
+            Manage your stock and marketplace listings
+          </p>
+        </div>
+        <!-- SEARCH BAR -->
+        <div class="relative w-full max-w-md mb-6">
+          <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+            <i class="fas fa-search text-slate-500"></i>
+          </span>
+          <input
+            type="text"
+            id="inventorySearch"
+            placeholder="Search by name or product code (e.g. MS-A1)..."
+            onkeyup="filterInventory()"
+            class="w-full bg-slate-800/50 border border-slate-700 text-slate-200 text-sm rounded-xl pl-10 pr-4 py-3 focus:border-emerald-500 outline-none transition-all placeholder:text-slate-600"
+          />
+        </div>
+
+        <div class="flex gap-3">
+          <button
+            onclick="openModal('saleModal')"
+            class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-semibold transition"
+          >
+            <i class="fas fa-minus-circle mr-2"></i> Record Sale
+          </button>
+          <button
+            onclick="prepareAddModal()"
+            class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded-lg text-sm font-semibold transition"
+          >
+            <i class="fas fa-plus mr-2"></i> Add Product
+          </button>
+        </div>
+      </header>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="glass p-6 rounded-2xl border border-emerald-500/20">
+          <p class="text-slate-400 text-xs uppercase font-bold mb-1">
+            Total Revenue
+          </p>
+          <h3 id="totalRevenue" class="text-2xl font-bold text-emerald-400">
+            KES 0
+          </h3>
+        </div>
+        <div class="glass p-6 rounded-2xl border border-blue-500/20">
+          <p class="text-slate-400 text-xs uppercase font-bold mb-1">
+            Items Sold
+          </p>
+          <h3 id="totalSold" class="text-2xl font-bold text-blue-400">0</h3>
+        </div>
+      </div>
+
+      <!-- TABLE -->
+      <div class="glass rounded-xl overflow-hidden">
+        <table class="w-full text-left">
+          <thead class="bg-slate-800/50 text-slate-400 text-xs uppercase">
+            <tr>
+              <th class="p-4">
+                <input
+                  type="checkbox"
+                  id="selectAll"
+                  class="rounded border-slate-600 bg-slate-700"
+                />
+              </th>
+              <th class="p-4">Product</th>
+              <th class="p-4">Code</th>
+              <th class="p-4">Status</th>
+              <th class="p-4">QTY</th>
+              <th class="p-4">Price</th>
+              <th class="p-4 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inventory-body" class="text-sm divide-y divide-slate-700">
+            <!-- Data injected here -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-6 flex justify-end">
+        <button
+          onclick="pushToMarket()"
+          class="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-900/20 transition-all active:scale-95"
+        >
+          List Selected to Market <i class="fas fa-external-link-alt ml-2"></i>
+        </button>
+        <button
+          onclick="deleteSelected()"
+          class="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white px-6 py-3 rounded-xl font-bold transition-all border border-red-600/30 active:scale-95"
+        >
+          Delete Selected <i class="fas fa-trash-alt ml-2"></i>
+        </button>
+      </div>
+    </main>
+
+    <!-- MODAL: ADD/EDIT PRODUCT -->
+    <div id="productModal" class="modal">
+      <div
+        class="glass p-8 rounded-2xl w-full max-w-lg shadow-2xl border border-slate-700"
+      >
+        <div class="flex justify-between items-center mb-6">
+          <h3 class="text-xl font-bold text-emerald-500">Product Details</h3>
+          <button
+            onclick="closeModal('productModal')"
+            class="text-slate-500 hover:text-white"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <!-- Image Upload Section -->
+          <div
+            class="flex items-center gap-4 bg-slate-800/50 p-4 rounded-xl border border-slate-700"
+          >
+            <div
+              class="w-16 h-16 bg-slate-700 rounded-lg flex items-center justify-center overflow-hidden"
+            >
+              <img
+                id="modalPreview"
+                class="hidden w-full h-full object-cover"
+              />
+              <i id="modalIcon" class="fas fa-camera text-slate-500"></i>
+            </div>
+            <!-- Replace the old pImg text input with this file input in your modal -->
+            <div class="form-group">
+              <label class="block text-xs font-bold text-slate-500 mb-1"
+                >PRODUCT IMAGE</label
+              >
+              <input
+                type="file"
+                id="pImgFile"
+                accept="image/*"
+                class="w-full bg-slate-800 border border-slate-700 p-2 rounded text-white"
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="col-span-2">
+              <label
+                class="block text-[10px] uppercase font-bold text-slate-500 mb-1"
+                >Product Name</label
+              >
+              <input
+                type="text"
+                id="pName"
+                placeholder="e.g. MacBook Air"
+                class="w-full bg-slate-800 border border-slate-700 p-2.5 rounded-lg text-white outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label
+                class="block text-[10px] uppercase font-bold text-slate-500 mb-1"
+                >Category</label
+              >
+              <select
+                id="pCategory"
+                class="w-full bg-slate-800 border border-slate-700 p-2.5 rounded-lg text-white outline-none focus:border-emerald-500"
+              >
+                <option value="Electronics">Electronics</option>
+                <option value="Fashion">Fashion</option>
+                <option value="Home">Home</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label
+                class="block text-[10px] uppercase font-bold text-slate-500 mb-1"
+                >Price (KES)</label
+              >
+              <input
+                type="number"
+                id="pPrice"
+                placeholder="0.00"
+                class="w-full bg-slate-800 border border-slate-700 p-2.5 rounded-lg text-white outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label
+                class="block text-[10px] uppercase font-bold text-slate-500 mb-1"
+                >Quantity</label
+              >
+              <input
+                type="number"
+                id="pQty"
+                placeholder="1"
+                class="w-full bg-slate-800 border border-slate-700 p-2.5 rounded-lg text-white outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label
+                class="block text-[10px] uppercase font-bold text-slate-500 mb-1"
+                >Delivery Fee</label
+              >
+              <input
+                type="number"
+                id="pDelivery"
+                placeholder="0"
+                class="w-full bg-slate-800 border border-slate-700 p-2.5 rounded-lg text-white outline-none focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label
+              class="block text-[10px] uppercase font-bold text-slate-500 mb-1"
+              >Description</label
+            >
+            <textarea
+              id="pDesc"
+              placeholder="Brief description..."
+              class="w-full bg-slate-800 border border-slate-700 p-2.5 rounded-lg text-white h-20 outline-none focus:border-emerald-500"
+            ></textarea>
+          </div>
+          <!-- Status Toggle -->
+          <div
+            class="flex items-center justify-between bg-slate-800/30 p-3 rounded-lg border border-slate-700"
+          >
+            <div>
+              <span class="block text-xs font-bold text-slate-400 uppercase"
+                >Marketplace Status</span
+              >
+              <span
+                id="statusLabel"
+                class="text-sm text-emerald-500 font-semibold"
+                >Listed on Market</span
+              >
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                id="pStatusToggle"
+                class="sr-only peer"
+                checked
+                onchange="
+                  document.getElementById('statusLabel').innerText = this
+                    .checked
+                    ? 'Listed on Market'
+                    : 'Private (Not Listed)';
+                  document.getElementById('statusLabel').className = this
+                    .checked
+                    ? 'text-sm text-emerald-500 font-semibold'
+                    : 'text-sm text-slate-500 font-semibold';
+                "
+              />
+              <div
+                class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"
+              ></div>
+            </label>
+          </div>
+
+          <div class="flex gap-3 pt-2">
+            <button
+              onclick="saveProduct()"
+              id="modalSaveBtn"
+              class="flex-1 bg-emerald-600 hover:bg-emerald-500 p-3 rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-emerald-900/20"
+            >
+              <i class="fas fa-check mr-2"></i> Save Product
+            </button>
+            <button
+              onclick="closeModal('productModal')"
+              class="flex-1 bg-slate-700 hover:bg-slate-600 p-3 rounded-xl font-bold transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REVISED INTERACTIVE SALES TRANSACTION FORM DESIGN (FULLY CORRECTED) -->
+    <div
+      id="saleModal"
+      class="hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 animate-fade-in"
+    >
+      <form
+        onsubmit="processSale(event)"
+        class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4 w-full max-w-md"
+      >
+        <h3 class="text-lg font-bold text-slate-100 mb-4">
+          🛒 Record New Sale
+        </h3>
+
+        <!-- 1. PRODUCT CODE INPUT -->
+        <div>
+          <label class="text-xs text-slate-400 font-bold block mb-1"
+            >Product Code</label
+          >
+          <input
+            type="text"
+            id="saleCode"
+            placeholder="e.g. MS-8BB4"
+            class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 uppercase tracking-widest outline-none focus:border-emerald-500"
+            required
+          />
+        </div>
+
+        <!-- 2. QUANTITY SOLD INPUT -->
+        <div>
+          <label class="text-xs text-slate-400 font-bold block mb-1"
+            >Quantity Sold</label
+          >
+          <input
+            type="number"
+            id="saleQty"
+            min="1"
+            placeholder="Enter output count"
+            class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-200 outline-none focus:border-emerald-500"
+            required
+          />
+        </div>
+
+        <!-- 3. PAYMENT METHOD SELECTION -->
+        <div>
+          <label class="text-xs text-slate-400 font-bold block mb-1"
+            >Payment Method</label
+          >
+          <select
+            id="salePaymentMethod"
+            onchange="toggleBuyerFieldState()"
+            class="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-sm text-slate-300 outline-none focus:border-emerald-500"
+          >
+            <option value="cash" selected>💰 Cash Transaction</option>
+            <option value="wallet">🌐 Sokodigi Wallet Transfer</option>
+          </select>
+        </div>
+
+        <!-- 4. DYNAMIC BUYER WRAPPER WITH INCORPORATED INPUT FIELD (FIXED) -->
+        <div id="buyerIdentificationWrapper" class="hidden">
+          <label class="text-xs text-amber-400 font-bold block mb-1"
+            >Buyer ID or Email Account</label
+          >
+          <!-- 🏆 INDISPENSABLE FIELD: The required input row added cleanly below -->
+        </div>
+
+        <!-- SUBMIT BUTTON SELECTION -->
+        <div class="flex justify-end gap-3 pt-4">
+          <button
+            type="button"
+            onclick="closeModal('saleModal')"
+            class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-xs font-semibold transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            id="saleSubmitBtn"
+            class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg text-xs font-semibold transition shadow-lg"
+          >
+            Save Record
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- MAIN RESPONSIVE SALES DATA LEDGER DISPLAY PANEL -->
+    <div
+      id="salesLogSection"
+      class="hidden mt-8 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl p-4 sm:p-6 transition-all duration-300"
+    >
+      <div
+        class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6"
+      >
+        <div>
+          <h2 class="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <span>📊</span> Transaction History Ledger
+          </h2>
+          <p class="text-xs text-slate-400">
+            Complete historical archive of manual business outflows
+          </p>
+        </div>
+
+        <!-- CONTROL ACTION BUTTONS -->
+        <div class="flex items-center gap-3 w-full sm:w-auto justify-end">
+          <!-- BACK BUTTON -->
+          <button
+            onclick="closeSalesLogView()"
+            class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs px-4 py-2 rounded-lg transition flex items-center gap-2 border border-slate-700"
+          >
+            ⬅️ Back to Inventory
+          </button>
+          <!-- EXPORT BUTTON -->
+          <button
+            onclick="exportSalesCSV()"
+            class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-lg"
+          >
+            📥 Export CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- RESPONSIVE TABLE CONTAINER -->
+      <div
+        class="overflow-x-auto rounded-lg border border-slate-800/80 bg-slate-950/40 custom-scrollbar"
+      >
+        <table class="w-full text-left border-collapse min-w-[700px]">
+          <thead>
+            <tr
+              class="bg-slate-800/50 text-slate-400 text-[11px] font-bold tracking-wider uppercase border-b border-slate-800"
+            >
+              <th class="p-4 w-1/5">Date / Time</th>
+              <th class="p-4 w-1/12">Reference</th>
+              <th class="p-4 w-1/4">Product Details</th>
+              <th class="p-4 w-1/12">Code</th>
+              <th class="p-4 text-center w-1/12">Qty</th>
+              <th class="p-4 text-right w-1/6">Total Value</th>
+              <th class="p-4 text-center w-1/12">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="sales-log-body" class="text-sm text-slate-300">
+            <!-- Transaction rows injected dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      document
+        .getElementById("pImgFile")
+        .addEventListener("change", function (e) {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              document.getElementById("modalPreview").src = event.target.result;
+              document
+                .getElementById("modalPreview")
+                .classList.remove("hidden");
+              document.getElementById("modalIcon").classList.add("hidden");
+            };
+            reader.readAsDataURL(file);
+          }
+        });
+
+      // 1. Start with an empty array
+      let allProducts = [];
+      const API_URL = "http://localhost:3000";
+      // To this (ignoring the "public_images" part of the path):
+
+      async function loadProducts() {
+        const userStr = localStorage.getItem("mlm_user");
+        if (!userStr) {
+          window.location.href = "login.html";
+          return;
+        }
+        const user = JSON.parse(userStr);
+        document.getElementById("userWelcome").innerText =
+          `${user.name}'s Inventory`;
+
+        try {
+          const response = await fetch(
+            `${API_URL}/api/products?shopId=${user.id}`,
+          );
+          if (!response.ok) throw new Error("Failed to fetch products");
+
+          allProducts = await response.json();
+
+          // Check if user is currently searching
+          const searchInput = document.getElementById("inventorySearch");
+          if (searchInput && searchInput.value.trim() !== "") {
+            filterInventory();
+          } else {
+            renderTable();
+          }
+
+          // Refresh stat cards
+          loadSalesStats();
+
+          // 🏆 FIX: CALL WALLET SYNC DIRECTLY INSIDE THE SUCCESS CHAIN HERE
+          await syncDashboardWalletBalance();
+        } catch (err) {
+          console.error("Fetch Error:", err);
+          document.getElementById("inventory-body").innerHTML =
+            `<tr><td colspan="7" class="p-10 text-center text-red-400">Failed to load inventory. Check if server is running.</td></tr>`;
+        }
+      }
+
+      // --- OPTIMISED FETCH AND UPDATE LIVE BALANCE WIDGET ---
+      async function syncDashboardWalletBalance() {
+        const userStr = localStorage.getItem("mlm_user");
+        if (!userStr) return;
+
+        try {
+          const user = JSON.parse(userStr);
+
+          // Explicitly targets the balance endpoint using the matching variable base path
+          const response = await fetch(`${API_URL}/api/wallets/balance`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-id": user.id, // Pass header credentials required by your requireUser middleware
+            },
+          });
+
+          if (!response.ok)
+            throw new Error("Could not map current balance profiles.");
+          const data = await response.json();
+
+          const displayWidget = document.getElementById(
+            "topWalletBalanceDisplay",
+          );
+          if (displayWidget && data.wallet) {
+            // Force render the updated structural numeric data value cleanly
+            displayWidget.innerText = `KES ${parseFloat(data.wallet.balance || 0).toLocaleString("en-KE", { minimumFractionDigits: 2 })}`;
+          }
+        } catch (err) {
+          console.error("Balance tracking visual refresh skipped:", err);
+        }
+      }
+
+      // syncDashboardWalletBalance(); //check why this is not working inside primary load sequence
+
+      // Hook balance refresh directly inside your primary load sequence loop
+      const originalLoadProducts = loadProducts();
+      loadProducts = async function () {
+        await originalLoadProducts();
+        syncDashboardWalletBalance(); // Auto sync wallet card weights concurrently
+      };
+
+      // Keep this function OUTSIDE loadProducts
+      async function loadSalesStats() {
+        try {
+          const response = await fetch(`${API_URL}/api/products/sales-summary`);
+          if (response.ok) {
+            const data = await response.json();
+
+            // Update the Top Stat Cards
+            const revEl = document.getElementById("totalRevenue");
+            const soldEl = document.getElementById("totalSold");
+
+            if (revEl) revEl.innerText = `KES ${data.revenue.toLocaleString()}`;
+            if (soldEl) soldEl.innerText = data.count;
+
+            // Update the Sidebar Orders Badge
+            const badge = document.querySelector(
+              ".sidebar-link span.bg-emerald-500",
+            );
+            if (badge) badge.innerText = data.count;
+          }
+        } catch (err) {
+          console.log("Sales data not yet available");
+        }
+      }
+      async function exportSalesCSV() {
+        try {
+          const response = await fetch(
+            `${API_URL}/api/products/sales-summary-full`,
+          );
+          const sales = await response.json();
+
+          if (sales.length === 0) return alert("No sales data to export.");
+
+          // Convert JSON to CSV string
+          const headers = [
+            "Date",
+            "Order ID",
+            "Product",
+            "Code",
+            "Qty",
+            "Total",
+          ];
+          const rows = sales.map((s) => [
+            new Date(s.date).toLocaleDateString(),
+            s.orderId,
+            s.productName,
+            s.productCode,
+            s.qtySold,
+            s.totalPrice,
+          ]);
+
+          const csvContent = [headers, ...rows]
+            .map((e) => e.join(","))
+            .join("\n");
+          const blob = new Blob([csvContent], { type: "text/csv" });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+
+          a.setAttribute("hidden", "");
+          a.setAttribute("href", url);
+          a.setAttribute(
+            "download",
+            `sales_report_${new Date().toLocaleDateString()}.csv`,
+          );
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } catch (err) {
+          alert("Failed to export CSV.");
+        }
+      }
+
+      // 2. Render Table with your specific JSON structure
+      function renderTable() {
+        const body = document.getElementById("inventory-body");
+        if (!allProducts || allProducts.length === 0) {
+          body.innerHTML = `<tr><td colspan="7" class="p-10 text-center text-slate-500">No products found.</td></tr>`;
+          return;
+        }
+
+        body.innerHTML = allProducts
+          .map((p) => {
+            const displayCode =
+              p.productCode || p.id.substring(0, 8).toUpperCase();
+            const filename = p.imageUrl.split("/").pop();
+            const finalImageUrl = `${API_URL}/images/${filename}`;
+
+            return `
+            <tr class="hover:bg-slate-800/40 transition border-b border-slate-700/50">
+              <td class="p-4">
+                <input type="checkbox" class="item-check" data-id="${p.id}" data-code="${displayCode}">
+              </td>
+              <td class="p-4 flex items-center gap-3">
+                <img src="${finalImageUrl}" class="w-12 h-12 rounded shadow-lg object-cover bg-slate-700" onerror="this.src='https://placehold.co'">
+                <div>
+                  <div class="font-bold text-slate-200 text-sm">${p.name}</div>
+                  <div class="text-[10px] text-slate-500 uppercase tracking-wider">${p.category}</div>
+                </div>
+              </td>
+              <td class="p-4 text-emerald-500 font-mono text-xs">${displayCode}</td>
+              <td class="p-4">
+                <span class="px-2 py-1 rounded-full text-[10px] font-bold ${p.status === "LISTED" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/10 text-emerald-500"}">
+                  ${p.status || "READY"}
+                </span>
+              </td>
+              <td class="p-4 font-bold ${p.quantity < 5 ? "text-red-400" : "text-slate-300"}">${p.quantity}</td>
+              <td class="p-4 text-emerald-400 font-bold text-sm">KES ${p.price.toLocaleString()}</td>
+              
+              <!-- ACTIONS COLUMN -->
+              <td class="p-4 text-center">
+                <div class="flex justify-center gap-3">
+                  <!-- EDIT BUTTON -->
+                  <button onclick="editProduct('${p.id}')" ...> 📝 </button>
+
+              
+                  <!-- DELETE BUTTON -->
+                  <button onclick="deleteProduct('${p.id}')" ...> 🗑️ </button>
+                </div>
+              </td>
+              
+            </tr>
+          `;
+          })
+          .join("");
+      }
+
+      // FIX: Add 'event' parameter explicitly into the signature profile context
+      // --- TOGGLES DISCOVERABILITY OF WALLET TRACKING DATA FIELDS ---
+      function toggleBuyerFieldState() {
+        const selectedMethod =
+          document.getElementById("salePaymentMethod").value;
+        const buyerWrapper = document.getElementById(
+          "buyerIdentificationWrapper",
+        );
+        const buyerInput = document.getElementById("saleBuyerIdentity");
+
+        if (selectedMethod === "wallet") {
+          buyerWrapper.classList.remove("hidden");
+          buyerInput.required = true;
+        } else {
+          buyerWrapper.classList.add("hidden");
+          buyerInput.required = false;
+          buyerInput.value = "";
+        }
+      }
+
+      // --- SINGLE CONSOLIDATED METHOD: SUBMIT NEW TRANSFERS AND CASCADE UPDATE BALANCES ---
+      async function processSale(event) {
+        if (event) event.preventDefault(); // Securely halt default browser page reloads
+
+        const codeInput = document.getElementById("saleCode");
+        const qtyInput = document.getElementById("saleQty");
+        const paymentMethodInput = document.getElementById("salePaymentMethod");
+        const buyerIdentityInput = document.getElementById("saleBuyerIdentity");
+        const btn = document.getElementById("saleSubmitBtn"); // Direct clean DOM reference
+
+        // Fail-safe protection layer if DOM items are missing
+        if (
+          !codeInput ||
+          !qtyInput ||
+          !paymentMethodInput ||
+          !buyerIdentityInput ||
+          !btn
+        ) {
+          console.error(
+            "Critical DOM element references missing from the current view configuration framework.",
+          );
+          return;
+        }
+
+        const code = codeInput.value.trim();
+        const qty = parseInt(qtyInput.value);
+        const method = paymentMethodInput.value;
+        const buyer = buyerIdentityInput.value.trim();
+
+        // 1. Structural input value validations
+        if (!code || !qty || qty <= 0) {
+          return alert("⚠️ Please enter a valid product code and stock count.");
+        }
+        if (method === "wallet" && !buyer) {
+          return alert(
+            "⚠️ Buyer profile reference details are required for wallet transfers.",
+          );
+        }
+
+        // 2. Set loading states on button
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML =
+          '<i class="fas fa-spinner fa-spin mr-2"></i> Syncing Ledger...';
+
+        try {
+          // 3. Dispatch payload data block to backend controller endpoint
+          const response = await fetch(`${API_URL}/api/products/update-sales`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              productCode: code,
+              qtySold: qty,
+              paymentMethod: method,
+              buyerEmailOrId: buyer,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            alert(
+              `✅ Sale Logged via ${method === "cash" ? "Cash" : "Sokodigi Wallet"}!\nRemaining Stock Balance: ${result.newQuantity}`,
+            );
+
+            // 4. Reset modal parameters cleanly
+            codeInput.value = "";
+            qtyInput.value = "";
+            paymentMethodInput.value = "cash";
+
+            if (typeof toggleBuyerFieldState === "function") {
+              toggleBuyerFieldState();
+            } else {
+              const buyerWrapper = document.getElementById(
+                "buyerIdentificationWrapper",
+              );
+              if (buyerWrapper) buyerWrapper.classList.add("hidden");
+            }
+
+            // Close the modal cleanly
+            if (typeof closeModal === "function") {
+              closeModal("saleModal");
+            } else {
+              const modalContainer = document.getElementById("saleModal");
+              if (modalContainer) modalContainer.classList.add("hidden");
+            }
+
+            // 5. CASCADE METRIC REFRESHES
+            // Auto updates inventory rows, top statistics panels, and user wallet balance widgets
+            await loadProducts();
+
+            // Auto-refresh the sales history ledger table list if it is open in the background
+            const salesSection = document.getElementById("salesLogSection");
+            if (
+              typeof showSalesLogView === "function" &&
+              salesSection &&
+              !salesSection.classList.contains("hidden")
+            ) {
+              showSalesLogView();
+            }
+          } else {
+            alert(
+              "❌ Transaction Denied: " +
+                (result.error || "Failed to parse records."),
+            );
+          }
+        } catch (err) {
+          console.error("Sale Recording Processing Failure:", err);
+          alert("❌ Network processing error. Is the server running?");
+        } finally {
+          // 6. Safely restore click mechanics and element styles
+          btn.disabled = false;
+          btn.innerHTML = originalText;
+        }
+      }
+
+      // --- RENDERS THE HISTORY TABLE COLUMN ARCHIVE INCORPORATING TRANSACTION TYPE BADGES ---
+      async function showSalesLogView(event) {
+        if (event) event.preventDefault();
+        const salesLogSection = document.getElementById("salesLogSection");
+        const tableBody = document.getElementById("sales-log-body");
+
+        try {
+          const response = await fetch(
+            `${API_URL}/api/products/sales-summary-full`,
+          );
+          const salesData = await response.json();
+
+          if (salesData.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="7" class="p-12 text-center text-slate-500">No records parsed.</td></tr>`;
+          } else {
+            salesData.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            tableBody.innerHTML = salesData
+              .map((s, idx) => {
+                const formattedDate = new Date(s.date).toLocaleString("en-KE", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                });
+                const rowBgClass =
+                  idx % 2 === 0 ? "bg-slate-900/20" : "bg-slate-800/20";
+
+                // Formats responsive visual color context indicators for payment paths
+                const paymentBadge =
+                  s.paymentMethod === "wallet"
+                    ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-400 border border-purple-500/30">🌐 WALLET</span>`
+                    : `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">💰 CASH</span>`;
+
+                return `
+          <tr class="${rowBgClass} hover:bg-slate-800/40 transition border-b border-slate-800/60">
+            <td class="p-4 font-mono text-xs text-slate-400 whitespace-nowrap">${formattedDate}</td>
+            <td class="p-4 text-slate-400 font-medium text-xs">${s.orderId}</td>
+            <td class="p-4 font-semibold text-slate-200">
+              <div class="flex flex-col gap-1">
+                <span>${s.productName}</span>
+                <span class="w-fit">${paymentBadge}</span>
+              </div>
+            </td>
+            <td class="p-4 text-emerald-500 font-mono text-xs font-bold">${s.productCode}</td>
+            <td class="p-4 text-center font-bold text-slate-300">${s.qtySold}</td>
+            <td class="p-4 text-right text-emerald-400 font-bold">KES ${parseFloat(s.totalPrice || 0).toLocaleString()}</td>
+            <td class="p-4 text-center">
+              <button onclick="deleteSaleRecord('${s.productCode}', '${s.date}')" class="text-red-400 hover:text-red-300 p-2 rounded transition">🗑️</button>
+            </td>
+          </tr>
+        `;
+              })
+              .join("");
+          }
+
+          salesLogSection.classList.remove("hidden");
+          salesLogSection.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        } catch (err) {
+          alert("❌ Error compiling history table.");
+        }
+      }
+
+      // --- INSTANT BACK/CLOSE INTERFACE CONTROL ---
+      function closeSalesLogView() {
+        const salesLogSection = document.getElementById("salesLogSection");
+        if (salesLogSection) {
+          salesLogSection.classList.add("hidden");
+        }
+        // Scroll view directly back up to the primary inventory table layout
+        const mainInventoryElement =
+          document.getElementById("userWelcome") ||
+          document.getElementById("productGrid");
+        if (mainInventoryElement) {
+          mainInventoryElement.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        }
+      }
+
+      // --- TRANSACTIONS RECORD ROLLBACK PROCESSING ENGINE ---
+      async function deleteSaleRecord(productCode, timestamp) {
+        const confirmAction = confirm(
+          "⚠️ Are you sure you want to delete this sale record?\nThis action will automatically restore the item stock back to your inventory.",
+        );
+        if (!confirmAction) return;
+
+        try {
+          const response = await fetch(`${API_URL}/api/products/delete-sale`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productCode, timestamp }),
+          });
+
+          const result = await response.json();
+
+          if (response.ok) {
+            alert("✅ Sale record deleted and inventory stock restored!");
+
+            // Cascade-reload tables and status metric calculations dynamically
+            loadProducts(); // Reload inventory stock rows
+            showSalesLogView(); // Redraw sales ledger rows dynamically
+          } else {
+            alert(`❌ Error: ${result.error || "Failed to drop entry"}`);
+          }
+        } catch (err) {
+          console.error(err);
+          alert("❌ Network context runtime error.");
+        }
+      }
+
+      // Modal Helpers
+
+      function prepareAddModal() {
+        // 1. CRITICAL: Clear the edit ID so saveProduct knows this is NEW
+        editingProductId = null;
+
+        // 2. Clear all modal inputs
+        document.getElementById("pName").value = "";
+        document.getElementById("pPrice").value = "";
+        document.getElementById("pQty").value = "";
+        document.getElementById("pCategory").value = "Electronics";
+        document.getElementById("pDelivery").value = "0";
+        document.getElementById("pDesc").value = "";
+        document.getElementById("pImgFile").value = ""; // Clear file input
+
+        // 3. Reset the Image Preview
+        document.getElementById("modalPreview").classList.add("hidden");
+        document.getElementById("modalIcon").classList.remove("hidden");
+
+        // 4. Change the Button Text back to "Save"
+        document.getElementById("modalSaveBtn").innerHTML =
+          '<i class="fas fa-plus mr-2"></i> Save Product';
+
+        // 5. Open the Modal
+        openModal("productModal");
+      }
+
+      function openAddModal() {
+        editingProductId = null; // Important: Clear the ID
+
+        // Manually clear the inputs since the modal is a DIV
+        document.getElementById("pName").value = "";
+        document.getElementById("pPrice").value = "";
+        document.getElementById("pQty").value = "";
+        document.getElementById("pCategory").value = "Electronics";
+        document.getElementById("pDelivery").value = "0";
+        document.getElementById("pDesc").value = "";
+        document.getElementById("pImgFile").value = ""; // Clear file input
+
+        // Hide the previous preview image
+        document.getElementById("modalPreview").classList.add("hidden");
+        document.getElementById("modalIcon").classList.remove("hidden");
+
+        // Set the button to "Save" mode
+        document.getElementById("modalSaveBtn").innerHTML =
+          '<i class="fas fa-plus mr-2"></i> Save Product';
+
+        // Now open the actual modal
+        openModal("productModal");
+      }
+
+      // --- MODAL UTILITIES ---
+      function openModal(id) {
+        const modal = document.getElementById(id);
+        if (modal) {
+          modal.style.display = "flex"; // Shows the modal
+          // Optional: prevent background scrolling
+          document.body.style.overflow = "hidden";
+        } else {
+          console.error(`Modal with ID "${id}" not found.`);
+        }
+      }
+
+      function closeModal(id) {
+        const modal = document.getElementById(id);
+        if (modal) {
+          modal.style.display = "none"; // Hides the modal
+          document.body.style.overflow = "auto"; // Re-enable scrolling
+
+          // If it was the product modal, reset the edit state
+          if (id === "productModal") {
+            editingProductId = null;
+            // Reset the form so it doesn't show old data next time
+            const form = modal.querySelector("form");
+            if (form) form.reset();
+          }
+        }
+      }
+
+      // PRODUCT CRUD
+      async function saveProduct() {
+        const fileInput = document.getElementById("pImgFile");
+        const user = JSON.parse(localStorage.getItem("mlm_user"));
+
+        const formData = new FormData();
+        // Only append image if a new one was selected
+        if (fileInput.files[0]) {
+          formData.append("image", fileInput.files[0]);
+        }
+
+        formData.append("name", document.getElementById("pName").value);
+        formData.append("price", document.getElementById("pPrice").value);
+        formData.append("category", document.getElementById("pCategory").value);
+        formData.append("quantity", document.getElementById("pQty").value);
+        formData.append(
+          "deliveryFee",
+          document.getElementById("pDelivery").value,
+        );
+        formData.append("description", document.getElementById("pDesc").value);
+        formData.append(
+          "status",
+          document.getElementById("pStatusToggle").checked ? "LISTED" : "READY",
+        );
+        formData.append("shopId", user.id);
+
+        // Determine if we are PUTing (edit) or POSTing (new)
+        const url = editingProductId
+          ? `${API_URL}/api/products/${editingProductId}`
+          : `${API_URL}/api/products/upload`;
+        const method = editingProductId ? "PUT" : "POST";
+
+        try {
+          const response = await fetch(url, { method, body: formData });
+          if (response.ok) {
+            alert(editingProductId ? "Product Updated!" : "Product Added!");
+            editingProductId = null; // Reset
+            closeModal("productModal");
+            loadProducts();
+          }
+        } catch (err) {
+          alert("Save failed.");
+        }
+      }
+
+      function filterInventory() {
+        const query = document
+          .getElementById("inventorySearch")
+          .value.toLowerCase()
+          .trim();
+
+        // Filter the local array
+        const filtered = allProducts.filter((p) => {
+          const name = p.name.toLowerCase();
+          // Fallback for code if productCode is missing
+          const code = (p.productCode || p.id.substring(0, 8)).toLowerCase();
+          const category = p.category.toLowerCase();
+
+          return (
+            name.includes(query) ||
+            code.includes(query) ||
+            category.includes(query)
+          );
+        });
+
+        // Re-render only the filtered results
+        renderFilteredTable(filtered);
+      }
+
+      // Helper to render only what matches
+      function renderFilteredTable(productsToDisplay) {
+        const body = document.getElementById("inventory-body");
+
+        if (productsToDisplay.length === 0) {
+          body.innerHTML = `<tr><td colspan="7" class="p-10 text-center text-slate-500 italic">No matches found for your search.</td></tr>`;
+          return;
+        }
+
+        // Reuse your existing logic but for the filtered list
+        body.innerHTML = productsToDisplay
+          .map((p) => {
+            const displayCode =
+              p.productCode || p.id.substring(0, 8).toUpperCase();
+            const filename = p.imageUrl.split("/").pop();
+            const finalImageUrl = `${API_URL}/images/${filename}`;
+
+            return `
+              <tr class="hover:bg-slate-800/40 transition border-b border-slate-700/50">
+                <td class="p-4"><input type="checkbox" class="item-check" data-id="${p.id}" data-code="${displayCode}"></td>
+                <td class="p-4 flex items-center gap-3">
+                  <img src="${finalImageUrl}" class="w-12 h-12 rounded object-cover bg-slate-700" onerror="this.src='https://placehold.co'">
+                  <div>
+                    <div class="font-bold text-slate-200 text-sm">${p.name}</div>
+                    <div class="text-[10px] text-slate-500 uppercase">${p.category}</div>
+                  </div>
+                </td>
+                <td class="p-4 text-emerald-500 font-mono text-xs">${displayCode}</td>
+                <td class="p-4">
+                   <span class="px-2 py-1 rounded-full text-[10px] font-bold ${p.status === "LISTED" ? "bg-blue-500/20 text-blue-400" : "bg-emerald-500/10 text-emerald-500"}">
+                    ${p.status || "READY"}
+                  </span>
+                </td>
+                <td class="p-4 font-bold text-slate-300">${p.quantity}</td>
+                <td class="p-4 text-emerald-400 font-bold">KES ${p.price.toLocaleString()}</td>
+                <td class="p-4 text-center">
+                  <div class="flex justify-center gap-3">
+                    <button onclick="editProduct('${p.id}')" class="text-slate-500 hover:text-white"><i class="fa fa-edit"></i></button>
+                    <button onclick="deleteProduct('${p.id}')" class="text-slate-500 hover:text-red-500"><i class="fa fa-trash"></i></button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          })
+          .join("");
+      }
+
+      // MARKETPLACE LOGIC
+      async function pushToMarket() {
+        const selectedCheckboxes = document.querySelectorAll(
+          ".item-check:checked",
+        );
+
+        if (selectedCheckboxes.length === 0) {
+          return alert(
+            "Please select at least one product to list on the market.",
+          );
+        }
+
+        // Map checkboxes to an array of codes
+        const productCodes = Array.from(selectedCheckboxes).map(
+          (cb) => cb.dataset.code,
+        );
+
+        // Visual feedback on the button
+        const marketBtn = document.querySelector(
+          "button[onclick='pushToMarket()']",
+        );
+        const originalText = marketBtn.innerHTML;
+        marketBtn.innerHTML = `<i class="fas fa-spinner fa-spin mr-2"></i> Listing ${productCodes.length} Items...`;
+        marketBtn.disabled = true;
+
+        try {
+          const response = await fetch(
+            "http://localhost:3000/api/products/list-to-market",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ productCodes: productCodes }),
+            },
+          );
+
+          if (response.ok) {
+            alert(
+              `✅ Success! ${productCodes.length} products have been listed and copied to market.json.`,
+            );
+            document.getElementById("selectAll").checked = false; // Reset master checkbox
+            loadProducts(); // Refresh table to show "LISTED" status pills
+          } else {
+            const err = await response.json();
+            alert("❌ Error: " + (err.error || "Failed to list items."));
+          }
+        } catch (err) {
+          console.error(err);
+          alert("❌ Network error. Check if your server is running.");
+        } finally {
+          marketBtn.innerHTML = originalText;
+          marketBtn.disabled = false;
+        }
+      }
+      async function updateOrderBadge() {
+        try {
+          // You'll need an endpoint that returns the sales count
+          const response = await fetch(`${API_URL}/api/products/sales-count`);
+          if (response.ok) {
+            const data = await response.json();
+            // Target the span in your sidebar
+            const badge = document.querySelector(
+              ".sidebar-link .bg-emerald-500",
+            );
+            if (badge) badge.innerText = data.count;
+          }
+        } catch (err) {
+          console.log("Could not update badge");
+        }
+      }
+
+      // Call it when the page loads
+      updateOrderBadge();
+
+      // --- EDIT PRODUCT LOGIC ---
+      let editingProductId = null; // Track which product we are updating
+
+      async function editProduct(id) {
+        editingProductId = id;
+        const product = allProducts.find((p) => p.id === id);
+        if (!product) return;
+
+        // Fill the modal with current data
+        document.getElementById("pName").value = product.name;
+        document.getElementById("pPrice").value = product.price;
+        document.getElementById("pQty").value = product.quantity;
+        document.getElementById("pCategory").value = product.category;
+        document.getElementById("pDelivery").value = product.deliveryFee || 0;
+        document.getElementById("pDesc").value = product.description || "";
+        document.getElementById("pStatusToggle").checked =
+          product.status === "LISTED";
+
+        // Show current image in preview
+        const preview = document.getElementById("modalPreview");
+        preview.src = `${API_URL}/images/${product.imageUrl.split("/").pop()}`;
+        preview.classList.remove("hidden");
+        document.getElementById("modalIcon").classList.add("hidden");
+
+        // Change Button Text to Update
+        document.getElementById("modalSaveBtn").innerHTML =
+          '<i class="fas fa-save mr-2"></i> Update Product';
+
+        openModal("productModal");
+      }
+
+      // --- BULK DELETE LOGIC ---
+
+      // --- THE MASTER DELETE FUNCTION ---
+      async function performDeletion(ids) {
+        const count = ids.length;
+        if (count === 0) return;
+
+        const message =
+          count === 1
+            ? "Delete this product from Inventory and Marketplace?"
+            : `Permanently delete ${count} selected products?`;
+
+        if (!confirm(message)) return;
+
+        try {
+          // Create an array of fetch promises
+          const deletePromises = ids.map((id) =>
+            fetch(`${API_URL}/api/products/${id}`, { method: "DELETE" }),
+          );
+
+          // Wait for all to finish
+          const results = await Promise.all(deletePromises);
+
+          if (results.every((res) => res.ok)) {
+            alert(`✅ Successfully removed ${count} item(s).`);
+            loadProducts(); // Refresh the table
+          } else {
+            alert("⚠️ Some items could not be deleted. Please refresh.");
+          }
+        } catch (err) {
+          alert("❌ Network error. Is the server running?");
+        }
+      }
+
+      // --- LINKED TO THE INDIVIDUAL BUTTON ---
+      function deleteProduct(id) {
+        performDeletion([id]); // Wrap single ID in an array
+      }
+
+      // --- LINKED TO THE BULK BUTTON ---
+      function deleteSelected() {
+        const selectedCheckboxes = document.querySelectorAll(
+          ".item-check:checked",
+        );
+        const ids = Array.from(selectedCheckboxes).map((cb) => cb.dataset.id);
+
+        if (ids.length === 0) {
+          return alert("Please select products using the checkboxes first.");
+        }
+
+        performDeletion(ids);
+      }
+
+      renderTable();
+    </script>
+  </body>
+</html>

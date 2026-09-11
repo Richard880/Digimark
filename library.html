@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StreamNet | Global Library</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com" />
+
+    <style>
+      @import url("https://fonts.googleapis.com");
+
+      body {
+        background-color: #f8fafc;
+        color: #1e293b;
+        font-family: "Inter", sans-serif;
+        margin: 0;
+      }
+
+      /* SIDEBAR STYLES */
+      .glass {
+        background: rgba(15, 23, 42, 0.98);
+        backdrop-filter: blur(10px);
+      }
+      .sidebar-link {
+        display: flex;
+        align-items: center;
+        padding: 12px 16px;
+        color: #94a3b8;
+        border-radius: 12px;
+        transition: 0.3s;
+        text-decoration: none;
+        margin-bottom: 4px;
+      }
+      .sidebar-link:hover,
+      .sidebar-link.active {
+        background: rgba(220, 38, 38, 0.1);
+        color: #ef4444;
+      }
+
+      /* VIDEO CARD SYSTEM */
+      .video-card {
+        position: relative;
+        width: 280px;
+        height: 157px;
+        margin-right: 15px;
+        flex-shrink: 0;
+      }
+
+      .preview-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        border-radius: 16px; /* Match your modern UI curve */
+        overflow: hidden;
+        transition: all 0.4s cubic-bezier(0.33, 1, 0.68, 1);
+        z-index: 10;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        cursor: pointer;
+      }
+
+      /* SCALE EFFECT */
+      .video-card:hover .preview-overlay {
+        transform: scale(1.25);
+        z-index: 100;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      /* TITLE OVERLAY (Premium Look) */
+      .info-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        padding: 30px 15px 12px 15px;
+        background: linear-gradient(
+          to top,
+          rgba(0, 0, 0, 1) 0%,
+          rgba(0, 0, 0, 0.7) 50%,
+          transparent 100%
+        );
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        z-index: 30;
+      }
+
+      .video-card:hover .info-bar {
+        opacity: 1;
+      }
+
+      .video-title {
+        font-size: 13px;
+        font-weight: 900; /* Super bold */
+        color: #ffffff;
+        text-transform: uppercase;
+        letter-spacing: 0.7px;
+        /* This creates a "glow" of black around the white text */
+        text-shadow:
+          0px 0px 4px rgba(0, 0, 0, 1),
+          0px 2px 2px rgba(0, 0, 0, 1);
+        margin: 0;
+      }
+
+      /* MUTE BUTTON */
+      .mute-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 50;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition:
+          opacity 0.3s,
+          transform 0.2s;
+      }
+
+      .video-card:hover .mute-btn {
+        opacity: 1;
+      }
+
+      .mute-btn:hover {
+        transform: scale(1.1);
+        background: rgba(0, 0, 0, 0.8);
+      }
+
+      .video-row {
+        display: flex;
+        overflow-x: auto;
+        padding: 20px 0 40px 0;
+        gap: 10px;
+      }
+
+      .video-row::-webkit-scrollbar {
+        display: none;
+      }
+      .chip {
+        padding: 8px 20px;
+        border-radius: 20px;
+        background: white;
+        border: 1px solid #e2e8f0;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 600;
+        transition: 0.2s;
+        color: #64748b;
+      }
+      .chip:hover {
+        border-color: #ef4444;
+        color: #ef4444;
+      }
+      .chip.active {
+        background: #ef4444;
+        color: white;
+        border-color: #ef4444;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+      }
+      #searchOverlay {
+        transform: translateY(100%); /* Start hidden at bottom */
+        transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      #searchOverlay.active {
+        transform: translateY(0) !important; /* Slide up when active */
+      }
+
+      /* Make sure the search input stays ABOVE the overlay */
+      .search-wrap {
+        position: relative;
+        z-index: 210; /* Higher than the overlay */
+      }
+
+      /* Adjust the card styling inside search to be slightly larger */
+      #searchGrid .video-card {
+        width: 320px;
+        height: 180px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="main-wrapper flex min-h-screen">
+      <!-- RESTORED DARK SIDEBAR -->
+      <aside
+        class="w-64 glass border-r border-zinc-800 p-6 flex flex-col h-screen sticky top-0"
+      >
+        <div class="flex items-center gap-3 mb-10">
+          <div class="bg-red-600 p-2 rounded-lg">
+            <i class="fas fa-play text-white"></i>
+          </div>
+          <h1 class="text-xl font-bold tracking-tighter text-white">
+            Stream<span class="text-red-600">Net</span>
+          </h1>
+        </div>
+        <nav class="flex-1 overflow-y-auto">
+          <a href="myShop.html" class="sidebar-link"
+            ><i class="fas fa-box w-5 mr-3"></i> Inventory</a
+          >
+          <a href="ondisplay.html" class="sidebar-link"
+            ><i class="fas fa-bullhorn w-5 mr-3"></i> OnDisplay</a
+          >
+          <a href="markethub.html" class="sidebar-link"
+            ><i class="fas fa-globe w-5 mr-3"></i> Marketplace</a
+          >
+          <a href="advideos.html" class="sidebar-link"
+            ><i class="fas fa-play-circle w-5 mr-3"></i> SokoShorts</a
+          >
+          <a href="library.html" class="sidebar-link active"
+            ><i class="fas fa-play-circle w-5 mr-3"></i> StreamNet</a
+          >
+          <a href="wallet_test.html" class="sidebar-link"
+            ><i class="fas fa-wallet w-5 mr-3"></i> Soko-Wallet</a
+          >
+          <a href="myVideos.html" class="sidebar-link"
+            ><i class="fas fa-microphone w-5 mr-3"></i> MyStudio</a
+          >
+        </nav>
+        <div class="mt-auto pt-6 border-t border-zinc-800">
+          <button
+            onclick="history.back()"
+            class="w-full bg-zinc-900 text-zinc-400 p-3 rounded-xl text-sm font-bold hover:text-white transition flex items-center justify-center gap-2"
+          >
+            <i class="fas fa-arrow-left"></i> Back
+          </button>
+        </div>
+      </aside>
+
+      <!-- MAIN CONTENT AREA -->
+      <!-- MAIN CONTENT AREA -->
+      <main class="content-area flex-grow p-10 relative">
+        <!-- Top Bar: Single Search + User Profile -->
+        <div class="flex justify-between items-start mb-10">
+          <div class="search-wrap sticky top-0 z-[210] flex-grow max-w-3xl">
+            <div class="flex items-center gap-4">
+              <div class="relative flex-grow">
+                <i
+                  class="fas fa-search absolute left-5 top-1/2 -translate-y-1/2 text-slate-400"
+                ></i>
+                <input
+                  type="text"
+                  id="searchInput"
+                  placeholder="Search videos, tags, or genres..."
+                  class="w-full pl-14 pr-6 py-4 bg-white rounded-2xl border border-slate-200 shadow-sm focus:ring-4 focus:ring-red-500/10 focus:border-red-500 outline-none transition-all text-lg"
+                  onkeyup="handleSearch()"
+                />
+              </div>
+
+              <!-- This button toggles when searching -->
+              <button
+                id="cancelSearchBtn"
+                onclick="closeSearch()"
+                class="hidden text-slate-400 font-bold hover:text-red-600 transition-all px-4 py-2 bg-slate-100 rounded-xl"
+              >
+                Cancel
+              </button>
+            </div>
+
+            <!-- Filter Chips -->
+            <div class="filters flex gap-3 mt-4">
+              <div class="chip active" onclick="setSearchFilter(this, 'all')">
+                All
+              </div>
+              <div class="chip" onclick="setSearchFilter(this, 'Action')">
+                Action
+              </div>
+              <div class="chip" onclick="setSearchFilter(this, 'Sci-Fi')">
+                Sci-Fi
+              </div>
+              <div class="chip" onclick="setSearchFilter(this, 'Horror')">
+                Horror
+              </div>
+            </div>
+          </div>
+
+          <!-- User Profile -->
+          <div
+            class="flex items-center gap-4 bg-white pr-4 pl-1.5 py-1.5 rounded-full shadow-sm ml-4"
+          >
+            <img
+              src="https://placehold.co"
+              class="w-8 h-8 rounded-full object-cover"
+            />
+            <span id="navUserName" class="text-sm font-bold text-slate-700"
+              >Loading...</span
+            >
+          </div>
+        </div>
+
+        <!-- Featured Hero (The Witcher) -->
+        <div
+          id="heroBanner"
+          class="relative w-full h-[500px] rounded-[40px] overflow-hidden mb-12 shadow-2xl bg-black group"
+        >
+          <!-- Media Layers -->
+          <img
+            id="heroImage"
+            src=""
+            class="absolute inset-0 w-full h-full object-cover transition-opacity duration-700 z-0"
+          />
+
+          <video
+            id="heroVideo"
+            muted
+            playsinline
+            loop
+            class="absolute inset-0 w-full h-full object-cover z-10 opacity-0 transition-opacity duration-700"
+          ></video>
+
+          <!-- Content Overlay -->
+          <div
+            class="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/40 to-transparent z-20 flex flex-col justify-end p-12"
+          >
+            <h2
+              id="heroTitle"
+              class="text-6xl font-black text-white mb-2 transition-all duration-500"
+            >
+              The Witcher
+            </h2>
+            <p
+              id="heroDesc"
+              class="text-slate-300 max-w-lg mb-8 font-medium transition-all duration-500"
+            >
+              Geralt of Rivia journeys toward his destiny...
+            </p>
+
+            <div class="flex items-end justify-between">
+              <div class="flex gap-4">
+                <button
+                  class="bg-red-600 text-white px-10 py-4 rounded-2xl font-bold hover:bg-red-700 transition"
+                >
+                  Watch Now
+                </button>
+              </div>
+
+              <!-- Slide Menu (First 5) -->
+              <div
+                id="heroNav"
+                class="flex gap-3 bg-black/20 p-3 rounded-3xl backdrop-blur-md border border-white/10"
+              >
+                <!-- JS will inject thumbnails here -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Categories Container -->
+        <div id="categoryContainer" class="space-y-12">
+          <!-- Rows will be injected here by init() -->
+        </div>
+
+        <!-- SEARCH OVERLAY (The Drawer) -->
+        <!-- SEARCH OVERLAY (The Drawer) -->
+        <div
+          id="searchOverlay"
+          class="fixed inset-0 z-[200] bg-white/98 backdrop-blur-2xl translate-y-full transition-transform duration-500 ease-in-out overflow-y-auto pt-40 px-10"
+        >
+          <!-- Floating Close Button -->
+          <button
+            onclick="closeSearch()"
+            class="fixed top-10 right-10 z-[250] bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-sm border border-slate-200"
+          >
+            <i class="fas fa-times text-xl"></i>
+          </button>
+
+          <div class="max-w-7xl mx-auto">
+            <div class="mb-12 border-b border-slate-100 pb-8">
+              <h2 class="text-5xl font-black text-slate-900 tracking-tight">
+                Search Results
+              </h2>
+              <p
+                id="searchCount"
+                class="text-slate-400 mt-3 font-semibold text-lg uppercase tracking-widest"
+              >
+                Type to explore StreamNet
+              </p>
+            </div>
+
+            <!-- Results Grid -->
+            <div id="searchGrid" class="flex flex-wrap gap-x-8 gap-y-14 pb-32">
+              <!-- Result cards injected here -->
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+    <script>
+      const SERVER = "http://localhost:3000";
+      let allVideos = []; // Global store
+      let currentCategoryFilter = "all";
+      let heroHls;
+
+      // --- 1. INITIALIZATION ---
+      async function init() {
+        // Set User Name
+        const userStr = localStorage.getItem("mlm_user");
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          const nameEl = document.getElementById("navUserName");
+          if (nameEl) nameEl.innerText = user.name;
+        }
+
+        try {
+          const res = await fetch(`${SERVER}/api/videos`);
+          const videos = await res.json();
+
+          // Store globally for search to use
+          allVideos = videos.filter((v) => v.status === "READY");
+
+          // Render the library rows
+          renderCategories(allVideos);
+        } catch (err) {
+          console.error("Failed to load library:", err);
+          document.getElementById("categoryContainer").innerHTML =
+            `<p class="text-slate-400">Unable to load library.</p>`;
+        }
+      }
+
+      // --- 2. RENDERING LOGIC ---
+      function renderCategories(videoList) {
+        const container = document.getElementById("categoryContainer");
+        const categories = {};
+
+        videoList.forEach((v) => {
+          const tag = v.tags && v.tags.length > 0 ? v.tags[0] : "General";
+          if (!categories[tag]) categories[tag] = [];
+          categories[tag].push(v);
+        });
+
+        container.innerHTML = "";
+        for (const [name, list] of Object.entries(categories)) {
+          container.innerHTML += `
+                  <div class="category-block">
+                      <h3 class="text-2xl font-black text-slate-800 mb-6 capitalize px-2">${name}</h3>
+                      <div class="video-row flex overflow-x-auto gap-8 pb-4">
+                          ${list.map((v) => createCardHtml(v)).join("")}
+                      </div>
+                  </div>`;
+        }
+      }
+
+      function createCardHtml(v) {
+        return `
+              <div class="video-card" onmouseenter="handleMouseEnter(this, '${v.id}')" onmouseleave="handleMouseLeave(this)">
+                  <div class="preview-overlay" onclick="window.location.href='watch.html?id=${v.id}'">
+                      <img class="thumbnail w-full h-full object-cover absolute inset-0" src="${SERVER}/${v.thumbnail}">
+                      <video class="preview-video w-full h-full object-cover absolute inset-0" muted playsinline style="display: none;"></video>
+                      <button class="mute-btn absolute bottom-3 right-3 z-50 bg-black/70 p-2 rounded-full border border-white/20" onclick="toggleMute(event, this)">
+                          <span class="icon text-white text-xs">🔇</span>
+                      </button>
+                      <div class="absolute bottom-0 left-0 right-0 p-4 pt-12 bg-gradient-to-t from-black via-black/70 to-transparent z-30">
+                          <p class="text-[13px] font-extrabold text-white uppercase tracking-wider truncate pr-10 drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]">
+                              ${v.title}
+                          </p>
+                      </div>
+                  </div>
+              </div>`;
+      }
+
+      // --- 3. SEARCH & FILTER LOGIC ---
+      let hoverTimeout;
+      function handleMouseEnter(card, id) {
+        hoverTimeout = setTimeout(() => startPreview(card, id), 600); // 600ms delay
+      }
+      function handleMouseLeave(card) {
+        clearTimeout(hoverTimeout);
+        stopPreview(card);
+      }
+
+      function handleSearch() {
+        const input = document.getElementById("searchInput");
+        const query = input.value.toLowerCase();
+        const overlay = document.getElementById("searchOverlay");
+        const grid = document.getElementById("searchGrid");
+        const cancelBtn = document.getElementById("cancelSearchBtn");
+
+        // 1. If user cleared the input, close the search
+        if (query.length === 0 && currentCategoryFilter === "all") {
+          closeSearch();
+          return;
+        }
+
+        // 2. Don't trigger the search logic until we have 2 characters
+        // But DON'T call closeSearch here, just return so the user can keep typing
+        if (query.length < 2 && currentCategoryFilter === "all") {
+          return;
+        }
+
+        // 3. Open overlay and perform filtering
+        overlay.classList.add("active");
+        cancelBtn.classList.remove("hidden");
+        document.body.style.overflow = "hidden";
+
+        const filtered = allVideos.filter((v) => {
+          const matchesQuery =
+            v.title.toLowerCase().includes(query) ||
+            (v.tags && v.tags.some((t) => t.toLowerCase().includes(query)));
+          const matchesCategory =
+            currentCategoryFilter === "all" ||
+            (v.tags && v.tags.includes(currentCategoryFilter));
+          return matchesQuery && matchesCategory;
+        });
+
+        if (filtered.length > 0) {
+          document.getElementById("searchCount").innerText =
+            `Found ${filtered.length} matches`;
+          grid.innerHTML = filtered.map((v) => createCardHtml(v)).join("");
+        } else {
+          grid.innerHTML = `<p class="w-full text-center py-20 text-slate-400">No results found for "${query}"</p>`;
+        }
+      }
+
+      function closeSearch() {
+        const overlay = document.getElementById("searchOverlay");
+        const input = document.getElementById("searchInput");
+        const cancelBtn = document.getElementById("cancelSearchBtn");
+
+        overlay.classList.remove("active");
+        cancelBtn.classList.add("hidden");
+
+        // Only clear the input if the user clicked 'Cancel' or closed it
+        // If you want the search bar to stay visible but clear, keep this line:
+        input.value = "";
+
+        document.body.style.overflow = "auto";
+      }
+
+      function setSearchFilter(el, category) {
+        document
+          .querySelectorAll(".chip")
+          .forEach((c) => c.classList.remove("active"));
+        el.classList.add("active");
+        currentCategoryFilter = category;
+        handleSearch();
+      }
+
+      // --- 4. VIDEO PLAYBACK ENGINE ---
+      function startPreview(card, id) {
+        const video = card.querySelector("video");
+        const img = card.querySelector("img");
+        if (!Hls.isSupported()) return;
+
+        const hls = new Hls({ capLevelToPlayerSize: true });
+        hls.loadSource(`${SERVER}/api/videos/${id}/preview/master.m3u8`);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+        video.oncanplay = () => {
+          video.style.display = "block";
+          img.style.opacity = "0";
+        };
+        card._hls = hls;
+      }
+
+      function stopPreview(card) {
+        const video = card.querySelector("video");
+        const img = card.querySelector("img");
+        video.pause();
+        video.style.display = "none";
+        img.style.opacity = "1";
+        if (card._hls) {
+          card._hls.destroy();
+          delete card._hls;
+        }
+      }
+
+      function toggleMute(event, btn) {
+        event.stopPropagation();
+        const video = btn.closest(".preview-overlay").querySelector("video");
+        video.muted = !video.muted;
+        btn.querySelector(".icon").innerText = video.muted ? "🔇" : "🔊";
+      }
+
+      // Start everything
+      init();
+    </script>
+  </body>
+</html>

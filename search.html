@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Modern Media Search</title>
+    <style>
+      :root {
+        --bg: #0f172a;
+        --card: rgba(30, 41, 59, 0.7);
+        --accent: #38bdf8;
+      }
+      body {
+        background: var(--bg);
+        color: white;
+        font-family: "Inter", sans-serif;
+        padding: 50px;
+      }
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+      }
+
+      /* Modern Glass Search Bar */
+      .search-wrap {
+        position: sticky;
+        top: 20px;
+        z-index: 10;
+        background: var(--bg);
+        padding-bottom: 20px;
+      }
+      input {
+        width: 100%;
+        padding: 18px 25px;
+        border-radius: 16px;
+        border: 1px solid #334155;
+        background: var(--card);
+        color: white;
+        font-size: 1.1rem;
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
+        box-sizing: border-box;
+      }
+      input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+      }
+
+      /* Filter Chips */
+      .filters {
+        display: flex;
+        gap: 12px;
+        margin-top: 15px;
+      }
+      .chip {
+        padding: 8px 20px;
+        border-radius: 20px;
+        background: #1e293b;
+        border: 1px solid #334155;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: 0.2s;
+        color: #94a3b8;
+      }
+      .chip.active {
+        background: var(--accent);
+        color: var(--bg);
+        font-weight: 600;
+        border-color: var(--accent);
+      }
+
+      /* Grid & Cards */
+      .results {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 25px;
+        margin-top: 30px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid #334155;
+        border-radius: 20px;
+        padding: 24px;
+        backdrop-filter: blur(10px);
+        transition: transform 0.3s ease;
+      }
+      .card:hover {
+        transform: translateY(-8px);
+        border-color: var(--accent);
+      }
+      .badge {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--accent);
+        margin-bottom: 10px;
+        display: block;
+      }
+      .card h3 {
+        margin: 0 0 10px 0;
+        font-size: 1.2rem;
+      }
+      .tag-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .tag {
+        font-size: 0.75rem;
+        background: #0ea5e922;
+        color: #7dd3fc;
+        padding: 4px 10px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="search-wrap">
+        <input
+          type="text"
+          id="q"
+          placeholder="Search videos, tags, or users..."
+          onkeyup="doSearch()"
+        />
+        <div class="filters">
+          <div class="chip active" onclick="setF(this, '')">All</div>
+          <div class="chip" onclick="setF(this, 'video')">Videos</div>
+          <div class="chip" onclick="setF(this, 'user')">Users</div>
+        </div>
+      </div>
+      <div id="results" class="results"></div>
+    </div>
+
+    <script>
+      let filter = "";
+      function setF(el, val) {
+        document
+          .querySelectorAll(".chip")
+          .forEach((c) => c.classList.remove("active"));
+        el.classList.add("active");
+        filter = val;
+        doSearch();
+      }
+
+      async function doSearch() {
+        const query = document.getElementById("q").value;
+        const resDiv = document.getElementById("results");
+        if (query.length < 2) {
+          resDiv.innerHTML = "";
+          return;
+        }
+
+        const res = await fetch(
+          `http://localhost:3000/api/search?q=${query}&type=${filter}`,
+        );
+        const data = await res.json();
+
+        resDiv.innerHTML = data
+          .map(
+            (item) => `
+                <div class="card">
+                    <span class="badge">${item.type}</span>
+                    <h3>${item.title || item.name}</h3>
+                    ${item.type === "user" ? `<p style="color:#94a3b8; font-size:0.8rem">ID: ${item.id}</p>` : ""}
+                    <div class="tag-row">${(item.tags || []).map((t) => `<span class="tag">#${t}</span>`).join("")}</div>
+                </div>
+            `,
+          )
+          .join("");
+      }
+    </script>
+  </body>
+</html>

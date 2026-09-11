@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sokodigi Shorts Pro</title>
+    <link href="https://googleapis.com" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cloudflare.com" />
+    <style>
+      :root {
+        --glass: rgba(15, 23, 42, 0.9);
+        --accent: #ff4b4b;
+        --emerald: #10b981;
+        --bg-dark: #020617;
+        --comment-bg: #0f172a;
+        --border: #334155;
+      }
+    
+      body {
+        margin: 0;
+        background: var(--bg-dark);
+        font-family: "Inter", sans-serif;
+        color: white;
+        display: flex;
+        height: 100vh;
+        overflow: hidden;
+      }
+    
+      /* --- SIDEBAR (SHOP NAV) --- */
+      aside {
+        width: 260px;
+        background: var(--glass);
+        border-right: 1px solid var(--border);
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        flex-shrink: 0;
+        z-index: 2000;
+        transition: transform 0.3s ease;
+      }
+    
+      .sidebar-link {
+        display: flex;
+        align-items: center;
+        padding: 12px;
+        color: #94a3b8;
+        text-decoration: none;
+        border-radius: 8px;
+        margin-bottom: 4px;
+        font-size: 14px;
+      }
+      .sidebar-link:hover, .sidebar-link.active {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--emerald);
+      }
+    
+      /* --- MAIN CONTENT LAYOUT --- */
+      .main-content {
+        flex: 1;
+        display: flex;
+        flex-direction: row; /* Desktop side-by-side */
+        height: 100vh;
+        position: relative;
+        background: #000;
+      }
+    
+      .feed-container {
+        flex: 1;
+        height: 100vh;
+        overflow-y: scroll;
+        scroll-snap-type: y mandatory;
+        scrollbar-width: none;
+      }
+      .feed-container::-webkit-scrollbar { display: none; }
+    
+      /* --- VIDEO SECTION --- */
+      .video-section {
+        height: 100vh;
+        width: 100%;
+        scroll-snap-align: start;
+        scroll-snap-stop: always;
+        position: relative;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: #000;
+      }
+    
+      video {
+        height: 100%;
+        width: 100%;
+        max-width: 500px;
+        object-fit: cover;
+        cursor: pointer;
+      }
+    
+      /* --- COMMENT SECTION (SIDEBAR/DRAWER) --- */
+      .comment-section {
+        width: 400px;
+        background: var(--comment-bg);
+        border-left: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        z-index: 3000;
+        transition: transform 0.3s ease, bottom 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.1);
+        flex-shrink: 0;
+      }
+    
+      /* --- OVERLAYS --- */
+      .play-pause-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 50px;
+        z-index: 30;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+    
+      .video-info {
+        position: absolute;
+        bottom: 90px;
+        left: 50%;
+        transform: translateX(-240px);
+        width: 380px;
+        z-index: 20;
+        padding: 0 15px;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+      }
+    
+      .side-actions {
+        position: absolute;
+        bottom: 110px;
+        left: 50%;
+        transform: translateX(180px);
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        z-index: 20;
+        align-items: center;
+      }
+    
+      /* --- MODERN SEEK BAR --- */
+      .custom-progress-container {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        cursor: pointer;
+        z-index: 100;
+        transition: height 0.2s;
+      }
+      .custom-progress-container:hover { height: 8px; }
+      .progress-fill {
+        height: 100%;
+        background: var(--accent);
+        width: 0%;
+        position: relative;
+      }
+      .progress-fill::after {
+        content: "";
+        position: absolute;
+        right: -6px;
+        top: -4px;
+        width: 12px;
+        height: 12px;
+        background: #fff;
+        border-radius: 50%;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+      .custom-progress-container:hover .progress-fill::after { opacity: 1; }
+    
+      /* --- NAV BAR --- */
+      .nav-bar {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        height: 70px;
+        background: #000;
+        border-top: 1px solid #222;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        z-index: 4000;
+      }
+    
+      /* --- ANIMATIONS --- */
+      .heart-pop {
+        position: absolute;
+        color: var(--accent);
+        font-size: 80px;
+        pointer-events: none;
+        z-index: 100;
+        animation: heart-burst 0.8s ease-out forwards;
+        text-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+      }
+    
+      @keyframes heart-burst {
+        0% { transform: scale(0) rotate(-15deg); opacity: 0; }
+        20% { transform: scale(1.2) rotate(0deg); opacity: 1; }
+        100% { transform: translateY(-100px) scale(1.5) rotate(15deg); opacity: 0; }
+      }
+    
+      /* --- MOBILE RESPONSIVENESS --- */
+      @media (max-width: 1024px) {
+        aside {
+          position: fixed;
+          left: 0;
+          transform: translateX(-100%);
+        }
+        aside.active { transform: translateX(0); }
+    
+        .comment-section {
+          position: fixed;
+          bottom: -100%;
+          left: 0;
+          width: 100%;
+          height: 75vh;
+          border-radius: 24px 24px 0 0;
+          border-left: none;
+        }
+        .comment-section.open { bottom: 0; }
+    
+        .video-info {
+          left: 15px;
+          transform: none;
+          width: auto;
+          right: 80px;
+        }
+        .side-actions {
+          left: auto;
+          right: 15px;
+          transform: none;
+        }
+      }
+    </style>
+ 
+  </head>
+  <body>
+    <!-- SIDEBAR -->
+    <aside id="sidebar">
+      <div
+        class="flex items-center gap-3 mb-10"
+        style="
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          margin-bottom: 40px;
+        "
+      >
+        <div style="background: #10b981; padding: 8px; border-radius: 8px">
+          <i class="fas fa-shop text-white"></i>
+        </div>
+        <h1 style="font-size: 20px; font-weight: bold; margin: 0">
+          myShop <span style="color: #10b981">Pro</span>
+        </h1>
+      </div>
+
+      <nav style="flex: 1; overflow-y: auto">
+        <a href="myShop.html" class="sidebar-link"
+          ><i
+            class="fas fa-box w-5 mr-3"
+            style="width: 20px; margin-right: 12px"
+          ></i>
+          Inventory</a
+        >
+        <a href="#" class="sidebar-link"
+          ><i
+            class="fas fa-chart-line w-5 mr-3"
+            style="width: 20px; margin-right: 12px"
+          ></i>
+          Sales Data</a
+        >
+        <a href="#" class="sidebar-link"
+          ><i
+            class="fas fa-shopping-cart w-5 mr-3"
+            style="width: 20px; margin-right: 12px"
+          ></i>
+          Orders</a
+        >
+        <a href="onDisplay.html" class="sidebar-link"
+          ><i
+            class="fas fa-bullhorn w-5 mr-3"
+            style="width: 20px; margin-right: 12px"
+          ></i>
+          OnDisplay</a
+        >
+        <a href="markethub.html" class="sidebar-link"
+          ><i
+            class="fas fa-globe w-5 mr-3"
+            style="width: 20px; margin-right: 12px"
+          ></i>
+          Marketplace</a
+        >   
+         <a href="advideos.html" class="sidebar-link active"
+        ><i
+          class="fas fa-play-circle w-5 mr-3"
+          style="width: 20px; margin-right: 12px"
+        ></i>
+        SokoShorts</a
+      >
+        <a href="library.html" class="sidebar-link"
+          ><i
+            class="fas fa-play-circle w-5 mr-3"
+            style="width: 20px; margin-right: 12px"
+          ></i>
+          Streamnet</a
+        >
+        <a href="wallet_test.html" class="sidebar-link"
+          ><i
+            class="fas fa-wallet w-5 mr-3"
+            style="width: 20px; margin-right: 12px"
+          ></i>
+          Soko-Wallet</a
+        >
+        <a href="myVideos.html" class="sidebar-link"
+          ><i
+            class="fas fa-microphone w-5 mr-3"
+            style="width: 20px; margin-right: 12px"
+          ></i>
+          MyStudio</a
+        >
+      </nav>
+
+      <div
+        style="
+          margin-top: auto;
+          padding-top: 24px;
+          border-top: 1px solid #1e293b;
+        "
+      >
+        <button
+          style="
+            width: 100%;
+            background: #1e293b;
+            color: #34d399;
+            padding: 12px;
+            border: none;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+          "
+        >
+          <i class="fas fa-plus-circle"></i> Profile
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+      <div id="feed" class="feed-container">
+      
+      </div>
+      <div id="commentSection" class="comment-section">
+        <div
+          class="drawer-header"
+          style="
+            padding: 20px;
+            border-bottom: 1px solid #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          "
+        >
+          <h3 style="margin: 0; font-size: 18px">Comments (1.2k)</h3>
+          <button
+            onclick="closeComments()"
+            class="mobile-only"
+            style="
+              background: none;
+              border: none;
+              color: white;
+              font-size: 24px;
+            "
+          >
+            ✕
+          </button>
+        </div>
+
+        <!-- Modern Comment List UI -->
+        <div
+          class="comment-list"
+          style="flex: 1; overflow-y: auto; padding: 20px"
+        >
+          <div
+            class="comment-item"
+            style="display: flex; gap: 12px; margin-bottom: 20px"
+          >
+            <img
+              src="https://pravatar.cc"
+              style="width: 36px; height: 36px; border-radius: 50%"
+            />
+            <div style="flex: 1">
+              <div
+                style="
+                  font-weight: 600;
+                  font-size: 13px;
+                  color: #94a3b8;
+                  margin-bottom: 4px;
+                "
+              >
+                @alex_dev • 2h
+              </div>
+              <p style="margin: 0; font-size: 14px; line-height: 1.5">
+                This 2026 UI update is clean! 🚀
+              </p>
+              <div
+                style="
+                  margin-top: 8px;
+                  display: flex;
+                  gap: 16px;
+                  font-size: 12px;
+                  color: #64748b;
+                "
+              >
+                <span>❤️ 12</span> <span>Reply</span>
+              </div>     
+            </div>  
+          </div>   <div
+          class="comment-item"
+          style="display: flex; gap: 12px; margin-bottom: 20px"
+        >
+          <img
+            src="https://pravatar.cc"
+            style="width: 36px; height: 36px; border-radius: 50%"
+          />
+          <div style="flex: 1">
+            <div
+              style="
+                font-weight: 600;
+                font-size: 13px;
+                color: #94a3b8;
+                margin-bottom: 4px;
+              "
+            >
+              @alex_dev • 2h
+            </div>
+            <p style="margin: 0; font-size: 14px; line-height: 1.5">
+              This 2026 UI update is clean! 🚀
+            </p>
+            <div
+              style="
+                margin-top: 8px;
+                display: flex;
+                gap: 16px;
+                font-size: 12px;
+                color: #64748b;
+              "
+            >
+              <span>❤️ 12</span> <span>Reply</span>
+            </div>     
+          </div>  <!-- Input Box -->
+     
+        </div>   <div class="comment-input" style="padding: 20px; background: #1e293b">
+          <input
+            type="text"
+            placeholder="Add comment..."
+            style="
+              width: 100%;
+              padding: 12px;
+              border-radius: 24px;
+              border: none;
+              background: #0f172a;
+              color: white;
+            "
+          />
+        </div>
+
+
+      </div>
+
+    
+    </div>
+
+ 
+ 
+    </div>
+
+   
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script>
+      const API_BASE = "http://localhost:3000";
+
+      async function loadFeed() {
+        try {
+          const res = await fetch(`${API_BASE}/api/feed/ads`);
+          const result = await res.json();
+          const container = document.getElementById("feed");
+
+          container.innerHTML = result.data
+            .map(
+              (ad, index) => `
+            <div class="video-section">
+              
+              <video id="video-${index}" loop playsinline 
+                onclick="handleVideoClick(event, ${index})"
+                ontimeupdate="updateProgress(${index})">
+              </video>
+              
+              <div class="play-pause-overlay" id="overlay-${index}">▶️</div>
+          
+              <div class="video-info">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                  <img src="https://pravatar.cc{index}" 
+                       style="width:40px; height:40px; border-radius:50%; border:2px solid white;">
+                  <strong style="font-size:15px;">@${ad.username || "Sokodigi"}</strong>
+                </div>
+                <div style="font-size:14px; opacity:0.95">${ad.caption || ""}</div>
+              </div>
+          
+              <div class="side-actions">
+                <div class="action-item"><i class="fas fa-heart fa-2x"></i><span>12.2k</span></div>
+                <div class="action-item" onclick="openComments()"><i class="fas fa-comment fa-2x"></i><span>137</span></div>
+                <div class="action-item"><i class="fas fa-bookmark fa-2x"></i><span>4k</span></div>
+                <div class="action-item"><i class="fas fa-share fa-2x"></i><span>Share</span></div>
+              </div>
+          
+              <!-- Fixed: Progress Bar Container was missing in your template -->
+            
+              <div class="custom-progress-container" onclick="seekVideo(event, ${index})">
+                  <div class="progress-fill" id="progress-${index}"></div>
+              </div>
+              
+            </div>
+          `,
+            )
+            .join("");
+
+          // Initialize HLS for each video
+          result.data.forEach((ad, index) => {
+            const videoEl = document.getElementById(`video-${index}`);
+            if (Hls.isSupported()) {
+              const hls = new Hls();
+              hls.loadSource(ad.stream_url);
+              hls.attachMedia(videoEl);
+            } else if (videoEl.canPlayType("application/vnd.apple.mpegurl")) {
+              videoEl.src = ad.stream_url;
+            }
+          });
+
+          // Set up Auto-play Observer
+          const observer = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                const video = entry.target;
+                if (entry.isIntersecting) {
+                  video.play().catch(() => {
+                    video.muted = true; // Autoplay fix for browsers
+                    video.play();
+                  });
+                } else {
+                  video.pause();
+                }
+              });
+            },
+            { threshold: 0.7 },
+          );
+
+          // Start observing immediately after content is added
+          document
+            .querySelectorAll("video")
+            .forEach((vid) => observer.observe(vid));
+        } catch (err) {
+          console.error("Feed Error:", err);
+        }
+      }
+      let lastTap = 0;
+
+      function handleVideoClick(event, index) {
+        const now = Date.now();
+        const DOUBLE_PRESS_DELAY = 300;
+
+        if (now - lastTap < DOUBLE_PRESS_DELAY) {
+          // DOUBLE TAP DETECTED
+          createHeartAnimation(event);
+          likeVideo(index);
+        } else {
+          // SINGLE TAP DETECTED
+          // We wait 300ms to see if a second tap comes
+          setTimeout(() => {
+            if (Date.now() - now >= DOUBLE_PRESS_DELAY) {
+              togglePlay(index);
+            }
+          }, DOUBLE_PRESS_DELAY);
+        }
+        lastTap = now;
+      }
+
+      function createHeartAnimation(e) {
+        const heart = document.createElement("i");
+        heart.className = "fas fa-heart heart-pop";
+
+        // Position heart at tap location
+        // We subtract 40 to center the 80px heart on the cursor
+        heart.style.left = `${e.clientX - 40}px`;
+        heart.style.top = `${e.clientY - 40}px`;
+
+        document.body.appendChild(heart);
+
+        // Remove element after animation finishes
+        setTimeout(() => heart.remove(), 800);
+      }
+
+      function likeVideo(index) {
+        // Logic to update UI or hit API
+        console.log(`Video ${index} liked!`);
+        // Optional: Change the sidebar heart icon color to red
+      }
+
+
+
+      // Function to jump to a specific time in the video
+      function seekVideo(e, index) {
+          const video = document.getElementById(`video-${index}`);
+          const bar = e.currentTarget;
+          const rect = bar.getBoundingClientRect();
+          const offsetX = e.clientX - rect.left;
+          const percentage = offsetX / rect.width;
+          video.currentTime = percentage * video.duration;
+      }
+      
+      // Function to open comments (Used by the 💬 button)
+      function openComments() {
+          const section = document.getElementById('commentSection');
+          // On desktop it's already there, on mobile we slide it up
+          section.classList.add('open');
+      }
+      
+      // Function to close comments (Used by the ✕ button)
+      function closeComments() {
+          document.getElementById('commentSection').classList.remove('open');
+      }
+      
+    
+      // Logic for manual play/pause and progress bar
+      function togglePlay(index) {
+        const video = document.getElementById(`video-${index}`);
+        const overlay = document.getElementById(`overlay-${index}`);
+        if (video.paused) {
+          video.play();
+          overlay.style.opacity = "0";
+        } else {
+          video.pause();
+          overlay.style.opacity = "1";
+        }
+      }
+
+      function updateProgress(index) {
+        const video = document.getElementById(`video-${index}`);
+        const progress = document.getElementById(`progress-${index}`);
+        if (video.duration) {
+          const percentage = (video.currentTime / video.duration) * 100;
+          progress.style.width = percentage + "%";
+        }
+      }
+
+      // Call loadFeed on page load
+      loadFeed();
+
+      // --- PLAYBACK LOGIC ---
+      function togglePlay(index) {
+        const v = document.getElementById(`video-${index}`);
+        const overlay = document.getElementById(`overlay-${index}`);
+        if (v.paused) {
+          v.play();
+          overlay.innerHTML = "▶️";
+        } else {
+          v.pause();
+          overlay.innerHTML = "⏸️";
+        }
+        overlay.style.opacity = "1";
+        setTimeout(() => (overlay.style.opacity = "0"), 400);
+      }
+
+      function updateProgress(index) {
+        const v = document.getElementById(`video-${index}`);
+        const fill = document.getElementById(`progress-${index}`);
+        if (v.duration) {
+          fill.style.width = (v.currentTime / v.duration) * 100 + "%";
+        }
+      }
+
+      // Toggle Sidebar for Mobile
+      function toggleSidebar() {
+        document.getElementById("sidebar").classList.toggle("active");
+      }
+
+      // Close sidebar if clicking outside on mobile
+      document.addEventListener("click", (e) => {
+        const sidebar = document.getElementById("sidebar");
+        const menuBtn = document.getElementById("menuToggle");
+        if (
+          window.innerWidth <= 1024 &&
+          !sidebar.contains(e.target) &&
+          !menuBtn.contains(e.target) &&
+          sidebar.classList.contains("active")
+        ) {
+          sidebar.classList.remove("active");
+        }
+      });
+
+      // --- DRAWER LOGIC ---
+      function openComments() {
+        document.getElementById("commentDrawer").classList.add("open");
+      }
+      function closeComments() {
+        document.getElementById("commentDrawer").classList.remove("open");
+      }
+
+      // --- XHR UPLOAD LOGIC (Example integration for your upload button) ---
+      function uploadVideoXHR(file, caption) {
+        const xhr = new XMLHttpRequest();
+        const data = new FormData();
+        data.append("video", file);
+        data.append("caption", caption);
+
+        xhr.open("POST", `${API_BASE}/api/advideos/upload`);
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            console.log(`Upload progress: ${percent}%`);
+          }
+        };
+
+        xhr.onload = () => console.log("Upload Success:", xhr.responseText);
+        xhr.send(data);
+      }
+
+      window.onload = loadFeed;
+    </script>
+  </body>
+</html>

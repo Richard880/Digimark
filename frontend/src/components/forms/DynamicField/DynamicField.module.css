@@ -1,0 +1,144 @@
+/* src/components/forms/DynamicField/DynamicField.module.css */
+
+.field {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* 🧭 Deep Targeting Shared Core UI Layout Inputs (Natively cascading theme values down) */
+.field :global(.form-group) {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.field :global(.form-label),
+.field :global(label) {
+  color: #e2e8f0;
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  letter-spacing: 0.2px;
+}
+
+/* Required field asterisk styling */
+.field :global(.form-label span),
+.field :global(label span) {
+  color: #f87171; /* Deep Sea Coral Red */
+  margin-left: 0.25rem;
+  font-weight: bold;
+}
+
+/* 🌊 Shared Translucent Sea Glass Text Elements & Controls */
+.field :global(.form-control),
+.field :global(.form-select),
+.field :global(input),
+.field :global(textarea),
+.field :global(select) {
+  width: 100%;
+  background-color: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+  padding: 0.75rem 1rem;
+  font-size: 0.9375rem;
+  border-radius: 12px;
+  box-sizing: border-box;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Placeholder Contrast Fix */
+.field :global(.form-control::placeholder),
+.field :global(input::placeholder),
+.field :global(textarea::placeholder) {
+  color: rgba(148, 163, 184, 0.4);
+}
+
+/* ✨ Premium Active Focus Halos (Marine Cyan Aura) */
+.field :global(.form-control:focus),
+.field :global(.form-select:focus),
+.field :global(input:focus),
+.field :global(textarea:focus),
+.field :global(select:focus) {
+  border-color: #0ea5e9 !important; /* Premium Marine Cyan */
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.15), inset 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  background-color: rgba(15, 23, 42, 0.65) !important;
+  outline: none;
+}
+
+/* Disabled/Read-Only Lock Down Aesthetics */
+.field :global(.form-control:disabled),
+.field :global(.form-select:disabled),
+.field :global(input:disabled),
+.field :global(textarea:disabled),
+.field :global(select:disabled) {
+  background-color: rgba(30, 41, 59, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(148, 163, 184, 0.5) !important;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* 🧭 Custom Dropdown Menu Custom Arrow Overrides */
+.field :global(.form-select),
+.field :global(select) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://w3.org' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%230ea5e9' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 1rem center !important;
+  background-size: 14px 14px !important;
+  padding-right: 2.5rem !important;
+}
+
+/* Style options inside dropdown menu for dark background */
+.field :global(select option) {
+  background-color: #0b1528 !important; /* Abyssal Navy Option Background */
+  color: #ffffff !important;
+  padding: 0.75rem;
+}
+
+/* 📅 Native Dark-Canvas HTML5 Date Calendar Picker Adjustments */
+.field :global(input[type="date"]::-webkit-calendar-picker-indicator) {
+  filter: invert(1) brightness(0.9) sepia(1) saturate(4) hue-rotate(165deg);
+  cursor: pointer;
+  opacity: 0.65;
+  transition: opacity 0.2s ease;
+}
+
+.field :global(input[type="date"]::-webkit-calendar-picker-indicator:hover) {
+  opacity: 1;
+}
+
+/* 🚨 Micro Badges for Input Validation Failures */
+.field :global(.invalid-feedback),
+.field :global(.error-message) {
+  color: #f87171 !important;
+  font-size: 0.8125rem;
+  margin-top: 0.45rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  animation: slideInError 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 💡 Secondary Explanatory Helper Subtext Tokens */
+.field :global(.helper-text),
+.field :global(.text-muted) {
+  color: rgba(148, 163, 184, 0.5) !important;
+  font-size: 0.75rem;
+  margin-top: 0.35rem;
+  line-height: 1.4;
+}
+
+@keyframes slideInError {
+  from { transform: translateY(-4px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}

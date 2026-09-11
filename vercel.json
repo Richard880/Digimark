@@ -1,0 +1,67 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "app.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "*.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "app.js"
+    },
+    {
+      "src": "/login",
+      "dest": "/login.html"
+    },
+    {
+      "src": "/register",
+      "dest": "/register.html"
+    },
+    {
+      "src": "/Markethub",
+      "dest": "/Markethub.html"
+    },
+    {
+      "src": "/advideos",
+      "dest": "/advideos.html"
+    },
+    {
+      "src": "/advideos_upload",
+      "dest": "/advideos_upload.html"
+    },
+    {
+      "src": "/chat",
+      "dest": "/chat.html"
+    },
+    {
+      "src": "/details",
+      "dest": "/details.html"
+    },
+    {
+      "src": "/library",
+      "dest": "/library.html"
+    },
+    {
+      "src": "/myShop",
+      "dest": "/myShop.html"
+    },
+    {
+      "src": "/myVideos",
+      "dest": "/myVideos.html"
+    },
+    {
+      "src": "/onDisplay",
+      "dest": "/onDisplay.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/Markethub.html"
+    }
+  ]
+}

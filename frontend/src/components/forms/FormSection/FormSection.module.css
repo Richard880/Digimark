@@ -1,0 +1,67 @@
+/* src/components/forms/FormSection/FormSection.module.css */
+
+.section {
+  background: rgba(15, 23, 42, 0.3) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 18px;
+  padding: 2.5rem; /* Expanded internal breathing room */
+  box-sizing: border-box;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.25);
+  transition: border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+}
+
+.section:focus-within {
+  border-color: rgba(14, 165, 233, 0.25) !important;
+}
+
+.header {
+  margin-bottom: 2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 1.25rem;
+  position: relative;
+}
+
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 60px; /* Proportionally widened accent rule */
+  height: 2px;
+  background: linear-gradient(90deg, #0ea5e9, #14b8a6);
+  border-radius: 2px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #ffffff !important;
+}
+
+.description {
+  margin-top: 0.65rem;
+  margin-bottom: 0;
+  color: #94a3b8 !important;
+  line-height: 1.6;
+  font-size: 0.9rem;
+  max-width: 850px; /* Pushed description boundaries out */
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .section {
+    padding: 1.75rem 1.25rem;
+    border-radius: 14px;
+  }
+}

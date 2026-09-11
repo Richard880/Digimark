@@ -1,0 +1,31 @@
+.card {
+  background-color: var(--auth-card-bg, #ffffff);
+  border-radius: var(--border-radius-lg, 12px);
+  box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.1));
+  padding: var(--spacing-xl, 2.5rem);
+  width: 100%;
+  max-width: 440px;
+  border: 1px solid var(--neutral-border, #e5e7eb);
+  overflow: hidden;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: var(--spacing-lg, 2rem);
+}
+
+.title {
+  font-size: var(--font-size-xl, 1.75rem);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--text-primary, #111827);
+  margin-bottom: var(--spacing-xs, 0.5rem);
+}
+
+.subtitle {
+  font-size: var(--font-size-base, 1rem);
+  color: var(--text-secondary, #6b7280);
+}
+
+.body {
+  width: 100%;
+}

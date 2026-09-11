@@ -1,0 +1,180 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Sokodigi Hybrid Player</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #0f172a;
+        color: white;
+        padding: 20px;
+      }
+      #recommendations {
+        margin-top: 30px;
+        border-top: 1px solid #334155;
+        padding-top: 20px;
+      }
+      .video-card {
+        display: flex;
+        align-items: center;
+        background: #1e293b;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .video-card:hover {
+        background: #334155;
+      }
+      .video {
+        aspect-ratio: 16/9;
+      }
+      .score {
+        margin-left: auto;
+        color: #10b981;
+        font-size: 0.8rem;
+      }
+      a {
+        text-decoration: none;
+        color: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Streaming: <span id="currentTitle">Video Player</span></h2>
+
+    <!-- Inside your <body> -->
+    <div class="main-player">
+      <video id="video" controls width="70%" autoplay></video>
+      <!-- 👇 This will display the title -->
+      <div style="margin-top: 15px">
+        <h1 id="playingTitle" style="margin: 0; font-size: 24px">
+          Loading title...
+        </h1>
+        <p id="playingTags" style="color: #94a3b8; margin: 5px 0"></p>
+      </div>
+    </div>
+
+    <div id="recommendations">
+      <h3>Up Next..</h3>
+      <div id="recommended-list">Loading suggestions...</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script>
+      // 1. DYNAMICALLY GET ID FROM URL (Fixes the hardcoding)
+      const urlParams = new URLSearchParams(window.location.search);
+      const VIDEO_ID = urlParams.get("id") || "vid_916e2074c7a1"; // Defaults if no ?id=
+
+      const API_BASE = "http://localhost:3000";
+      const video = document.getElementById("video");
+      const recList = document.getElementById("recommended-list");
+
+      // 2. CONSOLIDATED FEED FUNCTION (One function to rule them all)
+      async function loadFeed() {
+        try {
+          const res = await fetch(
+            `${API_BASE}/api/feed/recommendations/${VIDEO_ID}`,
+          );
+          const result = await res.json();
+
+          if (result.success && result.data.length > 0) {
+            recList.innerHTML = result.data
+              .map((v) => {
+                // 1. PLACE LOGIC HERE: Check if this item is the one currently playing
+                const isPlayingStyle =
+                  v.id === VIDEO_ID
+                    ? "border: 2px solid #60a5fa; background: #334155;"
+                    : "";
+                const nowPlayingBadge =
+                  v.id === VIDEO_ID
+                    ? '<span style="color: #60a5fa; font-size: 10px;">▶ NOW PLAYING</span><br>'
+                    : "";
+
+                // 2. APPLY STYLE TO THE DIV:
+                return `
+                <div class="video-card" style="${isPlayingStyle}" onclick="playVideo('${v.id}')">
+                  <div style="width: 100px; height: 60px; background: #000; margin-right: 10px; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0;">
+                    SOKODIGI
+                  </div>
+                  <div>
+                    ${nowPlayingBadge}
+                    <div style="font-size: 14px; font-weight: bold;">${v.title}</div>
+                    <div class="score">${Math.round((v.score || 0) * 100)}% Match</div>
+                  </div>
+                </div>
+              `;
+              })
+              .join("");
+          } else {
+            recList.innerHTML = "No related videos yet.";
+          }
+        } catch (err) {
+          console.error("Feed error:", err);
+        }
+      }
+
+      // 3. PAGE RELOADER
+      function playVideo(newId) {
+        window.location.search = `?id=${newId}`;
+      }
+
+      // Add this inside your <script>
+      async function fetchCurrentVideo() {
+        const res = await fetch(`${API_BASE}/api/videos/${VIDEO_ID}`);
+        const v = await res.json();
+        if (v) {
+          document.getElementById("playingTitle").innerText = v.title;
+          document.getElementById("playingTags").innerText = v.tags
+            ? v.tags.join(" • ")
+            : "";
+        }
+      }
+      fetchCurrentVideo();
+
+      // 4. HLS & INITIALIZATION
+      let streamToken = null;
+      async function fetchToken() {
+        const r = await fetch(
+          `${API_BASE}/api/stream/token?videoId=${VIDEO_ID}`,
+        );
+        if (!r.ok) return null;
+        const j = await r.json();
+        streamToken = j.token;
+      }
+
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          xhrSetup: (xhr) => {
+            if (streamToken)
+              xhr.setRequestHeader("X-Stream-Token", streamToken);
+          },
+        });
+
+        // Dynamically load based on URL ID
+        hls.loadSource(
+          `${API_BASE}/api/videos/${VIDEO_ID}/preview/master.m3u8`,
+        );
+        hls.attachMedia(video);
+
+        video.addEventListener("play", async () => {
+          if (!streamToken) {
+            await fetchToken();
+            if (!streamToken) {
+              video.pause();
+              alert("Subscribe to watch full video");
+              return;
+            }
+            hls.loadSource(
+              `${API_BASE}/api/videos/${VIDEO_ID}/full/master.m3u8`,
+            );
+          }
+        });
+
+        // Start the recommendation engine
+        loadFeed();
+      }
+    </script>
+  </body>
+</html>

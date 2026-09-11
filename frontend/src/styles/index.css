@@ -1,0 +1,45 @@
+/* ==========================================================================
+   Core Global Utilities & Standard Browser Reset
+   ========================================================================== */
+/* Update your src/index.css global body definition */
+html, body {
+  margin: 0;
+  padding: 0;
+  /* 🎯 PREMIUM MATCHA ALABASTER BACKDROP */
+  background-color: #f3f6f2 !important; 
+  width: 100%;
+  overflow-x: hidden;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #1c261d; /* Deep mossy-charcoal for crisp text readability */
+}
+
+
+.glass {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+#out::-webkit-scrollbar {
+  width: 8px;
+}
+#out::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+/* 
+   🟢 FIXED FALLBACK RULES: 
+   Applies background colors to traditional forms safely.
+   Removing '!important' lets your specialized Navbar & Capsule styles work.
+*/
+form input:not([type="submit"]):not([type="file"]), 
+form select {
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #1e293b;
+}
+
+input::placeholder {
+  color: #94a3b8;
+}

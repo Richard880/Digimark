@@ -1,0 +1,67 @@
+.wempa-input-group{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    width:100%;
+    margin-bottom:20px;
+}
+
+.wempa-input-label{
+    font-size:14px;
+    font-weight:600;
+    color:#1F2937;
+}
+
+.required{
+    color:#D32F2F;
+    margin-left:4px;
+}
+
+.wempa-input-wrapper{
+    display:flex;
+    align-items:center;
+    border:1px solid #d1d5db;
+    border-radius:12px;
+    background:#fff;
+    transition:.25s;
+    overflow:hidden;
+}
+
+.wempa-input-wrapper:hover{
+    border-color:#005B96;
+}
+
+.wempa-input-wrapper:focus-within {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-light);
+}
+
+.wempa-input-wrapper.error{
+    border-color:#D32F2F;
+}
+
+.wempa-input{
+    width:100%;
+    padding:14px 16px;
+    border:none;
+    outline:none;
+    font-size:15px;
+    background:transparent;
+}
+
+.wempa-input-icon{
+    padding-left:15px;
+    color:#6B7280;
+    display:flex;
+    align-items:center;
+}
+
+.wempa-input-helper{
+    font-size:13px;
+    color:#6B7280;
+}
+
+.wempa-input-error{
+    font-size:13px;
+    color:#D32F2F;
+}

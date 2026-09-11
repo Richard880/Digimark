@@ -1,0 +1,162 @@
+.details-shell {
+  max-width: 1100px;
+  margin: 2rem auto;
+  padding: 0 1.5rem;
+  box-sizing: border-box;
+}
+
+.back-action-anchor {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #2e7d32; /* SokoDigi Theme Green Core Matching Marker */
+  cursor: pointer;
+  margin-bottom: 1.5rem;
+  padding: 0.25rem 0;
+  transition: transform 0.2s ease;
+}
+
+.back-action-anchor:hover {
+  transform: translateX(-3px);
+  color: #1b5e20;
+}
+
+/* ==========================================================================
+   Structural Card Mesh Casing
+   ========================================================================== */
+.details-container {
+  display: flex;
+  background-color: #ffffff;
+  border-radius: 28px;
+  border: 1px solid #e5ebe4;
+  box-shadow: 0 15px 35px -10px rgba(45, 58, 46, 0.05);
+  overflow: hidden;
+  min-height: 480px;
+}
+
+/* Left Canvas Side */
+.image-canvas-side {
+  flex: 1.1;
+  position: relative;
+  background-color: #fcfdfc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px solid #f1f5f0;
+}
+
+.image-canvas-side img {
+  width: 100%;
+  height: 100%;
+  max-height: 520px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Right Content Side */
+.meta-content-side {
+  flex: 1;
+  padding: 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.category-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #2e7d32;
+  background-color: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  margin-bottom: 1rem;
+}
+
+.product-headline {
+  font-size: 2.15rem;
+  font-weight: 800;
+  color: #1b261c;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.vendor-text {
+  font-size: 0.875rem;
+  color: #6c7e6d;
+  margin: 0;
+}
+
+.price-tag-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.price-readout {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+/* Forest Green Button Core overrides */
+.cart-action-btn {
+  width: 100%;
+  background-color: #2e7d32;
+  color: #ffffff;
+  border: none;
+  padding: 1rem;
+  border-radius: 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(46, 125, 50, 0.15);
+  transition: background-color 0.15s ease;
+}
+
+.cart-action-btn:hover {
+  background-color: #1b5e20;
+}
+
+/* Fallback/Error state containers */
+.error-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4rem 1.5rem;
+  background-color: #ffffff;
+  border-radius: 24px;
+  border: 1px solid #e5ebe4;
+  max-width: 400px;
+  margin: 4rem auto;
+}
+
+/* ==========================================================================
+   Responsive Viewport Stack Breakpoints
+   ========================================================================== */
+@media (max-width: 768px) {
+  .details-container {
+    flex-direction: column;
+  }
+  .image-canvas-side img {
+    max-height: 320px;
+  }
+  .meta-content-side {
+    padding: 2rem;
+  }
+  .product-headline {
+    font-size: 1.75rem;
+  }
+}

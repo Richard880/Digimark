@@ -1,0 +1,168 @@
+/* ==========================================================================
+   🎯 PREMIUM ALABASTER FOOTER INTEGRATION
+   ========================================================================== */
+.sokodigi-footer {
+  /* Crisp white backing lifts off the Matcha Alabaster background */
+  background-color: #ffffff !important;
+  
+  /* Ultra-thin botanical border track separates the layout cleanly */
+  border-top: 1px solid #e2e9e2;
+  padding: 4.5rem 2rem 2rem 2rem;
+  box-sizing: border-box;
+  margin-top: auto; 
+  
+  /* Soft ambient shadow block anchors the lower screen fold */
+  box-shadow: 0 -10px 30px -15px rgba(28, 38, 29, 0.05);
+}
+
+.footer-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3.5rem;
+}
+
+.footer-top-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr 0.8fr;
+  gap: 4rem;
+}
+
+.brand-showcase {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  max-width: 360px;
+}
+
+.footer-logo {
+  height: 56px; 
+  width: auto;
+  object-fit: contain;
+  margin-bottom: 1rem;
+}
+
+.footer-tagline {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #2e7d32; /* SokoDigi Forest Green Brand Match */
+  margin: 0 0 0.75rem 0;
+  letter-spacing: -0.01em;
+}
+
+.brand-desc {
+  font-size: 0.85rem;
+  color: #556356; /* Deep organic readable slate */
+  line-height: 1.6;
+  margin: 0;
+}
+
+.links-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.column-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #1c261d; /* High contrast charcoal title */
+  margin: 0 0 1.25rem 0;
+}
+
+.links-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.links-list a {
+  font-size: 0.875rem;
+  color: #4a574b; /* Subtle reading color */
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.links-list a:hover {
+  color: #2e7d32; /* Brands highlight color on hover */
+}
+
+/* ==========================================================================
+   Dashed Values Strip Separators
+   ========================================================================== */
+.values-strip {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 3rem;
+  padding: 1.5rem 0;
+  border-top: 1px dashed #e2e9e2;
+  border-bottom: 1px dashed #e2e9e2;
+}
+
+.value-capsule {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1c261d;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.value-capsule svg {
+  color: #2e7d32;
+}
+
+.footer-bottom-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  color: #7a8b7b;
+}
+
+.copyright-text {
+  margin: 0;
+}
+
+.legal-anchors {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.legal-anchors a {
+  color: #7a8b7b;
+  text-decoration: none;
+}
+
+.legal-anchors a:hover {
+  color: #2e7d32;
+}
+
+@media (max-width: 768px) {
+  .footer-top-grid {
+    grid-template-columns: 1fr;
+    gap: 2.5rem;
+  }
+  .values-strip {
+    gap: 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .footer-bottom-row {
+    flex-direction: column;
+    gap: 1rem;
+  }
+}

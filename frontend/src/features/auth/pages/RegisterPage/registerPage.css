@@ -1,0 +1,8 @@
+/* src/features/auth/pages/RegisterPage/registerPage.css */
+.register-page {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+}
