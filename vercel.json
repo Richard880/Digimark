@@ -1,67 +1,16 @@
 {
-  "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "app.js",
-      "use": "@vercel/node"
+      "source": "/api/(.*)",
+      "destination": "http://localhost:3000/api/$1"
     },
     {
-      "src": "*.html",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "app.js"
+      "source": "/images/(.*)",
+      "destination": "http://localhost:3000/images/$1"
     },
     {
-      "src": "/login",
-      "dest": "/login.html"
-    },
-    {
-      "src": "/register",
-      "dest": "/register.html"
-    },
-    {
-      "src": "/Markethub",
-      "dest": "/Markethub.html"
-    },
-    {
-      "src": "/advideos",
-      "dest": "/advideos.html"
-    },
-    {
-      "src": "/advideos_upload",
-      "dest": "/advideos_upload.html"
-    },
-    {
-      "src": "/chat",
-      "dest": "/chat.html"
-    },
-    {
-      "src": "/details",
-      "dest": "/details.html"
-    },
-    {
-      "src": "/library",
-      "dest": "/library.html"
-    },
-    {
-      "src": "/myShop",
-      "dest": "/myShop.html"
-    },
-    {
-      "src": "/myVideos",
-      "dest": "/myVideos.html"
-    },
-    {
-      "src": "/onDisplay",
-      "dest": "/onDisplay.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/Markethub.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
