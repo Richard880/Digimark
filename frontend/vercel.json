@@ -3,15 +3,7 @@
   "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "http://localhost:3000/api/$1"
-    },
-    {
-      "source": "/images/(.*)",
-      "destination": "http://localhost:3000/api/images/$1"
-    },
-    {
-      "source": "/(.*)",
+      "source": "/((?!assets/).*)",
       "destination": "/index.html"
     }
   ]
