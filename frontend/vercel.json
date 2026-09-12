@@ -8,7 +8,7 @@
     },
     {
       "source": "/images/(.*)",
-      "destination": "http://localhost:3000/images/$1"
+      "destination": "http://localhost:3000/api/images/$1"
     },
     {
       "source": "/(.*)",
