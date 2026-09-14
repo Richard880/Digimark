@@ -1,8 +1,10 @@
 {
   "name": "digimark-monorepo",
   "version": "1.0.0",
-"scripts": {
-  "build": "npm install --prefix backend && npm install --prefix frontend && cd frontend && npm run build"
-}
-
+  "engines": {
+    "node": "20.x"
+  },
+  "scripts": {
+    "build": "npm install --prefix backend && npm install --prefix frontend && cd frontend && npm run build"
+  }
 }
