@@ -1,15 +1,16 @@
 {
   "version": 2,
+  "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
   "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "/backend/server.js"
+      "destination": "/api/:path*"
     },
     {
-      "source": "/(*)",
+      "source": "/(.*)",
       "destination": "/index.html"
-    } 
+    }
   ]
 }
