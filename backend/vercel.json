@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "buildCommand": "echo 'Build complete'",
+  "installCommand": "npm install",
+  "builds": [
+    {
+      "src": "src/server.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "src/server.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
