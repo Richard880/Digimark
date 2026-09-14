@@ -1,13 +1,15 @@
 {
   "version": 2,
+  "outputDirectory": "frontend/dist",
+  "cleanUrls": true,
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "/backend/server.js"
     },
     {
-      "source": "/(.*)",
-      "destination": "/frontend/dist/$1"
+      "source": "/(*)",
+      "destination": "/index.html"
     }
   ]
 }
