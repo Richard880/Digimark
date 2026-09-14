@@ -2,6 +2,17 @@
   "version": 2,
   "buildCommand": "echo 'Backend ready for deployment'",
   "installCommand": "npm install",
+  "functions": {
+    "api/index.js": {
+      "runtime": "@vercel/node@3"
+    }
+  },
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "api/index.js"
+    }
+  ],
   "env": {
     "NODE_ENV": "production"
   }
