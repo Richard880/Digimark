@@ -1,11 +1,11 @@
 const requiredVariables = [
-  "FIREBASE_API_KEY",
-  "FIREBASE_AUTH_DOMAIN",
-  "FIREBASE_PROJECT_ID",
-  "FIREBASE_STORAGE_BUCKET",
-  "FIREBASE_MESSAGING_SENDER_ID",
-  "FIREBASE_APP_ID",
-  "FIREBASE_MEASUREMENT_ID",
+  "VITE_FIREBASE_API_KEY",
+  "VITE_FIREBASE_AUTH_DOMAIN",
+  "VITE_FIREBASE_PROJECT_ID",
+  "VITE_FIREBASE_STORAGE_BUCKET",
+  "VITE_FIREBASE_MESSAGING_SENDER_ID",
+  "VITE_FIREBASE_APP_ID",
+  "VITE_FIREBASE_MEASUREMENT_ID",
 ];
 
 requiredVariables.forEach((key) => {
@@ -15,11 +15,11 @@ requiredVariables.forEach((key) => {
 });
 
 export const env = {
-  firebaseApiKey: __FIREBASE_API_KEY__,
-  firebaseAuthDomain: __FIREBASE_AUTH_DOMAIN__,
-  firebaseProjectId: __FIREBASE_PROJECT_ID__,
-  firebaseStorageBucket: __FIREBASE_STORAGE_BUCKET__,
-  firebaseMessagingSenderId: __FIREBASE_MESSAGING_SENDER_ID__,
-  firebaseAppId: __FIREBASE_APP_ID__,
-  firebaseMeasurementId: __FIREBASE_MEASUREMENT_ID__,
+  firebaseApiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  firebaseAuthDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  firebaseProjectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  firebaseStorageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  firebaseMessagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  firebaseAppId: import.meta.env.VITE_FIREBASE_APP_ID,
+  firebaseMeasurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
