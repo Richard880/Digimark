@@ -1,19 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "echo 'Build complete'",
+  "buildCommand": "echo 'Backend ready for deployment'",
   "installCommand": "npm install",
-  "builds": [
-    {
-      "src": "src/server.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "src/server.js"
-    }
-  ],
   "env": {
     "NODE_ENV": "production"
   }
