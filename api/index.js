@@ -2,7 +2,8 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const { connectDB } = require("../lib/db");
+// Fixed path: Step up one directory to reach the backend folder
+const { connectDB } = require("../backend/src/lib/db");
 
 const app = express();
 
@@ -28,7 +29,9 @@ app.use(async (req, res, next) => {
 
 app.get("/", (req, res) => res.json({ name: "SokoDigi API", status: "ok" }));
 app.get("/api/health", (req, res) => res.json({ status: "ok", database: "mongodb" }));
-app.use("/api", require("./backend/src/routes"));
+
+// Fixed path: Step up one directory to access your backend routes
+app.use("/api", require("../backend/src/routes"));
 
 app.use((err, req, res, next) => {
   console.error("Unhandled API error:", err);
