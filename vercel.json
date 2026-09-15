@@ -3,6 +3,14 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "cleanUrls": true,
+  "engines": {
+    "node": "24.x"
+  },
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "backend/src/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/:path*",
