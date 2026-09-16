@@ -1,14 +1,15 @@
 require("dotenv").config();
-const path = require("path"); // 🎯 Added path utility
+const path = require("path"); 
 
 const express = require("express");
 const cors = require("cors");
 
-// 🎯 THE FIX: Force robust path resolution relative to the running script container root
-const dbPath = path.resolve(__dirname, "../backend/src/lib/db");
-const routesPath = path.resolve(__dirname, "../backend/src/routes");
+// ❌ REMOVE THE DYNAMIC PATH VARIABLES:
+// const dbPath = path.resolve(__dirname, "../backend/src/lib/db");
+// const routesPath = path.resolve(__dirname, "../backend/src/routes");
 
-const { connectDB } = require(dbPath);
+// 🎯 THE FIX: Use static relative strings inside require() so Vercel can trace your files
+const { connectDB } = require("../backend/src/lib/db");
 
 const app = express();
 
@@ -35,8 +36,8 @@ app.use(async (req, res, next) => {
 app.get("/", (req, res) => res.json({ name: "SokoDigi API", status: "ok" }));
 app.get("/api/health", (req, res) => res.json({ status: "ok", database: "mongodb" }));
 
-// 🎯 THE FIX: Use the resolved absolute container directory path for your backend routes
-app.use("/api", require(routesPath));
+// 🎯 THE FIX: Use a static relative string here as well
+app.use("/api", require("../backend/src/routes"));
 
 app.use((err, req, res, next) => {
   console.error("Unhandled API error:", err);
