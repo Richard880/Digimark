@@ -6,5 +6,11 @@
   },
   "scripts": {
     "build": "npm install --prefix backend && npm install --prefix frontend && cd frontend && npm run build"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "mongoose": "^8.4.1"
   }
 }
