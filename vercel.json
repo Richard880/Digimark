@@ -10,7 +10,7 @@
       "src": "api/index.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": "backend/**"
+        "includeFiles": ["backend/src/**", "backend/src/lib/db.js", "backend/src/routes/**"]
       }
     }
   ],
