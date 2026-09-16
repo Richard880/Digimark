@@ -1,9 +1,14 @@
 require("dotenv").config();
+const path = require("path"); // 🎯 Added path utility
 
 const express = require("express");
 const cors = require("cors");
-// Fixed path: Step up one directory to reach the backend folder
-const { connectDB } = require("../backend/src/lib/db");
+
+// 🎯 THE FIX: Force robust path resolution relative to the running script container root
+const dbPath = path.resolve(__dirname, "../backend/src/lib/db");
+const routesPath = path.resolve(__dirname, "../backend/src/routes");
+
+const { connectDB } = require(dbPath);
 
 const app = express();
 
@@ -23,15 +28,15 @@ app.use(async (req, res, next) => {
     next();
   } catch (error) {
     console.error("Database connection failed:", error);
-    res.status(500).json({ error: "Database connection failed" });
+    res.status(500).json({ error: "Database connection failed", reason: error.message });
   }
 });
 
 app.get("/", (req, res) => res.json({ name: "SokoDigi API", status: "ok" }));
 app.get("/api/health", (req, res) => res.json({ status: "ok", database: "mongodb" }));
 
-// Fixed path: Step up one directory to access your backend routes
-app.use("/api", require("../backend/src/routes"));
+// 🎯 THE FIX: Use the resolved absolute container directory path for your backend routes
+app.use("/api", require(routesPath));
 
 app.use((err, req, res, next) => {
   console.error("Unhandled API error:", err);
