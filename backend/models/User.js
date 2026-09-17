@@ -69,5 +69,7 @@ const userSchema = new mongoose.Schema({
 userSchema.index({ parentId: 1 });
 userSchema.index({ sponsorId: 1 });
 
-module.exports = mongoose.model('User', userSchema);
+// 🎯 THE FIX: Check if the model has already been compiled in the Mongoose memory cache first
+module.exports = mongoose.models.User || mongoose.model("User", userSchema);
+
 
