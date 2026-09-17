@@ -2,8 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 
-// 🎯 FIXED: Rely on static relative strings so Vercel can trace your files
-const { connectDB } = require("../backend/src/lib/db");
+// 🎯 THE FIX: Changed from '../backend' to './backend' because server.js is now at the root
+const { connectDB } = require("./backend/src/lib/db");
 
 const app = express();
 
@@ -30,8 +30,8 @@ app.use(async (req, res, next) => {
 app.get("/", (req, res) => res.json({ name: "SokoDigi API", status: "ok" }));
 app.get("/api/health", (req, res) => res.json({ status: "ok", database: "mongodb" }));
 
-// 🎯 FIXED: Hand off routing context to your backend routes file using clean relative paths
-app.use("/api", require("../backend/src/routes"));
+// 🎯 THE FIX: Changed from '../backend' to './backend' here as well
+app.use("/api", require("./backend/src/routes"));
 
 app.use((err, req, res, next) => {
   console.error("Unhandled API error:", err);
