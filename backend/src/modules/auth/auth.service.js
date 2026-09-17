@@ -1,7 +1,7 @@
 const User = require("../../models/User");
 const UserProfile = require("../../models/UserProfile");
 const MemberNetwork = require("../../models/MemberNetwork");
-const generateMembershipNumber = require("../../../utils/membershipNumber");
+const generateMembershipNumber = require("../../utils/membershipNumber");
 
 async function synchronizeFirebaseUser({ firebaseUid, email, emailVerified, displayName, userData = {} }) {
   let user = await User.findOne({ firebaseUid });
