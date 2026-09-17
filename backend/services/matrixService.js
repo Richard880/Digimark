@@ -82,11 +82,16 @@ async function calculateUplineSuggestions(userObjectId, maxSuggestions = 12) {
  */
 async function getMatrixMetrics(rootUserId) {
   try {
+    if (!rootUserId) {
+      return { ok: false, error: "USER_ID_MANDATORY" };
+    }
+
     if (!mongoose.isValidObjectId(rootUserId)) {
       return { ok: false, error: "INVALID_USER_ID" };
     }
 
-    const anchorId = new mongoose.Types.ObjectId(rootUserId);
+    // 🛡️ Cast the variable explicitly to handle string vs ObjectId structural variance on Vercel nodes
+    const anchorId = new mongoose.Types.ObjectId(rootUserId.toString());
 
     // 1. Single database pass using graph traversal matching only network node boundaries
     const downlineTree = await User.aggregate([
@@ -105,12 +110,25 @@ async function getMatrixMetrics(rootUserId) {
       }
     ]);
 
+    // 🛡️ THE FIX: Return an empty structure layout gracefully instead of dropping an exception if user downline matches zero records
     if (!downlineTree || downlineTree.length === 0) {
-      return { ok: false, error: "NETWORK_NODE_NOT_FOUND" };
+      const emptyGenerations = {};
+      for (let i = 1; i <= MAX_DEPTH; i++) {
+        emptyGenerations[`level_${i}`] = 0;
+      }
+      return {
+        ok: true,
+        summary: { totalDownline: 0, activeDownline: 0, inactiveDownline: 0, activityDensityPercentage: 0 },
+        spilloverMetrics: { totalSpillovers: 0, spilloverRatePercentage: 0 },
+        generations: emptyGenerations,
+        legBalanceMatrix: {}
+      };
     }
 
-    const members = downlineTree[0].matrixDownline || [];
-    const directChildren = (downlineTree[0].referrals || []).map(id => id.toString());
+    // Safely unpack index 0 envelope reference container
+    const rootDoc = downlineTree[0];
+    const members = rootDoc.matrixDownline || [];
+    const directChildren = (rootDoc.referrals || []).map(id => id.toString());
 
     // 2. Initializing Accumulators
     let totalDownline = members.length;
@@ -133,7 +151,7 @@ async function getMatrixMetrics(rootUserId) {
 
     // 3. Metric Aggregation Loop
     members.forEach((member) => {
-      if (member.isActive) activeDownline++;
+      if (member.isActive || member.membershipStatus === "active") activeDownline++;
 
       const exactLevel = member.generationDepth + 1;
       if (generations[`level_${exactLevel}`] !== undefined) {
@@ -145,15 +163,14 @@ async function getMatrixMetrics(rootUserId) {
         totalSpillovers++;
       }
 
-      // Leg Balance Sorting
+      // Leg Balance Sorting via ancestral index tracing maps
       if (member.pathFromRoot && member.pathFromRoot.length > 0) {
-        // Trace back which direct child of the anchor node this member stems from
         const anchorIndex = member.pathFromRoot.findIndex(id => id.toString() === anchorId.toString());
         if (anchorIndex !== -1 && member.pathFromRoot[anchorIndex + 1]) {
           const matchingLegId = member.pathFromRoot[anchorIndex + 1].toString();
           if (legBalanceMatrix[matchingLegId]) {
             legBalanceMatrix[matchingLegId].totalCount++;
-            if (member.isActive) legBalanceMatrix[matchingLegId].activeCount++;
+            if (member.isActive || member.membershipStatus === "active") legBalanceMatrix[matchingLegId].activeCount++;
           }
         }
       }
