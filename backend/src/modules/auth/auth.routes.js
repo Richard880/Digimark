@@ -1,7 +1,7 @@
 const express = require("express");
 const authenticate = require("../../middleware/authenticate");
 const UserProfile = require("../../models/UserProfile");
-const matrixService = require("../../services/matrixService"); // 🎯 NEW: Brought in for dashboard metric query execution
+const matrixService = require("../../../services/matrixService"); // 🎯 NEW: Brought in for dashboard metric query execution
 const { syncCurrentUser } = require("./auth.controller");
 
 const router = express.Router();
