@@ -116,7 +116,7 @@ async function getMatrixMetrics(rootUserId) {
           as: "matrixDownline",
           maxDepth: MAX_DEPTH - 1, // 0-indexed boundary mapping
           depthField: "generationDepth",
-          restrictExpression: { (eq: ["\)$referred.accountCategory", "network"] } // Double dollar sign is correct here for aggregation reference
+          restrictExpression: { $eq: ["$$referred.accountCategory", "network"] }  // Double dollar sign is correct here for aggregation reference
         }
       }
     ]);
