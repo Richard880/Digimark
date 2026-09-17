@@ -6,7 +6,8 @@ import Alert from "../../../../components/ui/Alert";
 import useRegisterForm from "../../forms/useRegisterForm";
 import "./registerForm.css";
 
-import SokoLogo = "../../../../assets/logo.png";  
+import SokoLogo from "../../../../assets/logo.png";  
+ 
 
 function RegisterForm({ onToggleMode, onClose }) {
   const {
