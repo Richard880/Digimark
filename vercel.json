@@ -1,8 +1,25 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "buildCommand": "cd frontend && npm install && npm run build",
-  "outputDirectory": "frontend/dist",
+  "builds": [
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    },
+    {
+      "src": "api/index.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "backend/src/lib/db.js",
+          "backend/src/routes/**"
+        ]
+      }
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",
