@@ -21,7 +21,9 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate }) 
   };
 
   // 🎯 Resolve the absolute user profile link target string based on your session model properties
-  const profileUserId = user?.id || user?._id || "";
+// 🎯 THE FIX: Add explicit support for Firebase's unique tracking identifier (uid)
+const profileUserId = user?.uid || user?.id || user?._id || "";
+
 
   return (
     <header className={styles["sokodigi-header"]}>
