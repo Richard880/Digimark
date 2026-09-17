@@ -1,6 +1,11 @@
 const admin = require("../config/firebaseAdmin");
 const User = require("../models/User");
 
+/**
+ * 🔒 Layer 3 Security Token Guard
+ * Validates asymmetric Firebase identity token payloads while permitting
+ * un-synchronized onboarding nodes to pass through registration endpoints.
+ */
 async function authenticate(req, res, next) {
   try {
     const header = req.get("Authorization") || "";
@@ -9,25 +14,46 @@ async function authenticate(req, res, next) {
     }
 
     const token = header.slice(7).trim();
-    if (!token) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    if (!token) {
+      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    }
 
+    // 1. Decrypt asymmetric token block signature against Google/Firebase public certs
     const decoded = await admin.auth().verifyIdToken(token);
+    
+    // 2. Query target profile presence inside MongoDB
     const user = await User.findOne({ firebaseUid: decoded.uid });
 
-    // 🎯 THE FIX: If it's the sync/registration endpoint, don't fail if the user is missing from MongoDB!
-    if (!user && req.baseUrl + req.path !== "/api/auth/sync" && req.path !== "/sync") {
+    // Determine current absolute routing paths to enforce endpoint bypass exclusions
+    const currentFullPath = (req.baseUrl || "") + (req.path || "");
+    const isSyncEndpoint = currentFullPath === "/api/auth/sync" || req.path === "/sync" || req.path === "/auth/sync";
+
+    // 3. ENFORCEMENT HOLE: Fail if user is missing, EXCEPT when hitting the registration/onboarding sync path
+    if (!user && !isSyncEndpoint) {
       return res.status(401).json({ error: "APPLICATION_USER_NOT_FOUND" });
     }
     
+    // 4. State Security Check: Instantly drop sessions for suspended or deactivated accounts
     if (user && !user.isActive) {
       return res.status(403).json({ error: "ACCOUNT_DISABLED" });
     }
 
+    // 5. Context Hydration
     req.firebaseUser = decoded;
-    req.user = user || null; // 🎯 Set to null gracefully if this is a brand new user signing up
+    req.user = user || null; // Set to null gracefully for brand new accounts running synchronization mutations
+    
+    // Security Context: Attach permission category tags to track request profiles down the track
+    req.userCategory = user ? user.accountCategory : "un-synchronized";
+
     next();
   } catch (error) {
-    console.error("Authentication failed:", error.code || error.message);
+    console.error("❌ Asymmetric Authentication Guard Security Rejection:", error.code || error.message);
+    
+    // Handle specific expired token signals explicitly to give the client accurate state feedback
+    if (error.code === "auth/id-token-expired") {
+      return res.status(401).json({ error: "AUTHENTICATION_TOKEN_EXPIRED", clearSession: true });
+    }
+    
     return res.status(401).json({ error: "INVALID_AUTH_TOKEN" });
   }
 }
