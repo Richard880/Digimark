@@ -27,26 +27,35 @@ function AuthProvider({ children }) {
    * Retrieves the application profile associated
    * with the Firebase authenticated user.
    */
-  const fetchProfileData = useCallback(
-    async (uid, reloadFirebase = false) => {
-      if (!uid) {
+const fetchProfileData = useCallback(
+  async (uid, reloadFirebase = false) => {
+    if (!uid) return null;
+
+    // 🎯 THE FIX: Get the current authenticated user instance safely
+    const firebaseUser = authService.getCurrentUser();
+    if (!firebaseUser) return null;
+
+    try {
+      // Force wait for a valid ID token before doing any network transactions
+      const token = await firebaseUser.getIdToken();
+      if (!token) {
+        console.warn("Delaying profile fetch: Firebase token is still initializing.");
         return null;
       }
 
-      if (reloadFirebase && authService.getCurrentUser()) {
-        await authService.reloadCurrentUser();
-      }
-
-      const firebaseUser = authService.getCurrentUser();
-
-      if (firebaseUser?.emailVerified && reloadFirebase) {
+      if (firebaseUser.emailVerified && reloadFirebase) {
         await authService.updateEmailVerificationStatus(uid);
       }
 
       return authService.getUserProfile(uid);
-    },
-    []
-  );
+    } catch (err) {
+      console.error("Profile lookup skipped due to uninitialized session state:", err);
+      return null;
+    }
+  },
+  []
+);
+
 
   /**
    * Refresh the currently authenticated user's
