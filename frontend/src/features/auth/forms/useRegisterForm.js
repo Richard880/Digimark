@@ -23,6 +23,7 @@ export default function useRegisterForm() {
       phoneNumber: "",
       password: "",
       confirmPassword: "",
+      accountCategory: "retail", // 🎯 NEW: Set default category track baseline (Retail)
       sponsorId: "", 
       acceptTerms: false,
     },
@@ -34,21 +35,25 @@ export default function useRegisterForm() {
     setAuthError("");
     setLoading(true);
 
-      try {
-      // 1. Submit data vectors securely over the Firebase auth pipeline channel
-      await registerUser({
+    try {
+      // 🛡️ SECURITY CLEANUP: Sanitize inputs and completely strip out sponsorIds for non-network users
+      const submissionPayload = {
         firstName: data.firstName.trim(),
         lastName: data.lastName.trim(),
         email: data.email.trim().toLowerCase(),
         phoneNumber: data.phoneNumber.trim(),
         password: data.password,
-        sponsorId: data.sponsorId ? data.sponsorId.trim() : "",
-      });
+        accountCategory: data.accountCategory, // 🎯 NEW: Safely pass the track assignment down
+        sponsorId: data.accountCategory === "network" && data.sponsorId ? data.sponsorId.trim() : "",
+      };
+
+      // Submit data vectors securely over the Firebase auth pipeline channel
+      await registerUser(submissionPayload);
 
       console.log("🟢 Account successfully initialized on Firebase Nodes.");
 
-      // 2. 🎯 OVERRIDE REDIRECTION TARGET USING THE UNIFIED CONSTANT
-      // Swapping out verification routes to push users straight into your new myShop Pro panel
+      // OVERRIDE REDIRECTION TARGET USING THE UNIFIED CONSTANT
+      // Pushing users straight into your new myShop Pro panel
       navigate(ROUTES.MEMBER_DASHBOARD, { replace: true });
       
     } catch (error) {
@@ -56,7 +61,7 @@ export default function useRegisterForm() {
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return {
     ...form,
