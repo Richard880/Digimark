@@ -6,7 +6,9 @@ import MatrixTreeChart from "../dashboard/components/MatrixTreeChart";
 import LegDistributionCards from "../dashboard/components/LegDistributionCards";
 import styles from "./Profile.module.css";
 
-const API_URL = "http://localhost:3000";
+// 🎯 THE FIX: Fallback to localhost dynamically if the environment variable isn't injected yet
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 
 export default function OnDisplay() {
   const { userId } = useParams();
