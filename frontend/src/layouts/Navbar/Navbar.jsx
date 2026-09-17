@@ -20,6 +20,9 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate }) 
     }
   };
 
+  // 🎯 Resolve the absolute user profile link target string based on your session model properties
+  const profileUserId = user?.id || user?._id || "";
+
   return (
     <header className={styles["sokodigi-header"]}>
       <div className={styles["sokodigi-header__inner"]}>
@@ -43,7 +46,7 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate }) 
         {/* Column 3: Custom Embedded Action & Search Block Tools */}
         <div className={styles["nav-actions-block"]}>
           
-          {/* 🎯 THE NAVBAR INNER SEARCH EMBED CAPSULE */}
+          {/* THE NAVBAR INNER SEARCH EMBED CAPSULE */}
           <div className={`${styles["nav-search-wrapper"]} ${showSearchInput ? styles["active-input"] : ""}`}>
             <button 
               type="button" 
@@ -67,15 +70,24 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate }) 
 
           {user ? (
             <div className={styles["profile-avatar-wrapper"]}>
-              <div className={styles["avatar-circle"]}>
-                {user.profilePic ? (
-                  <img src={user.profilePic} alt={user.name || "User profile"} />
-                ) : (
-                  <svg className={styles["avatar-fallback-icon"]} viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em">
-                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                  </svg>
-                )}
-              </div>
+              {/* 🎯 THE FIX: Wrap the avatar in a Link to push them seamlessly to their brand storefront page */}
+              <Link 
+                to={`/profile/${profileUserId}`} 
+                onClick={closeMenu}
+                className={styles["avatar-profile-link"]}
+                title="View My Profile Storefront"
+                style={{ display: "block", textDecoration: "none" }}
+              >
+                <div className={styles["avatar-circle"]} style={{ cursor: "pointer" }}>
+                  {user.profilePic ? (
+                    <img src={user.profilePic} alt={user.name || "User profile"} />
+                  ) : (
+                    <svg className={styles["avatar-fallback-icon"]} viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em">
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                    </svg>
+                  )}
+                </div>
+              </Link>
               <button 
                 type="button" 
                 className={styles["logout-btn"]}
