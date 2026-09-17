@@ -102,15 +102,15 @@ async function getMatrixMetrics(rootUserId) {
     // 🎯 REMOVED ALL ACCIDENTAL BACKSLASHES FROM MONGODB KEY STRINGS:
     const downlineTree = await User.aggregate([
       { 
-        \$match: { 
+        $match: { 
           _id: anchorId, 
           accountCategory: "network" 
         } 
       },
       {
-        \$graphLookup: {
+        $graphLookup: {
           from: "users",
-          startWith: "\$referrals",
+          startWith: "$referrals",
           connectFromField: "referrals",
           connectToField: "_id",
           as: "matrixDownline",
