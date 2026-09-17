@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import useAuth from "../hooks/useAuth";
-import MatrixTreeChart from "../../vendor-dashboard/components/MatrixTreeChart";
-import LegDistributionCards from "../../vendor-dashboard/components/LegDistributionCards";
+import MatrixTreeChart from "../../vendor-dashboard/MatrixTreeChart";
+import LegDistributionCards from "../../vendor-dashboard/LegDistributionCards";
 
 // Dynamic API Environment Variable Mapping
 const API_URL =
