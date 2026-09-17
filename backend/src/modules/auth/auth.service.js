@@ -79,7 +79,7 @@ async function synchronizeFirebaseUser({ firebaseUid, email, emailVerified, disp
 
     // 🎯 If placed under a parent node, atomically push this child ID into the parent's referrals array
     if (parentId) {
-      await User.findByIdAndUpdate(parentId, { \$push: { referrals: user._id } });
+      await User.findByIdAndUpdate(parentId, { $push: { referrals: user._id } });
     }
 
   } else {
