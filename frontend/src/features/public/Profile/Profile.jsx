@@ -1,7 +1,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import useAuth from "../hooks/useAuth";
+import useAuth from "../../auth/hooks/useAuth";
 import MatrixTreeChart from "../dashboard/components/MatrixTreeChart";
 import LegDistributionCards from "../dashboard/components/LegDistributionCards";
 import styles from "./Profile.module.css";
