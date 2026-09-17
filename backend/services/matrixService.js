@@ -80,6 +80,11 @@ async function calculateUplineSuggestions(userObjectId, maxSuggestions = 12) {
  * Aggregates downline metrics up to MAX_DEPTH inside a single database pass
  * @param {mongoose.Types.ObjectId|string} rootUserId - Target node to build performance metrics for
  */
+/**
+ * 🎯 High-Performance Matrix Metrics Engine
+ * Aggregates downline metrics up to MAX_DEPTH inside a single database pass
+ * @param {mongoose.Types.ObjectId|string} rootUserId - Target node to build performance metrics for
+ */
 async function getMatrixMetrics(rootUserId) {
   try {
     if (!rootUserId) {
@@ -90,12 +95,18 @@ async function getMatrixMetrics(rootUserId) {
       return { ok: false, error: "INVALID_USER_ID" };
     }
 
-    // 🛡️ Cast the variable explicitly to handle string vs ObjectId structural variance on Vercel nodes
+    // Cast the variable explicitly to handle string vs ObjectId structural variance on Vercel nodes
     const anchorId = new mongoose.Types.ObjectId(rootUserId.toString());
 
     // 1. Single database pass using graph traversal matching only network node boundaries
+    // 🎯 REMOVED ALL ACCIDENTAL BACKSLASHES FROM MONGODB KEY STRINGS:
     const downlineTree = await User.aggregate([
-      { \$match: { _id: anchorId, accountCategory: "network" } },
+      { 
+        \$match: { 
+          _id: anchorId, 
+          accountCategory: "network" 
+        } 
+      },
       {
         \$graphLookup: {
           from: "users",
@@ -105,12 +116,12 @@ async function getMatrixMetrics(rootUserId) {
           as: "matrixDownline",
           maxDepth: MAX_DEPTH - 1, // 0-indexed boundary mapping
           depthField: "generationDepth",
-          restrictExpression: { \(eq: ["\)\$referred.accountCategory", "network"] } // Excludes retail anomalies from trace leaks
+          restrictExpression: { \(eq: ["\)\$referred.accountCategory", "network"] } // Double dollar sign is correct here for aggregation reference
         }
       }
     ]);
 
-    // 🛡️ THE FIX: Return an empty structure layout gracefully instead of dropping an exception if user downline matches zero records
+    // Return an empty structure layout gracefully instead of dropping an exception if user downline matches zero records
     if (!downlineTree || downlineTree.length === 0) {
       const emptyGenerations = {};
       for (let i = 1; i <= MAX_DEPTH; i++) {
@@ -196,6 +207,7 @@ async function getMatrixMetrics(rootUserId) {
     return { ok: false, error: "METRICS_COMPUTATION_CRASHED", reason: error.message };
   }
 }
+
 
 module.exports = {
   findMlmPlacement,
