@@ -14,8 +14,7 @@
       "use": "@vercel/node",
       "config": {
         "includeFiles": [
-          "backend/src/lib/db.js",
-          "backend/src/routes/**"
+          "backend/src/**"
         ]
       }
     }
