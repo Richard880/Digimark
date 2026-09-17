@@ -1,6 +1,6 @@
 const User = require("../../models/User");
 const UserProfile = require("../../models/UserProfile");
-const matrixService = require("../../services/matrixService");
+const matrixService = require("../../../services/matrixService");
 const generateMembershipNumber = require("../../utils/membershipNumber");
 
 /**
