@@ -5,8 +5,8 @@ import MainLayout from "../layouts/MainLayout/MainLayout";
 import HomePage from "../features/public/home/HomePage";
 import MarketHub from "../features/public/market/MarketHub"; 
 import ProductDetails from "../features/public/ProductDetails/ProductDetails";
-import MyShopDashboard from "../features/vendor-dashboard/MyShopDashboard"; // <-- Import your premium merchant panel
-import Profile from "../features/public/Profile/Profile"; // <-- Import your public profile view
+import MyShopDashboard from "../features/vendor-dashboard/MyShopDashboard"; // <-- Full-screen premium dashboard remains isolated
+import Profile from "../features/public/Profile/Profile"; 
 
 // Import your unified routing constants
 import ROUTES from "../constants/routes";
@@ -31,13 +31,15 @@ export default function AppRoutes() {
           
           {/* Decoupled Single Product Details View */}
           <Route path={ROUTES.PRODUCT_DETAILS} element={<ProductDetails />} />
+
+          {/* 🎯 THE FIX: Nest your public profile here so it retains your Navbar and search logic! */}
+          <Route path={ROUTES.PUBLIC_PROFILE} element={<Profile />} />
         </Route>
 
         {/* ==========================================================================
            2. ISOLATED MERCHANT SYSTEM (Renders as a full-screen, independent app frame)
            ========================================================================== */}
         <Route path={ROUTES.MEMBER_DASHBOARD} element={<MyShopDashboard />} />
-        <Route path={ROUTES.PUBLIC_PROFILE} element={<Profile />} />
 
         {/* ==========================================================================
            3. UNIVERSAL EXPLICIT FALLBACK REDIRECT
