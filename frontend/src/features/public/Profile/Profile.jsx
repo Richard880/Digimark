@@ -2,8 +2,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import useAuth from "../../auth/hooks/useAuth";
-import MatrixTreeChart from "../dashboard/components/MatrixTreeChart";
-import LegDistributionCards from "../dashboard/components/LegDistributionCards";
+// Ensure these paths point directly to the new files we just created:
+import MatrixTreeChart from "../../vendor-dashboard/MatrixTreeChart";
+import LegDistributionCards from "../../vendor-dashboard/LegDistributionCards";
+
 import styles from "./Profile.module.css";
 
 // 🎯 THE FIX: Fallback to localhost dynamically if the environment variable isn't injected yet
