@@ -14,11 +14,17 @@ async function authenticate(req, res, next) {
     const decoded = await admin.auth().verifyIdToken(token);
     const user = await User.findOne({ firebaseUid: decoded.uid });
 
-    if (!user) return res.status(401).json({ error: "APPLICATION_USER_NOT_FOUND" });
-    if (!user.isActive) return res.status(403).json({ error: "ACCOUNT_DISABLED" });
+    // 🎯 THE FIX: If it's the sync/registration endpoint, don't fail if the user is missing from MongoDB!
+    if (!user && req.baseUrl + req.path !== "/api/auth/sync" && req.path !== "/sync") {
+      return res.status(401).json({ error: "APPLICATION_USER_NOT_FOUND" });
+    }
+    
+    if (user && !user.isActive) {
+      return res.status(403).json({ error: "ACCOUNT_DISABLED" });
+    }
 
     req.firebaseUser = decoded;
-    req.user = user;
+    req.user = user || null; // 🎯 Set to null gracefully if this is a brand new user signing up
     next();
   } catch (error) {
     console.error("Authentication failed:", error.code || error.message);
