@@ -24,9 +24,13 @@ async function authenticate(req, res, next) {
     // 2. Query target profile presence inside MongoDB
     const user = await User.findOne({ firebaseUid: decoded.uid });
 
-    // Determine current absolute routing paths to enforce endpoint bypass exclusions
-    const currentFullPath = (req.baseUrl || "") + (req.path || "");
-    const isSyncEndpoint = currentFullPath === "/api/auth/sync" || req.path === "/sync" || req.path === "/auth/sync";
+    // 🎯 THE FIX: Robustly catch Vercel's relative path mutations
+    const path = req.path || "";
+    const baseUrl = req.baseUrl || "";
+    const isSyncEndpoint = 
+      path.includes("/sync") || 
+      baseUrl.includes("/sync") || 
+      req.originalUrl?.includes("/sync");
 
     // 3. ENFORCEMENT HOLE: Fail if user is missing, EXCEPT when hitting the registration/onboarding sync path
     if (!user && !isSyncEndpoint) {
@@ -42,8 +46,8 @@ async function authenticate(req, res, next) {
     req.firebaseUser = decoded;
     req.user = user || null; // Set to null gracefully for brand new accounts running synchronization mutations
     
-    // Security Context: Attach permission category tags to track request profiles down the track
-    req.userCategory = user ? user.accountCategory : "un-synchronized";
+    // 🎯 THE FIX: Added strict optional chaining assignment to eliminate 500 reference runtime crashes
+    req.userCategory = user?.accountCategory ? user.accountCategory : "un-synchronized";
 
     next();
   } catch (error) {
