@@ -208,3 +208,72 @@ router.post("/reset-password", async (req, res) => {
     res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   }
 });
+
+/**
+ * POST /api/network/login
+ * 🔑 Fallback authentication handler for local database standalone accounts
+ */
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: "MISSING_CREDENTIALS" });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: "INVALID_CREDENTIALS" });
+    }
+
+    // Sign a 7-day fallback symmetric JWT session block payload
+    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "7d" });
+    
+    return res.json({
+      token,
+      user: { 
+        id: user._id, 
+        name: user.name, 
+        email: user.email, 
+        accountCategory: user.accountCategory,
+        profilePic: user.profilePic 
+      }
+    });
+  } catch (err) {
+    console.error("❌ Local Fallback Login Failure:", err.message);
+    res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+});
+
+
+/**
+ * GET /api/network/user/:id/suggest
+ * 🟢 Returns calculated ancestral upline placementSuggestions for matrix builders
+ */
+router.get("/user/:id/suggest", authenticate, async (req, res) => {
+  try {
+    // 🛡️ SECURITY GUARD: Block retail category customers from polling ancestral upline trees
+    if (req.userCategory !== "network") {
+      return res.status(403).json({ error: "ACCESS_DENIED_NETWORK_CATEGORY_REQUIRED" });
+    }
+
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ error: "INVALID_TARGET_USER_OBJECT_ID" });
+    }
+
+    const targetUserId = new mongoose.Types.ObjectId(req.params.id);
+
+    // Fetch ancestral lineage suggestions from our core placement engine (MAX_DIRECT/MAX_DEPTH bounded)
+    const suggestions = await matrixService.calculateUplineSuggestions(targetUserId, 12);
+    
+    return res.json({ 
+      sponsor: req.params.id, 
+      suggestions 
+    });
+  } catch (err) {
+    console.error("❌ Upline Placement Suggestion Calculation Failure:", err.message);
+    res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+});
+
+module.exports = router;
+
