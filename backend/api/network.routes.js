@@ -1,59 +1,47 @@
 // api/network.routes.js
-const JWT_SECRET = process.env.JWT_SECRET || "mlm_secret_key_123";
 const express = require("express");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+const crypto = require("crypto"); // Built-in Node utility to generate secure un-guessable hex tokens
 const mongoose = require("mongoose");
 
+// 🎯 THE FIX: Use our central Firebase-backed asymmetric validation check completed in Layer 3
+const authenticate = require("../middleware/authenticate"); 
 const User = require("../models/User");
-const matrixService = require("../services/matrixService"); // 🟢 Import our separated logic service layer
+const matrixService = require("../services/matrixService"); 
 
 const router = express.Router();
 
-// --- 🛡️ EXPLICIT AUTHORIZATION ROUTE MIDDLEWARE GUARD ---
-const verifySessionToken = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "MISSING_OR_MALFORMED_AUTHORIZATION_TOKEN" });
-  }
-
-  const token = authHeader.split(" ")[1];
+/**
+ * GET /api/network/matrix-metrics
+ * 📊 Returns structural matrix tree performance indices for the authenticated account
+ */
+router.get("/matrix-metrics", authenticate, async (req, res) => {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
+    // 🛡️ SECURITY CHECK: Protect the database layer from running matrix graph crawls for retail users
+    if (req.userCategory !== "network") {
+      return res.status(403).json({ error: "ACCESS_DENIED_NETWORK_CATEGORY_REQUIRED" });
+    }
+
+    const metricsResult = await matrixService.getMatrixMetrics(req.user._id);
+    if (!metricsResult.ok) {
+      return res.status(400).json({ error: metricsResult.error, reason: metricsResult.reason });
+    }
+
+    return res.json(metricsResult);
   } catch (err) {
-    return res.status(401).json({ error: "EXPIRED_OR_INVALID_SESSION_CREDENTIALS" });
+    console.error("❌ Route Failure inside Matrix Metrics extraction loop:", err.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   }
-};
+});
 
 /**
  * POST /api/network/register
- */
-/**
- * POST /api/network/register (Streamlined for Standard Standalone MongoDB Local Instances)
- */
-// const JWT_SECRET = process.env.JWT_SECRET || "mlm_secret_key_123";
-// const express = require("express");
-// const bcrypt = require("bcryptjs");
-// const jwt = require("jsonwebtoken");
-// const crypto = require("crypto"); // Built-in Node utility to generate secure un-guessable hex tokens
-// const mongoose = require("mongoose");
-
-// const User = require("../models/User");
-// const matrixService = require("../services/matrixService");
-
-// const router = express.Router();
-
-/**
- * POST /api/network/register
- * 🔒 Strict Verification Completeness Engine
+ * 🔒 Strict Verification Completeness Engine for Custom Fallback Signups
  */
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, phone, gender, nationalId, password, confirmPassword, sponsor } = req.body || {};
+    const { name, email, phone, gender, nationalId, password, confirmPassword, sponsor, accountCategory } = req.body || {};
 
-    // 🛑 1. STRICT ENFORCEMENT: No field can be left blank except the optional sponsor parameter
+    // 🛑 1. STRICT ENFORCEMENT: All fundamental fields must be present
     if (!name || !name.trim() || 
         !email || !email.trim() || 
         !phone || !phone.trim() || 
@@ -67,8 +55,7 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: "PASSWORDS_DO_NOT_MATCH_INTEGRITY_VIOLATION" });
     }
 
-    // 2. Validate Password Rules on Backend for Enhanced Security
-    if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9!@#$%^&*]/.test(password)) {
+    if (password.length < 8 || !/[A-Z]/.test(password) || !/[0-9!@#\$%^&*]/.test(password)) {
       return res.status(400).json({ error: "PASSWORD_FAIL_CRITERIA_SECURITY_COMPROMISED" });
     }
 
@@ -77,53 +64,73 @@ router.post("/register", async (req, res) => {
       return res.status(409).json({ error: "EMAIL_ALREADY_REGISTERED" });
     }
 
-    // 3. Matrix Mapping Logic
+    // 2. Establish User Track Allocation Parameters
+    const trackCategory = accountCategory === "network" ? "network" : "retail";
+    
     let sponsorObjectId = null;
     let parentObjectId = null;
+    let pathFromRoot = [];
 
-    if (sponsor && sponsor.trim() !== "") {
-      const validSponsor = mongoose.isValidObjectId(sponsor) 
-        ? await User.findById(sponsor)
-        : await User.findOne({ email: sponsor.trim().toLowerCase() });
-
-      if (!validSponsor) {
-        return res.status(400).json({ error: "SPECIFIED_SPONSOR_NOT_FOUND" });
+    // 🎯 DUAL-TRACK SYSTEM SEPARATION GATEWAY
+    if (trackCategory === "network") {
+      const companyRoot = await User.findOne({ email: "admin@sokodigi.com" });
+      if (!companyRoot) {
+        return res.status(500).json({ error: "SYSTEM_ROOT_ANCHOR_NOT_FOUND_REGISTRATION_HALTED" });
       }
 
-      sponsorObjectId = validSponsor._id;
+      let chosenSponsorId = companyRoot._id;
 
+      if (sponsor && sponsor.trim() !== "") {
+        const validSponsor = mongoose.isValidObjectId(sponsor) 
+          ? await User.findById(sponsor)
+          : await User.findOne({ email: sponsor.trim().toLowerCase(), accountCategory: "network" });
+
+        if (!validSponsor) {
+          return res.status(400).json({ error: "SPECIFIED_SPONSOR_NOT_FOUND_OR_INELIGIBLE" });
+        }
+        chosenSponsorId = validSponsor._id;
+      }
+
+      sponsorObjectId = chosenSponsorId;
+
+      // 3. Invoke BFS Auto-Placement Engine Loop to discover open leg vacancies
       const placementResult = await matrixService.findMlmPlacement(sponsorObjectId);
       if (!placementResult.ok) {
         return res.status(409).json({ error: "FORCED_MATRIX_TREE_FULL_SPILLOVER_EXHAUSTED" });
       }
       parentObjectId = placementResult.parentId;
+
+      // Unroll parent's materialized lineage path to construct child trail
+      const parentNode = await User.findById(parentObjectId).select("pathFromRoot").lean();
+      if (parentNode) {
+        pathFromRoot = [...(parentNode.pathFromRoot || []), parentObjectId];
+      }
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // 4. Thread-safe Document Creation Loop
+    // 4. Document Creation Execution Path
     const newUser = await User.create({
       name,
       email: email.toLowerCase(),
       phone,
       gender,
       nationalId: nationalId.trim(),
-      password: hashedPassword,
+      password, // Password hashing logic handled safely within standard database structures or pre-save states
+      accountCategory: trackCategory,
       sponsorId: sponsorObjectId,
       parentId: parentObjectId,
+      pathFromRoot,
       referrals: [],
-      active: true
+      isActive: true
     });
 
     if (parentObjectId) {
-      await User.findByIdAndUpdate(parentObjectId, { $push: { referrals: newUser._id } });
+      await User.findByIdAndUpdate(parentObjectId, { \$push: { referrals: newUser._id } });
     }
 
-    const token = jwt.sign({ id: newUser._id }, JWT_SECRET, { expiresIn: "7d" });
-
+    // For fallback direct route accounts, keep your response payload unified
     return res.status(201).json({
-      token,
-      user: { id: newUser._id, name: newUser.name, email: newUser.email, profilePic: newUser.profilePic },
+      ok: true,
+      user: { id: newUser._id, name: newUser.name, email: newUser.email, accountCategory: newUser.accountCategory },
       placedUnder: parentObjectId
     });
 
@@ -143,28 +150,24 @@ router.post("/forgot-password", async (req, res) => {
     if (!email) return res.status(400).json({ error: "EMAIL_ADDRESS_REQUIRED" });
 
     const user = await User.findOne({ email: email.toLowerCase() });
-    // Production Security Practice: Return success even if email is missing to prevent user enumeration attacks
     if (!user) {
       return res.json({ message: "RECOVERY_TOKEN_GENERATED_SUCCESSFULLY_CHECK_LOGS" });
     }
 
-    // Create single-use un-guessable hex token valid for exactly 1 hour
     const resetToken = crypto.randomBytes(20).toString("hex");
     
     user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour timestamp boundary window
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour window
     await user.save();
 
-    // In local development environment context, print recovery link to console terminal line tracking
     console.log(`\n🔑 ============ SECURITY PASS RECOVERY SYSTEM ============`);
     console.log(`👤 Target Account Account: ${user.email}`);
     console.log(`🔗 Recovery Single Use Reset Token: ${resetToken}`);
-    console.log(`💡 Simulated Link Context: http://localhost:5173/reset-password/${resetToken}`);
     console.log(`============================================================\n`);
 
     return res.json({ 
       message: "RECOVERY_TOKEN_GENERATED_SUCCESSFULLY_CHECK_LOGS",
-      devToken: resetToken // Pass back to frontend directly for easy local evaluation profiling
+      devToken: process.env.NODE_ENV === "development" ? resetToken : undefined
     });
   } catch (err) {
     res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
@@ -182,22 +185,21 @@ router.post("/reset-password", async (req, res) => {
       return res.status(400).json({ error: "TOKEN_AND_NEW_PASSWORD_PARAMETERS_MANDATORY" });
     }
 
-    // Verify token validity against expiration limits using database lookups
     const user = await User.findOne({
       resetPasswordToken: token,
-      resetPasswordExpires: { $gt: Date.now() } // Verifies it hasn't expired yet
+      resetPasswordExpires: { \$gt: Date.now() }
     });
 
     if (!user) {
       return res.status(400).json({ error: "RECOVERY_TOKEN_INVALID_OR_EXPIRED_OPERATION_ABORTED" });
     }
 
-    if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9!@#$%^&*]/.test(newPassword)) {
+    if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9!@#\$%^&*]/.test(newPassword)) {
       return res.status(400).json({ error: "PASSWORD_FAIL_CRITERIA_SECURITY_COMPROMISED" });
     }
 
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.resetPasswordToken = null; // Instantly destroy token to prevent multi-use playback attacks
+    user.password = newPassword; // Hashing hooks intercept mutations smoothly
+    user.resetPasswordToken = null; 
     user.resetPasswordExpires = null;
     await user.save();
 
@@ -206,42 +208,3 @@ router.post("/reset-password", async (req, res) => {
     res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   }
 });
-
-/**
- * POST /api/network/login
- */
-router.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body || {};
-    if (!email || !password) return res.status(400).json({ error: "MISSING_CREDENTIALS" });
-
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ error: "INVALID_CREDENTIALS" });
-    }
-
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: "7d" });
-    return res.json({
-      token,
-      user: { id: user._id, name: user.name, email: user.email, profilePic: user.profilePic }
-    });
-  } catch (err) {
-    res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
-  }
-});
-
-
-/**
- * GET /api/network/user/:id/suggest
- */
-router.get("/user/:id/suggest", verifySessionToken, async (req, res) => {
-  try {
-    // 🟢 Leverages our calculated service methods cleanly
-    const suggestions = await matrixService.calculateUplineSuggestions(req.params.id);
-    return res.json({ sponsor: req.params.id, suggestions });
-  } catch (err) {
-    res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
-  }
-});
-
-module.exports = router;
