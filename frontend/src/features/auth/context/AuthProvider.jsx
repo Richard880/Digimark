@@ -1,4 +1,3 @@
-
 import {
   useCallback,
   useEffect,
@@ -21,6 +20,8 @@ function AuthProvider({ children }) {
   });
 
   const initListenerRegistered = useRef(false);
+  // 🎯 THE FIX: Track registration state to prevent the global background listener from jumping the gun
+  const isRegistering = useRef(false);
 
   /**
    * Retrieves the application profile associated
@@ -72,10 +73,6 @@ function AuthProvider({ children }) {
 
   /**
    * Firebase authentication state listener.
-   *
-   * Firebase remains the source of truth for identity.
-   * The application profile is loaded after Firebase
-   * confirms the authenticated user.
    */
   useEffect(() => {
     if (initListenerRegistered.current) {
@@ -86,6 +83,13 @@ function AuthProvider({ children }) {
 
     const unsubscribe = authService.onAuthStateChanged(
       async (firebaseUser) => {
+        // 🎯 THE FIX: If registration is explicitly running, let the register function
+        // handle updating the state object with the profile once the sync route completes successfully.
+        if (isRegistering.current) {
+          console.log("Observer bypassed: registration synchronization flow in control.");
+          return;
+        }
+
         try {
           if (!firebaseUser) {
             setAuth({
@@ -167,23 +171,33 @@ function AuthProvider({ children }) {
    */
   const register = useCallback(
     async (userData) => {
-      const firebaseUser =
-        await authService.register(userData);
+      try {
+        // 🎯 THE FIX: Lock down the automatic background state loader loop
+        isRegistering.current = true;
 
-      const profile = await fetchProfileData(
-        firebaseUser.uid
-      );
+        // 1. Run Firebase user generation and await internal database synchronization
+        const firebaseUser = await authService.register(userData);
 
-      setAuth({
-        currentUser: firebaseUser,
-        profile: profile || null,
-        role: profile?.role ?? null,
-        permissions: profile?.permissions ?? [],
-        loading: false,
-        authenticated: true,
-      });
+        // 2. Fetch the newly compiled user profile now that synchronization is complete
+        const profile = await fetchProfileData(firebaseUser.uid);
 
-      return firebaseUser;
+        setAuth({
+          currentUser: firebaseUser,
+          profile: profile || null,
+          role: profile?.role ?? null,
+          permissions: profile?.permissions ?? [],
+          loading: false,
+          authenticated: true,
+        });
+
+        return firebaseUser;
+      } catch (error) {
+        console.error("Form level registration failed:", error);
+        throw error;
+      } finally {
+        // 🎯 THE FIX: Unlock the background state loader once done
+        isRegistering.current = false;
+      }
     },
     [fetchProfileData]
   );
