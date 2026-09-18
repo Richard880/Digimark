@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import useAuth from "../../auth/hooks/useAuth";
 import MatrixTreeChart from "../../vendor-dashboard/MatrixTreeChart";
@@ -18,6 +18,8 @@ export default function Profile() {
   const navigate = useNavigate();
 
   const { auth } = useAuth();
+
+  const fileInputRef = useRef(null); 
 
   const loggedInUser = auth?.currentUser;
   const loggedInProfile = auth?.profile || {};
