@@ -4,6 +4,9 @@ import useAuth from "../../auth/hooks/useAuth";
 import MatrixTreeChart from "../../vendor-dashboard/MatrixTreeChart";
 import LegDistributionCards from "../../vendor-dashboard/LegDistributionCards";
 
+import AvatarMenuModal from "./AvatarMenuModal";
+import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
+
 const API_URL =
   import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -174,6 +177,8 @@ export default function Profile() {
 
           if (profileResponse.ok) {
             const feedData = await profileResponse.json();
+            const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+            const [isUpdatingAvatar, setIsAvatarUploading] = useState(false);
 
             const feedList = Array.isArray(feedData)
               ? feedData
@@ -252,6 +257,53 @@ export default function Profile() {
           /*
            * Fallback public profile
            */
+          const fileInputRef = React.useRef(null);
+
+          const handleAvatarFileChange = async (e) => {
+          const selectedFile = e.target.files?.[0];
+              if (!selectedFile) return;
+
+              if (selectedFile.size > 2 * 1024 * 1024) {
+            alert("To preserve platform processing speeds, image uploads are capped at 2MB.");
+              return;
+            }
+
+              setIsAvatarUploading(true);
+  try {
+    const loggedInUser = auth?.currentUser;
+    if (!loggedInUser) throw new Error("Session expired. Please re-authenticate.");
+
+    const sessionToken = await loggedInUser.getIdToken();
+    console.log("🚀 Dispatched direct profile avatar file delivery stream to Cloudinary...");
+    
+    // 🎯 REUSE INFRASTRUCTURE: Invokes the exact same utility used by your product catalog uploads!
+    const uploadedUrl = await uploadImageToCloudinary(selectedFile, "profiles", sessionToken);
+    
+    if (!uploadedUrl) throw new Error("Media server pipeline dropped upload operation.");
+
+    // Update state instantly across your frontend view cards
+    setBrandProfile(prev => ({ ...prev, profilePic: uploadedUrl }));
+
+    // Sync the clean URL string to MongoDB via your profile data patches route
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+    await fetch(`${API_URL}/api/auth/profile-update`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sessionToken}`
+      },
+      body: JSON.stringify({ profilePic: uploadedUrl })
+    });
+
+    console.log("✅ Profile picture synchronized successfully.");
+
+  } catch (err) {
+    console.error("❌ Profile Avatar Update Failure:", err.message);
+  } finally {
+    setIsAvatarUploading(false);
+  }
+};
+
 
           if (!resolvedProfile) {
             resolvedProfile = {
@@ -571,71 +623,106 @@ export default function Profile() {
    * ================================================================
    */
 
-  return (
+   return (
     <main className="min-h-screen bg-slate-50/60">
+      {/* 🎯 THE INTEGRATION PLUGINS: Hidden file picker + configuration modal drawer */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleAvatarFileChange} 
+        accept="image/*" 
+        className="hidden" 
+      />
+
+      <AvatarMenuModal 
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        currentImageUrl={brandProfile?.photoURL || brandProfile?.profilePic}
+        isOwnProfile={isOwnProfile}
+        onUploadClick={() => fileInputRef.current?.click()}
+      />
+
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
         {/* ============================================================
             PROFILE MASTER CARD
             ============================================================ */}
-
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          
           {/* ==========================================================
               PROFILE HEADER
               ========================================================== */}
-
           <div className="px-5 py-8 sm:px-8 md:px-10 md:py-10">
             <div className="flex flex-col gap-7 md:flex-row md:items-start md:gap-10">
+              
               {/* ======================================================
                   PROFILE PHOTO + NETWORK LEVEL
                   ====================================================== */}
-
               <div className="flex shrink-0 justify-center md:justify-start">
                 <div className="relative">
-                  {/* Network Level Ring */}
-
-                  <div
-                    className={`h-28 w-28 rounded-full border-[4px] bg-white p-1 shadow-sm sm:h-32 sm:w-32 md:h-36 md:w-36 ${levelInfo.ring}`}
+                  
+                  {/* 🎯 THE FIX: Wrapped your entire Level Ring in an interactive button element wrapper */}
+                  <button
+                    type="button"
+                    onClick={() => setIsAvatarModalOpen(true)}
+                    disabled={isUpdatingAvatar}
+                    className="group relative block rounded-full border-0 bg-transparent p-0 focus:outline-none cursor-pointer"
+                    title={isOwnProfile ? "Manage Profile Photo" : "View Photo"}
                   >
-                    <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-emerald-50">
-                      {brandProfile?.photoURL ? (
-                        <img
-                          src={brandProfile.photoURL}
-                          alt={
-                            brandProfile?.name ||
-                            "SokoDigi member"
-                          }
-                          className="h-full w-full object-cover"
-                          onError={(event) => {
-                            event.currentTarget.style.display =
-                              "none";
-                          }}
-                        />
-                      ) : (
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="currentColor"
-                          className="h-14 w-14 text-emerald-700 sm:h-16 sm:w-16"
-                          aria-hidden="true"
-                        >
-                          <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                        </svg>
-                      )}
+                    <div
+                      className={`h-28 w-28 rounded-full border-[4px] bg-white p-1 shadow-sm sm:h-32 sm:w-32 md:h-36 md:w-36 transition duration-200 group-hover:border-emerald-500/40 ${levelInfo.ring}`}
+                    >
+                      <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-emerald-50 relative">
+                        {brandProfile?.photoURL || brandProfile?.profilePic || isUpdatingAvatar ? (
+                          <img
+                            src={brandProfile?.photoURL || brandProfile?.profilePic}
+                            alt={brandProfile?.name || "SokoDigi member"}
+                            className={`h-full w-full object-cover transition duration-200 ${
+                              isUpdatingAvatar ? "opacity-30 animate-pulse" : "group-hover:opacity-90"
+                            }`}
+                            onError={(event) => {
+                              event.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                            className="h-14 w-14 text-emerald-700 sm:h-16 sm:w-16"
+                            aria-hidden="true"
+                          >
+                            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                          </svg>
+                        )}
+
+                        {/* Instagram-Style Overlay Icon on Hover */}
+                        {isOwnProfile && !isUpdatingAvatar && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 text-white rounded-full opacity-0 group-hover:opacity-100 transition duration-200">
+                            <svg xmlns="http://w3.org" width="20" height="24" fill="currentColor" className="bi bi-camera-fill" viewBox="0 0 16 16">
+                              <path d="M10.5 8.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0"/>
+                              <path d="M2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4zm.5 2a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1m9 2.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0"/>
+                            </svg>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </button>
 
                   {/* Level Badge */}
-
                   <div
                     className={`absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-3 py-1 text-[9px] font-extrabold tracking-wider shadow-sm ${levelInfo.badge}`}
                   >
                     <span
                       className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full ${levelInfo.dot}`}
                     />
-
                     {levelInfo.shortName}
                   </div>
                 </div>
               </div>
+
+              {/* ======================================================
+                  IDENTITY + ACTIONS (Rest of your component runs down identically from here)
+                  ====================================================== */}
+
 
               {/* ======================================================
                   IDENTITY + ACTIONS
