@@ -46,94 +46,47 @@ const [isAvatarModalOpen, setIsAvatarModalOpen] =
   const [isUpdatingAvatar, setIsUpdatingAvatar] =
     useState(false);
 
-const handleAvatarFileChange = async (event) => {
-    const selectedFile = event.target.files?.[0];
+// Inside your Profile.jsx handleAvatarFileChange function block:
+const handleAvatarFileChange = async (e) => {
+  const selectedFile = e.target.files[0];
+  if (!selectedFile) return;
 
-if (!selectedFile) {
-      return;
-    }
+  if (selectedFile.size > 2 * 1024 * 1024) {
+    alert("Profile picture files are restricted to a maximum size of 2MB.");
+    return;
+  }
 
-if (!selectedFile.type.startsWith("image/")) {
-      alert("Please select a valid image file.");
-      event.target.value = "";
-      return;
-    }
+  setIsUpdatingAvatar(true);
+  try {
+    const { uploadImageToCloudinary } = await import("../../../utils/cloudinaryUploader");
 
-if (selectedFile.size > 2 * 1024 * 1024) {
-      alert(
-        "To preserve platform processing speeds, image uploads are capped at 2MB."
-      );
-      event.target.value = "";
-      return;
-    }
+    console.log("🚀 Triggering direct unsigned avatar pipeline execution...");
+    // 🎯 THE FIX: Call the simplified loader function directly without passing tokens!
+    const uploadedUrl = await uploadImageToCloudinary(selectedFile, "profiles");
+    
+    if (!uploadedUrl) throw new Error("Upload pipeline failed to resolve URL.");
 
-setIsUpdatingAvatar(true);
+    setBrandProfile(prev => ({ ...prev, photoURL: uploadedUrl }));
 
-try {
-      const currentUser = auth?.currentUser;
+    // Sync your text reference string URL down to MongoDB
+    const token = await auth?.currentUser?.getIdToken();
+    await fetch(`${API_URL}/api/auth/profile-update`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ profilePic: uploadedUrl })
+    });
 
-if (!currentUser) {
-        throw new Error(
-          "Session expired. Please re-authenticate."
-        );
-      }
+    console.log("✅ Profile avatar changes synced successfully.");
+  } catch (error) {
+    console.error("❌ Avatar Synchronization Error:", error.message);
+  } finally {
+    setIsUpdatingAvatar(false);
+  }
+};
 
-const sessionToken = await currentUser.getIdToken();
-
-const uploadedUrl = await uploadImageToCloudinary(
-        selectedFile,
-        "profiles",
-        sessionToken
-      );
-
-if (!uploadedUrl) {
-        throw new Error(
-          "Media server pipeline dropped upload operation."
-        );
-      }
-
-setBrandProfile((previousProfile) => ({
-        ...previousProfile,
-        photoURL: uploadedUrl,
-        profilePic: uploadedUrl,
-      }));
-
-const response = await fetch(
-        `${API_URL}/api/auth/profile-update`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${sessionToken}`,
-          },
-          body: JSON.stringify({
-            profilePic: uploadedUrl,
-          }),
-        }
-      );
-
-if (!response.ok) {
-        throw new Error(
-          "The profile image was uploaded but could not be saved."
-        );
-      }
-
-setIsAvatarModalOpen(false);
-    } catch (error) {
-      console.error(
-        "Profile avatar update failure:",
-        error
-      );
-
-alert(
-        error?.message ||
-          "Unable to update your profile picture."
-      );
-    } finally {
-      setIsUpdatingAvatar(false);
-      event.target.value = "";
-    }
-  };
 
 useEffect(() => {
     let isMounted = true;
