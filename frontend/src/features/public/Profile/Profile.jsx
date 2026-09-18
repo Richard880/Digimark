@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+
 import useAuth from "../../auth/hooks/useAuth";
 import MatrixTreeChart from "../../vendor-dashboard/MatrixTreeChart";
 import LegDistributionCards from "../../vendor-dashboard/LegDistributionCards";
@@ -7,10 +8,8 @@ import LegDistributionCards from "../../vendor-dashboard/LegDistributionCards";
 import AvatarMenuModal from "./AvatarMenuModal";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 
-
-// 🎯 THE FIX: Move away from hardcoded localhost configurations completely
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const MEMBER_SETTINGS_ROUTE = "/settings";
 const NETWORK_DASHBOARD_ROUTE = "/dashboard/network";
@@ -18,21 +17,14 @@ const NETWORK_DASHBOARD_ROUTE = "/dashboard/network";
 export default function Profile() {
   const { userId } = useParams();
   const navigate = useNavigate();
-
   const { auth } = useAuth();
 
-  const fileInputRef = useRef(null); 
+const fileInputRef = useRef(null);
 
-  const loggedInUser = auth?.currentUser;
+const loggedInUser = auth?.currentUser;
   const loggedInProfile = auth?.profile || {};
 
-  /*
-   * ================================================================
-   * DETERMINE CURRENT PROFILE
-   * ================================================================
-   */
-
-  const isOwnProfile =
+const isOwnProfile =
     !userId ||
     userId === loggedInUser?.uid ||
     userId === loggedInProfile?.id ||
@@ -40,31 +32,113 @@ export default function Profile() {
     userId === auth?.user?.id ||
     userId === auth?.user?._id;
 
-  /*
-   * ================================================================
-   * STATE
-   * ================================================================
-   */
-
-  const [brandProfile, setBrandProfile] = useState(null);
+const [brandProfile, setBrandProfile] = useState(null);
   const [matrixMetrics, setMatrixMetrics] = useState(null);
   const [products, setProducts] = useState([]);
 
-  const [isSubscribed, setIsSubscribed] = useState(false);
+const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("products");
   const [shareMessage, setShareMessage] = useState("");
 
-  /*
-   * ================================================================
-   * LOAD PROFILE DATA
-   * ================================================================
-   */
+const [isAvatarModalOpen, setIsAvatarModalOpen] =
+    useState(false);
+  const [isUpdatingAvatar, setIsUpdatingAvatar] =
+    useState(false);
 
-  useEffect(() => {
+const handleAvatarFileChange = async (event) => {
+    const selectedFile = event.target.files?.[0];
+
+if (!selectedFile) {
+      return;
+    }
+
+if (!selectedFile.type.startsWith("image/")) {
+      alert("Please select a valid image file.");
+      event.target.value = "";
+      return;
+    }
+
+if (selectedFile.size > 2 * 1024 * 1024) {
+      alert(
+        "To preserve platform processing speeds, image uploads are capped at 2MB."
+      );
+      event.target.value = "";
+      return;
+    }
+
+setIsUpdatingAvatar(true);
+
+try {
+      const currentUser = auth?.currentUser;
+
+if (!currentUser) {
+        throw new Error(
+          "Session expired. Please re-authenticate."
+        );
+      }
+
+const sessionToken = await currentUser.getIdToken();
+
+const uploadedUrl = await uploadImageToCloudinary(
+        selectedFile,
+        "profiles",
+        sessionToken
+      );
+
+if (!uploadedUrl) {
+        throw new Error(
+          "Media server pipeline dropped upload operation."
+        );
+      }
+
+setBrandProfile((previousProfile) => ({
+        ...previousProfile,
+        photoURL: uploadedUrl,
+        profilePic: uploadedUrl,
+      }));
+
+const response = await fetch(
+        `${API_URL}/api/auth/profile-update`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${sessionToken}`,
+          },
+          body: JSON.stringify({
+            profilePic: uploadedUrl,
+          }),
+        }
+      );
+
+if (!response.ok) {
+        throw new Error(
+          "The profile image was uploaded but could not be saved."
+        );
+      }
+
+setIsAvatarModalOpen(false);
+    } catch (error) {
+      console.error(
+        "Profile avatar update failure:",
+        error
+      );
+
+alert(
+        error?.message ||
+          "Unable to update your profile picture."
+      );
+    } finally {
+      setIsUpdatingAvatar(false);
+      event.target.value = "";
+    }
+  };
+
+useEffect(() => {
     let isMounted = true;
 
-    const activeTargetId = isOwnProfile
+const activeTargetId = isOwnProfile
       ? loggedInProfile?.id ||
         loggedInProfile?._id ||
         auth?.user?.id ||
@@ -72,25 +146,19 @@ export default function Profile() {
         loggedInUser?.uid
       : userId;
 
-    if (!activeTargetId) {
+if (!activeTargetId) {
       setIsLoading(false);
       return undefined;
     }
 
-    const loadProfile = async () => {
+const loadProfile = async () => {
       try {
         setIsLoading(true);
 
-        let resolvedProfile = null;
+let resolvedProfile = null;
         let resolvedMatrixMetrics = null;
 
-        /*
-         * ============================================================
-         * OWN PROFILE
-         * ============================================================
-         */
-
-        if (isOwnProfile && loggedInUser) {
+if (isOwnProfile && loggedInUser) {
           resolvedProfile = {
             id:
               loggedInProfile?.id ||
@@ -99,7 +167,7 @@ export default function Profile() {
               auth?.user?._id ||
               loggedInUser?.uid,
 
-            name:
+name:
               `${loggedInProfile?.firstName || ""} ${
                 loggedInProfile?.lastName || ""
               }`.trim() ||
@@ -108,44 +176,45 @@ export default function Profile() {
               loggedInUser?.email ||
               "SokoDigi Member",
 
-            username:
+username:
               loggedInProfile?.username ||
               loggedInUser?.email?.split("@")[0] ||
               "member",
 
-            accountCategory:
+accountCategory:
               loggedInProfile?.accountCategory ||
               auth?.user?.accountCategory ||
               "network",
 
-            membershipNumber:
+membershipNumber:
               loggedInProfile?.membershipNumber ||
               auth?.user?.membershipNumber ||
               "PENDING",
 
-            brandName:
+brandName:
               loggedInProfile?.brandName ||
               "SokoDigi Merchant",
 
-            phoneNumber:
+phoneNumber:
               loggedInProfile?.phoneNumber ||
               loggedInUser?.phoneNumber ||
               "",
 
-            bio:
+bio:
               loggedInProfile?.bio ||
               loggedInProfile?.description ||
               "",
 
-            photoURL:
+photoURL:
               loggedInProfile?.photoURL ||
               loggedInProfile?.photoUrl ||
               loggedInProfile?.profilePhoto ||
+              loggedInProfile?.profilePic ||
               loggedInProfile?.avatar ||
               loggedInUser?.photoURL ||
               "",
 
-            networkLevel:
+networkLevel:
               loggedInProfile?.networkLevel ||
               loggedInProfile?.marketerLevel ||
               loggedInProfile?.level ||
@@ -154,103 +223,96 @@ export default function Profile() {
               auth?.user?.level ||
               null,
 
-            subscribers:
+subscribers:
               loggedInProfile?.subscriberCount ||
               loggedInProfile?.subscribers ||
               0,
 
-            subscriptions:
+subscriptions:
               loggedInProfile?.subscriptionCount ||
               loggedInProfile?.subscriptions ||
               0,
           };
 
-          if (auth?.matrixMetrics?.ok) {
+if (auth?.matrixMetrics?.ok) {
             resolvedMatrixMetrics = auth.matrixMetrics;
           }
         } else {
-          /*
-           * ============================================================
-           * PUBLIC PROFILE
-           * ============================================================
-           */
-
           const profileResponse = await fetch(
             `${API_URL}/api/products/market`
           );
 
-          if (profileResponse.ok) {
+if (profileResponse.ok) {
             const feedData = await profileResponse.json();
-            const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
-            const [isUpdatingAvatar, setIsAvatarUploading] = useState(false);
 
-            const feedList = Array.isArray(feedData)
+const feedList = Array.isArray(feedData)
               ? feedData
               : Array.isArray(feedData?.products)
               ? feedData.products
               : [];
 
-            const matchedItem = feedList.find(
+const matchedItem = feedList.find(
               (product) =>
                 product?.shopId === activeTargetId ||
                 product?.userId === activeTargetId ||
                 product?.ownerId === activeTargetId
             );
 
-            if (matchedItem) {
+if (matchedItem) {
               resolvedProfile = {
                 id: activeTargetId,
 
-                name:
+name:
                   matchedItem?.displayName ||
                   matchedItem?.sellerName ||
                   matchedItem?.name ||
                   "SokoDigi Merchant",
 
-                username:
+username:
                   matchedItem?.username ||
                   "merchant",
 
-                accountCategory:
+accountCategory:
                   matchedItem?.accountCategory ||
                   "retail",
 
-                membershipNumber:
+membershipNumber:
                   matchedItem?.membershipNumber ||
                   "N/A",
 
-                brandName:
+brandName:
                   matchedItem?.brandName ||
                   "",
 
-                phoneNumber:
+phoneNumber:
                   matchedItem?.phoneNumber ||
                   "",
 
-                bio:
+bio:
                   matchedItem?.bio ||
                   matchedItem?.description ||
                   "",
 
-                photoURL:
+photoURL:
                   matchedItem?.photoURL ||
                   matchedItem?.photoUrl ||
                   matchedItem?.profilePhoto ||
+                  matchedItem?.profilePic ||
                   matchedItem?.avatar ||
                   "",
 
-                networkLevel:
+networkLevel:
                   matchedItem?.networkLevel ||
                   matchedItem?.marketerLevel ||
                   matchedItem?.level ||
                   null,
 
-                subscribers:
+subscribers:
                   matchedItem?.subscriberCount ||
                   matchedItem?.subscribers ||
                   0,
 
-                subscriptions:
+subscriptions:
                   matchedItem?.subscriptionCount ||
                   matchedItem?.subscriptions ||
                   0,
@@ -258,58 +320,7 @@ export default function Profile() {
             }
           }
 
-          /*
-           * Fallback public profile
-           */
-          const fileInputRef = React.useRef(null);
-
-          const handleAvatarFileChange = async (e) => {
-          const selectedFile = e.target.files?.[0];
-              if (!selectedFile) return;
-
-              if (selectedFile.size > 2 * 1024 * 1024) {
-            alert("To preserve platform processing speeds, image uploads are capped at 2MB.");
-              return;
-            }
-
-              setIsAvatarUploading(true);
-  try {
-    const loggedInUser = auth?.currentUser;
-    if (!loggedInUser) throw new Error("Session expired. Please re-authenticate.");
-
-    const sessionToken = await loggedInUser.getIdToken();
-    console.log("🚀 Dispatched direct profile avatar file delivery stream to Cloudinary...");
-    
-    // 🎯 REUSE INFRASTRUCTURE: Invokes the exact same utility used by your product catalog uploads!
-    const uploadedUrl = await uploadImageToCloudinary(selectedFile, "profiles", sessionToken);
-    
-    if (!uploadedUrl) throw new Error("Media server pipeline dropped upload operation.");
-
-    // Update state instantly across your frontend view cards
-    setBrandProfile(prev => ({ ...prev, profilePic: uploadedUrl }));
-
-    // Sync the clean URL string to MongoDB via your profile data patches route
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-    await fetch(`${API_URL}/api/auth/profile-update`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${sessionToken}`
-      },
-      body: JSON.stringify({ profilePic: uploadedUrl })
-    });
-
-    console.log("✅ Profile picture synchronized successfully.");
-
-  } catch (err) {
-    console.error("❌ Profile Avatar Update Failure:", err.message);
-  } finally {
-    setIsAvatarUploading(false);
-  }
-};
-
-
-          if (!resolvedProfile) {
+if (!resolvedProfile) {
             resolvedProfile = {
               id: activeTargetId,
               name: "Independent SokoDigi Merchant",
@@ -327,37 +338,25 @@ export default function Profile() {
           }
         }
 
-        if (!isMounted) {
+if (!isMounted) {
           return;
         }
 
-        setBrandProfile(resolvedProfile);
+setBrandProfile(resolvedProfile);
 
-        /*
-         * ============================================================
-         * AUTHORIZATION TOKEN
-         * ============================================================
-         */
-
-        const token = loggedInUser
+const token = loggedInUser
           ? await loggedInUser
               .getIdToken()
               .catch(() => null)
           : null;
 
-        const headers = token
+const headers = token
           ? {
               Authorization: `Bearer ${token}`,
             }
           : {};
 
-        /*
-         * ============================================================
-         * MATRIX METRICS
-         * ============================================================
-         */
-
-        if (
+if (
           !resolvedMatrixMetrics &&
           (isOwnProfile ||
             resolvedProfile?.accountCategory === "network")
@@ -369,47 +368,41 @@ export default function Profile() {
             }
           );
 
-          if (metricsResponse.ok) {
+if (metricsResponse.ok) {
             const metricsData =
               await metricsResponse.json();
 
-            if (metricsData?.ok) {
+if (metricsData?.ok) {
               resolvedMatrixMetrics = metricsData;
             }
           }
         }
 
-        if (!isMounted) {
+if (!isMounted) {
           return;
         }
 
-        if (resolvedMatrixMetrics) {
+if (resolvedMatrixMetrics) {
           setMatrixMetrics(resolvedMatrixMetrics);
         }
 
-        /*
-         * ============================================================
-         * PRODUCT CATALOG
-         * ============================================================
-         */
-
-        const productsResponse = await fetch(
+const productsResponse = await fetch(
           `${API_URL}/api/products?shopId=${encodeURIComponent(
             activeTargetId
           )}`
         );
 
-        if (productsResponse.ok) {
+if (productsResponse.ok) {
           const productsData =
             await productsResponse.json();
 
-          const productList = Array.isArray(productsData)
+const productList = Array.isArray(productsData)
             ? productsData
             : Array.isArray(productsData?.products)
             ? productsData.products
             : [];
 
-          if (isMounted) {
+if (isMounted) {
             setProducts(productList);
           }
         } else if (isMounted) {
@@ -417,11 +410,11 @@ export default function Profile() {
         }
       } catch (error) {
         console.error(
-          "❌ SokoDigi profile loading error:",
+          "SokoDigi profile loading error:",
           error
         );
 
-        if (isMounted) {
+if (isMounted) {
           setProducts([]);
         }
       } finally {
@@ -431,9 +424,9 @@ export default function Profile() {
       }
     };
 
-    loadProfile();
+loadProfile();
 
-    return () => {
+return () => {
       isMounted = false;
     };
   }, [
@@ -444,17 +437,7 @@ export default function Profile() {
     auth,
   ]);
 
-  /*
-   * ================================================================
-   * NETWORK LEVEL
-   * ================================================================
-   *
-   * We intentionally accept several possible property names so this
-   * component remains compatible while the backend/auth structure
-   * continues to evolve.
-   */
-
-  const networkLevel = useMemo(() => {
+const networkLevel = useMemo(() => {
     const possibleLevels = [
       brandProfile?.networkLevel,
       matrixMetrics?.networkLevel,
@@ -465,27 +448,21 @@ export default function Profile() {
       matrixMetrics?.summary?.level,
     ];
 
-    const foundLevel = possibleLevels.find(
+const foundLevel = possibleLevels.find(
       (value) =>
         value !== null &&
         value !== undefined &&
         value !== ""
     );
 
-    const numericLevel = Number(foundLevel);
+const numericLevel = Number(foundLevel);
 
-    return Number.isFinite(numericLevel) && numericLevel > 0
+return Number.isFinite(numericLevel) && numericLevel > 0
       ? numericLevel
       : null;
   }, [brandProfile, matrixMetrics]);
 
-  /*
-   * ================================================================
-   * NETWORK LEVEL PRESENTATION
-   * ================================================================
-   */
-
-  const getNetworkLevelInfo = (level) => {
+const getNetworkLevelInfo = (level) => {
     if (!level) {
       return {
         name: "Member",
@@ -497,7 +474,7 @@ export default function Profile() {
       };
     }
 
-    if (level >= 4) {
+if (level >= 4) {
       return {
         name: "Level 4 Network",
         shortName: "LEVEL 4",
@@ -508,7 +485,7 @@ export default function Profile() {
       };
     }
 
-    if (level === 3) {
+if (level === 3) {
       return {
         name: "Level 3 Network",
         shortName: "LEVEL 3",
@@ -519,7 +496,7 @@ export default function Profile() {
       };
     }
 
-    if (level === 2) {
+if (level === 2) {
       return {
         name: "Level 2 Network",
         shortName: "LEVEL 2",
@@ -530,7 +507,7 @@ export default function Profile() {
       };
     }
 
-    return {
+return {
       name: "Level 1 Network",
       shortName: "LEVEL 1",
       ring: "border-emerald-500",
@@ -540,58 +517,42 @@ export default function Profile() {
     };
   };
 
-  const levelInfo = getNetworkLevelInfo(networkLevel);
+const levelInfo = getNetworkLevelInfo(networkLevel);
 
-  /*
-   * ================================================================
-   * NETWORK MEMBER COUNT
-   * ================================================================
-   */
-
-  const networkMembers =
+const networkMembers =
     matrixMetrics?.summary?.totalDownline ??
     matrixMetrics?.summary?.totalMembers ??
     matrixMetrics?.totalDownline ??
     matrixMetrics?.totalMembers ??
     0;
 
-  /*
-   * ================================================================
-   * SUBSCRIBER COUNT
-   * ================================================================
-   */
-
-  const subscribers =
+const subscribers =
     Number(brandProfile?.subscribers) || 0;
 
-  /*
-   * ================================================================
-   * SHARE PROFILE
-   * ================================================================
-   */
-
-  const handleShareProfile = async () => {
+const handleShareProfile = async () => {
     try {
       const profileUrl = window.location.href;
 
-      if (navigator.share) {
+if (navigator.share) {
         await navigator.share({
-          title: `${brandProfile?.name || "SokoDigi Member"} | SokoDigi`,
-          text: `View ${brandProfile?.name || "this member"} on SokoDigi.`,
+          title: `${
+            brandProfile?.name || "SokoDigi Member"
+          } | SokoDigi`,
+          text: `View ${
+            brandProfile?.name || "this member"
+          } on SokoDigi.`,
           url: profileUrl,
         });
 
-        return;
+return;
       }
 
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(
-          profileUrl
-        );
+if (navigator.clipboard) {
+        await navigator.clipboard.writeText(profileUrl);
 
-        setShareMessage("Profile link copied");
+setShareMessage("Profile link copied");
 
-        setTimeout(() => {
+setTimeout(() => {
           setShareMessage("");
         }, 2500);
       }
@@ -603,88 +564,81 @@ export default function Profile() {
     }
   };
 
-  /*
-   * ================================================================
-   * LOADING
-   * ================================================================
-   */
-
-  if (isLoading) {
+if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 text-center">
         <div className="h-11 w-11 animate-spin rounded-full border-4 border-emerald-100 border-t-emerald-600" />
 
-        <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
+<p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
           Loading SokoDigi Profile
         </p>
       </div>
     );
   }
 
-  /*
-   * ================================================================
-   * PROFILE PAGE
-   * ================================================================
-   */
-
-   return (
+return (
     <main className="min-h-screen bg-slate-50/60">
-      {/* 🎯 THE INTEGRATION PLUGINS: Hidden file picker + configuration modal drawer */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleAvatarFileChange} 
-        accept="image/*" 
-        className="hidden" 
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleAvatarFileChange}
+        accept="image/*"
+        className="hidden"
       />
 
-      <AvatarMenuModal 
+<AvatarMenuModal
         isOpen={isAvatarModalOpen}
         onClose={() => setIsAvatarModalOpen(false)}
-        currentImageUrl={brandProfile?.photoURL || brandProfile?.profilePic}
+        currentImageUrl={
+          brandProfile?.photoURL ||
+          brandProfile?.profilePic
+        }
         isOwnProfile={isOwnProfile}
         onUploadClick={() => fileInputRef.current?.click()}
       />
 
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
-        {/* ============================================================
-            PROFILE MASTER CARD
-            ============================================================ */}
+<div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          
-          {/* ==========================================================
-              PROFILE HEADER
-              ========================================================== */}
           <div className="px-5 py-8 sm:px-8 md:px-10 md:py-10">
             <div className="flex flex-col gap-7 md:flex-row md:items-start md:gap-10">
-              
-              {/* ======================================================
-                  PROFILE PHOTO + NETWORK LEVEL
-                  ====================================================== */}
               <div className="flex shrink-0 justify-center md:justify-start">
                 <div className="relative">
-                  
-                  {/* 🎯 THE FIX: Wrapped your entire Level Ring in an interactive button element wrapper */}
                   <button
                     type="button"
-                    onClick={() => setIsAvatarModalOpen(true)}
+                    onClick={() =>
+                      setIsAvatarModalOpen(true)
+                    }
                     disabled={isUpdatingAvatar}
-                    className="group relative block rounded-full border-0 bg-transparent p-0 focus:outline-none cursor-pointer"
-                    title={isOwnProfile ? "Manage Profile Photo" : "View Photo"}
+                    className="group relative block cursor-pointer rounded-full border-0 bg-transparent p-0 focus:outline-none"
+                    title={
+                      isOwnProfile
+                        ? "Manage Profile Photo"
+                        : "View Photo"
+                    }
                   >
                     <div
-                      className={`h-28 w-28 rounded-full border-[4px] bg-white p-1 shadow-sm sm:h-32 sm:w-32 md:h-36 md:w-36 transition duration-200 group-hover:border-emerald-500/40 ${levelInfo.ring}`}
+                      className={`h-28 w-28 rounded-full border-[4px] bg-white p-1 shadow-sm transition duration-200 group-hover:border-emerald-500/40 sm:h-32 sm:w-32 md:h-36 md:w-36 ${levelInfo.ring}`}
                     >
-                      <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-emerald-50 relative">
-                        {brandProfile?.photoURL || brandProfile?.profilePic || isUpdatingAvatar ? (
+                      <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-emerald-50">
+                        {brandProfile?.photoURL ||
+                        brandProfile?.profilePic ? (
                           <img
-                            src={brandProfile?.photoURL || brandProfile?.profilePic}
-                            alt={brandProfile?.name || "SokoDigi member"}
+                            src={
+                              brandProfile?.photoURL ||
+                              brandProfile?.profilePic
+                            }
+                            alt={
+                              brandProfile?.name ||
+                              "SokoDigi member"
+                            }
                             className={`h-full w-full object-cover transition duration-200 ${
-                              isUpdatingAvatar ? "opacity-30 animate-pulse" : "group-hover:opacity-90"
+                              isUpdatingAvatar
+                                ? "animate-pulse opacity-30"
+                                : "group-hover:opacity-90"
                             }`}
                             onError={(event) => {
-                              event.currentTarget.style.display = "none";
+                              event.currentTarget.style.display =
+                                "none";
                             }}
                           />
                         ) : (
@@ -698,21 +652,27 @@ export default function Profile() {
                           </svg>
                         )}
 
-                        {/* Instagram-Style Overlay Icon on Hover */}
-                        {isOwnProfile && !isUpdatingAvatar && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 text-white rounded-full opacity-0 group-hover:opacity-100 transition duration-200">
-                            <svg xmlns="http://w3.org" width="20" height="24" fill="currentColor" className="bi bi-camera-fill" viewBox="0 0 16 16">
-                              <path d="M10.5 8.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0"/>
-                              <path d="M2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4zm.5 2a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1m9 2.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0"/>
-                            </svg>
-                          </div>
-                        )}
+{isOwnProfile &&
+                          !isUpdatingAvatar && (
+                            <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/20 text-white opacity-0 transition duration-200 group-hover:opacity-100">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="20"
+                                height="24"
+                                fill="currentColor"
+                                viewBox="0 0 16 16"
+                                aria-hidden="true"
+                              >
+                                <path d="M10.5 8.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0" />
+                                <path d="M2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4zm.5 2a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1m9 2.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0" />
+                              </svg>
+                            </div>
+                          )}
                       </div>
                     </div>
                   </button>
 
-                  {/* Level Badge */}
-                  <div
+<div
                     className={`absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-3 py-1 text-[9px] font-extrabold tracking-wider shadow-sm ${levelInfo.badge}`}
                   >
                     <span
@@ -723,18 +683,7 @@ export default function Profile() {
                 </div>
               </div>
 
-              {/* ======================================================
-                  IDENTITY + ACTIONS (Rest of your component runs down identically from here)
-                  ====================================================== */}
-
-
-              {/* ======================================================
-                  IDENTITY + ACTIONS
-                  ====================================================== */}
-
-              <div className="min-w-0 flex-1">
-                {/* Username + actions */}
-
+<div className="min-w-0 flex-1">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
@@ -743,7 +692,7 @@ export default function Profile() {
                           "sokodigi_member"}
                       </h1>
 
-                      {brandProfile?.accountCategory ===
+{brandProfile?.accountCategory ===
                         "network" && (
                         <span className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-emerald-700">
                           Network
@@ -751,30 +700,24 @@ export default function Profile() {
                       )}
                     </div>
 
-                    <p className="mt-1 text-sm text-slate-400">
+<p className="mt-1 text-sm text-slate-400">
                       SokoDigi member profile
                     </p>
                   </div>
 
-                  {/* ==================================================
-                      OWNER ACTIONS
-                      ================================================== */}
-
-                  {isOwnProfile ? (
+{isOwnProfile ? (
                     <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
                       <button
                         type="button"
                         onClick={() =>
-                          navigate(
-                            MEMBER_SETTINGS_ROUTE
-                          )
+                          navigate(MEMBER_SETTINGS_ROUTE)
                         }
                         className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
                       >
                         Edit Profile
                       </button>
 
-                      <button
+<button
                         type="button"
                         onClick={handleShareProfile}
                         className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
@@ -802,7 +745,7 @@ export default function Profile() {
                           : "+ Subscribe"}
                       </button>
 
-                      <button
+<button
                         type="button"
                         onClick={handleShareProfile}
                         className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
@@ -813,24 +756,20 @@ export default function Profile() {
                   )}
                 </div>
 
-                {/* ====================================================
-                    MEMBER NAME
-                    ==================================================== */}
-
-                <div className="mt-5 text-center sm:text-left">
+<div className="mt-5 text-center sm:text-left">
                   <h2 className="text-lg font-bold text-slate-900">
                     {brandProfile?.name ||
                       "SokoDigi Member"}
                   </h2>
 
-                  <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+<div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                     <span
                       className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${levelInfo.badge}`}
                     >
                       {levelInfo.name}
                     </span>
 
-                    {brandProfile?.brandName && (
+{brandProfile?.brandName && (
                       <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-semibold text-slate-500">
                         {brandProfile.brandName}
                       </span>
@@ -838,11 +777,7 @@ export default function Profile() {
                   </div>
                 </div>
 
-                {/* ====================================================
-                    BIO
-                    ==================================================== */}
-
-                <p className="mx-auto mt-4 max-w-2xl text-center text-sm leading-6 text-slate-500 sm:mx-0 sm:text-left">
+<p className="mx-auto mt-4 max-w-2xl text-center text-sm leading-6 text-slate-500 sm:mx-0 sm:text-left">
                   {brandProfile?.bio ||
                     (brandProfile?.accountCategory ===
                     "network"
@@ -850,11 +785,7 @@ export default function Profile() {
                       : "SokoDigi marketplace merchant.")}
                 </p>
 
-                {/* ====================================================
-                    MEMBER ID
-                    ==================================================== */}
-
-                <div className="mt-3 text-center sm:text-left">
+<div className="mt-3 text-center sm:text-left">
                   {brandProfile?.membershipNumber && (
                     <span className="font-mono text-[10px] text-slate-400">
                       Member #
@@ -863,51 +794,36 @@ export default function Profile() {
                   )}
                 </div>
 
-                {/* ====================================================
-                    STATISTICS
-                    ==================================================== */}
-
-                <div className="mt-7 grid grid-cols-3 divide-x divide-slate-100 border-y border-slate-100 py-5">
+<div className="mt-7 grid grid-cols-3 divide-x divide-slate-100 border-y border-slate-100 py-5">
                   <div className="text-center">
                     <p className="text-xl font-bold text-slate-900">
                       {products.length}
                     </p>
-
                     <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                       Listings
                     </p>
                   </div>
 
-                  <div className="text-center">
+<div className="text-center">
                     <p className="text-xl font-bold text-slate-900">
-                      {Number(
-                        networkMembers
-                      ).toLocaleString()}
+                      {Number(networkMembers).toLocaleString()}
                     </p>
-
                     <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                       Network
                     </p>
                   </div>
 
-                  <div className="text-center">
+<div className="text-center">
                     <p className="text-xl font-bold text-slate-900">
-                      {Number(
-                        subscribers
-                      ).toLocaleString()}
+                      {Number(subscribers).toLocaleString()}
                     </p>
-
                     <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                       Subscribers
                     </p>
                   </div>
                 </div>
 
-                {/* ====================================================
-                    OWNER NETWORK DASHBOARD ACTION
-                    ==================================================== */}
-
-                {isOwnProfile &&
+{isOwnProfile &&
                   brandProfile?.accountCategory ===
                     "network" && (
                     <div className="mt-5 flex justify-center sm:justify-start">
@@ -925,9 +841,7 @@ export default function Profile() {
                     </div>
                   )}
 
-                {/* Share confirmation */}
-
-                {shareMessage && (
+{shareMessage && (
                   <p className="mt-3 text-center text-xs font-semibold text-emerald-600 sm:text-left">
                     ✓ {shareMessage}
                   </p>
@@ -936,11 +850,7 @@ export default function Profile() {
             </div>
           </div>
 
-          {/* ============================================================
-              PROFILE NAVIGATION TABS
-              ============================================================ */}
-
-          <div className="border-t border-slate-100 px-5 sm:px-8">
+<div className="border-t border-slate-100 px-5 sm:px-8">
             <div className="flex items-center justify-center gap-8 sm:justify-start">
               <button
                 type="button"
@@ -953,12 +863,12 @@ export default function Profile() {
               >
                 Products
 
-                {activeTab === "products" && (
+{activeTab === "products" && (
                   <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-emerald-600" />
                 )}
               </button>
 
-              <button
+<button
                 type="button"
                 onClick={() => setActiveTab("about")}
                 className={`relative py-4 text-[11px] font-bold uppercase tracking-wider transition ${
@@ -969,7 +879,7 @@ export default function Profile() {
               >
                 About
 
-                {activeTab === "about" && (
+{activeTab === "about" && (
                   <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-emerald-600" />
                 )}
               </button>
@@ -977,38 +887,26 @@ export default function Profile() {
           </div>
         </section>
 
-        {/* ================================================================
-            PRODUCTS TAB
-            ================================================================ */}
-
-        {activeTab === "products" && (
+{activeTab === "products" && (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-            {/* Section heading */}
-
             <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
                   Storefront
                 </h2>
 
-                <p className="mt-1 text-xs text-slate-400">
+<p className="mt-1 text-xs text-slate-400">
                   Products displayed by this member
                 </p>
               </div>
 
-              <span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-bold text-slate-500">
+<span className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-bold text-slate-500">
                 {products.length}{" "}
-                {products.length === 1
-                  ? "item"
-                  : "items"}
+                {products.length === 1 ? "item" : "items"}
               </span>
             </div>
 
-            {/* ==========================================================
-                EMPTY STORE
-                ========================================================== */}
-
-            {products.length === 0 ? (
+{products.length === 0 ? (
               <div className="flex min-h-[260px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-6 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
                   <svg
@@ -1027,66 +925,56 @@ export default function Profile() {
                   </svg>
                 </div>
 
-                <h3 className="mt-4 text-sm font-bold text-slate-800">
+<h3 className="mt-4 text-sm font-bold text-slate-800">
                   {isOwnProfile
                     ? "Your storefront is empty"
                     : "No products yet"}
                 </h3>
 
-                <p className="mt-2 max-w-md text-xs leading-5 text-slate-500">
+<p className="mt-2 max-w-md text-xs leading-5 text-slate-500">
                   {isOwnProfile
                     ? "Add your first product and start displaying it to SokoDigi shoppers."
                     : "This member has not added products to their storefront yet."}
                 </p>
 
-                {isOwnProfile && (
+{isOwnProfile && (
                   <button
                     type="button"
-                    onClick={() =>
-                      navigate("/marketplace")
-                    }
+                    onClick={() => navigate("/marketplace")}
                     className="mt-5 rounded-lg bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-700"
                   >
-                    + Add Product
+                  >                     + Add Product
                   </button>
                 )}
               </div>
             ) : (
-              /* ========================================================
-                 PRODUCT GRID
-                 ======================================================== */
-
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3">
                 {products.map((product) => {
                   const productId =
                     product?.id || product?._id;
 
-                  const imageUrl =
+const imageUrl =
                     product?.imageUrl ||
                     product?.image ||
                     product?.thumbnail ||
                     "";
 
-                  let fullImageUrl = imageUrl;
+let fullImageUrl = imageUrl;
 
-                  if (
+if (
                     imageUrl &&
-                    !imageUrl.startsWith(
-                      "http://"
-                    ) &&
-                    !imageUrl.startsWith(
-                      "https://"
-                    ) &&
+                    !imageUrl.startsWith("http://") &&
+                    !imageUrl.startsWith("https://") &&
                     !imageUrl.startsWith("data:")
                   ) {
                     const fileName = imageUrl
                       .split("/")
                       .pop();
 
-                    fullImageUrl = `${API_URL}/images/${fileName}`;
+fullImageUrl = `${API_URL}/images/${fileName}`;
                   }
 
-                  return (
+return (
                     <article
                       key={productId}
                       onClick={() => {
@@ -1098,8 +986,6 @@ export default function Profile() {
                       }}
                       className="group cursor-pointer overflow-hidden rounded-xl border border-slate-100 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md"
                     >
-                      {/* Product image */}
-
                       <div className="aspect-square overflow-hidden bg-slate-100">
                         {fullImageUrl ? (
                           <img
@@ -1109,9 +995,7 @@ export default function Profile() {
                               "SokoDigi product"
                             }
                             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                            onError={(
-                              event
-                            ) => {
+                            onError={(event) => {
                               event.currentTarget.style.display =
                                 "none";
                             }}
@@ -1125,26 +1009,22 @@ export default function Profile() {
                         )}
                       </div>
 
-                      {/* Product details */}
-
-                      <div className="p-4">
+<div className="p-4">
                         <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-700">
-                          {product?.category ||
-                            "General"}
+                          {product?.category || "General"}
                         </span>
 
-                        <h3 className="mt-1.5 line-clamp-2 text-sm font-semibold text-slate-800">
-                          {product?.name ||
-                            "Untitled Product"}
+<h3 className="mt-1.5 line-clamp-2 text-sm font-semibold text-slate-800">
+                          {product?.name || "Untitled Product"}
                         </h3>
 
-                        <div className="mt-4 flex items-end justify-between">
+<div className="mt-4 flex items-end justify-between">
                           <div>
                             <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">
                               Price
                             </p>
 
-                            <p className="mt-0.5 text-sm font-bold text-slate-900">
+<p className="mt-0.5 text-sm font-bold text-slate-900">
                               KSh{" "}
                               {Number(
                                 product?.price || 0
@@ -1152,7 +1032,7 @@ export default function Profile() {
                             </p>
                           </div>
 
-                          <span className="text-xs text-slate-300 transition group-hover:text-emerald-600">
+<span className="text-xs text-slate-300 transition group-hover:text-emerald-600">
                             →
                           </span>
                         </div>
@@ -1165,158 +1045,126 @@ export default function Profile() {
           </section>
         )}
 
-        {/* ================================================================
-            ABOUT TAB
-            ================================================================ */}
-
-        {activeTab === "about" && (
+{activeTab === "about" && (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-6 border-b border-slate-100 pb-4">
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
                 About
               </h2>
 
-              <p className="mt-1 text-xs text-slate-400">
+<p className="mt-1 text-xs text-slate-400">
                 Member information
               </p>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {/* Account type */}
-
+<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                   Account Type
                 </p>
 
-                <p className="mt-2 text-sm font-semibold capitalize text-slate-800">
-                  {brandProfile?.accountCategory ||
-                    "Member"}
+<p className="mt-2 text-sm font-semibold capitalize text-slate-800">
+                  {brandProfile?.accountCategory || "Member"}
                 </p>
               </div>
 
-              {/* Network Level */}
-
-              <div className="rounded-xl bg-slate-50 p-4">
+<div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                   Network Level
                 </p>
 
-                <p className="mt-2 text-sm font-semibold text-slate-800">
+<p className="mt-2 text-sm font-semibold text-slate-800">
                   {levelInfo.name}
                 </p>
               </div>
 
-              {/* Membership */}
-
-              <div className="rounded-xl bg-slate-50 p-4">
+<div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                   Membership Number
                 </p>
 
-                <p className="mt-2 font-mono text-sm font-semibold text-slate-800">
-                  {brandProfile?.membershipNumber ||
-                    "N/A"}
+<p className="mt-2 font-mono text-sm font-semibold text-slate-800">
+                  {brandProfile?.membershipNumber || "N/A"}
                 </p>
               </div>
 
-              {/* Network */}
-
-              <div className="rounded-xl bg-slate-50 p-4">
+<div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                   Network Members
                 </p>
 
-                <p className="mt-2 text-sm font-semibold text-slate-800">
-                  {Number(
-                    networkMembers
-                  ).toLocaleString()}
+<p className="mt-2 text-sm font-semibold text-slate-800">
+                  {Number(networkMembers).toLocaleString()}
                 </p>
               </div>
 
-              {/* Subscribers */}
-
-              <div className="rounded-xl bg-slate-50 p-4">
+<div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                   Subscribers
                 </p>
 
-                <p className="mt-2 text-sm font-semibold text-slate-800">
-                  {Number(
-                    subscribers
-                  ).toLocaleString()}
+<p className="mt-2 text-sm font-semibold text-slate-800">
+                  {Number(subscribers).toLocaleString()}
                 </p>
               </div>
 
-              {/* Brand */}
-
-              <div className="rounded-xl bg-slate-50 p-4">
+<div className="rounded-xl bg-slate-50 p-4">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                   Store / Brand
                 </p>
 
-                <p className="mt-2 text-sm font-semibold text-slate-800">
-                  {brandProfile?.brandName ||
-                    "SokoDigi Merchant"}
+<p className="mt-2 text-sm font-semibold text-slate-800">
+                  {brandProfile?.brandName || "SokoDigi Merchant"}
                 </p>
               </div>
             </div>
           </section>
         )}
 
-        {/* ================================================================
-            PRIVATE NETWORK ANALYTICS
-            ================================================================ */}
+{isOwnProfile && matrixMetrics?.ok && (
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+            <div className="mb-6 flex flex-col gap-2 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
+                  Network Overview
+                </h2>
 
-        {isOwnProfile &&
-          matrixMetrics?.ok && (
-            <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-              <div className="mb-6 flex flex-col gap-2 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
-                    Network Overview
-                  </h2>
+<p className="mt-1 text-xs text-slate-400">
+                  Your private network analytics
+                </p>
+              </div>
 
-                  <p className="mt-1 text-xs text-slate-400">
-                    Your private network analytics
-                  </p>
-                </div>
+<button
+                type="button"
+                onClick={() =>
+                  navigate(NETWORK_DASHBOARD_ROUTE)
+                }
+                className="self-start rounded-lg border border-slate-200 bg-white px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 transition hover:bg-slate-50"
+              >
+                Full Dashboard →
+              </button>
+            </div>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(
-                      NETWORK_DASHBOARD_ROUTE
-                    )
+<div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-1">
+                <MatrixTreeChart
+                  generations={matrixMetrics.generations}
+                />
+              </div>
+
+<div className="lg:col-span-2">
+                <LegDistributionCards
+                  legBalanceMatrix={
+                    matrixMetrics.legBalanceMatrix
                   }
-                  className="self-start rounded-lg border border-slate-200 bg-white px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 transition hover:bg-slate-50"
-                >
-                  Full Dashboard →
-                </button>
+                  spilloverMetrics={
+                    matrixMetrics.spilloverMetrics
+                  }
+                />
               </div>
-
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                <div className="lg:col-span-1">
-                  <MatrixTreeChart
-                    generations={
-                      matrixMetrics.generations
-                    }
-                  />
-                </div>
-
-                <div className="lg:col-span-2">
-                  <LegDistributionCards
-                    legBalanceMatrix={
-                      matrixMetrics.legBalanceMatrix
-                    }
-                    spilloverMetrics={
-                      matrixMetrics.spilloverMetrics
-                    }
-                  />
-                </div>
-              </div>
-            </section>
-          )}
+            </div>
+          </section>
+        )}
       </div>
     </main>
   );
