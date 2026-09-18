@@ -8,8 +8,9 @@ import LegDistributionCards from "../../vendor-dashboard/LegDistributionCards";
 import AvatarMenuModal from "./AvatarMenuModal";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3000";
+// 🎯 THE FIX: Force Vite to map the variable cleanly, falling back ONLY if undefined
+const API_URL = import.meta.env.VITE_API_URL || "https://vercel.app";
+
 
 const MEMBER_SETTINGS_ROUTE = "/settings";
 const NETWORK_DASHBOARD_ROUTE = "/dashboard/network";
