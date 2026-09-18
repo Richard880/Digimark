@@ -1,50 +1,98 @@
 /**
- * 🚀 High-Performance Unified Unsigned Cloudinary Infrastructure Utility
- * Uploads binary data streams directly to your free Cloudinary tier using the active unsigned preset.
- * Bypasses Vercel's 4.5MB payload limitations completely.
- * @param {File} fileObject - The raw file from an <input type="file" />
- * @param {"products"|"profiles"} folderType - Target bucket directory matching your requirements
- * @returns {Promise<string|null>} - Returns the permanent optimized secure URL string path or null
+ * Upload an image directly to Cloudinary using an unsigned upload preset.
+ *
+ * @param {File} fileObject
+ * @param {"products"|"profiles"} folderType
+ * @returns {Promise<string|null>}
  */
-export async function uploadImageToCloudinary(fileObject, folderType = "products") {
+export async function uploadImageToCloudinary(
+  fileObject,
+  folderType = "products"
+) {
   try {
-    if (!fileObject) return null;
-
-    // 1. Wrap parameters into a standard browser Multipart FormData envelope
-    const formData = new FormData();
-    formData.append("file", fileObject);
-    formData.append("upload_preset", "sokodigi_unsigned_preset"); // 🎯 Matches your dashboard preset exactly!
-    
-    // Explicitly organize directories inside your Cloudinary repository structure
-    const targetFolder = folderType === "profiles" ? "sokodigi/profiles" : "sokodigi/products";
-    formData.append("folder", targetFolder);
-
-    // 🎯 THE FIX: Hardcode your Cloudinary cloud name directly into the endpoint URL.
-    // Replace 'rwmnwbe' with the exact "Cloud Name" string shown at the top-left of your Cloudinary console!
-    const CLOUD_NAME = "rwmnwbme"; 
-    const cloudinaryUrl = `https://cloudinary.com{CLOUD_NAME}/image/upload`;
-    
-    console.log("🚀 Initializing direct unsigned cloud file delivery stream...");
-    
-    // 2. Dispatch the binary payload straight to Cloudinary's globally distributed edge CDNs
-    const uploadResponse = await fetch(cloudinaryUrl, {
-      method: "POST",
-      body: formData // Browser handles Content-Type boundaries automatically
-    });
-
-    if (!uploadResponse.ok) {
-      const errLogs = await uploadResponse.json();
-      throw new Error(errLogs.error?.message || "Cloudinary media server rejected upload stream.");
+    if (!fileObject) {
+      throw new Error("No image file was selected.");
     }
 
-    const uploadResult = await uploadResponse.json();
+const cloudName =
+      import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ||
+      "rwmnwbme";
 
-    // 🎯 SUCCESS: Returns the permanent secure asset URL link string path
-    return uploadResult.secure_url;
+const uploadPreset =
+      import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ||
+      "sokodigi_unsigned_preset";
 
+if (!cloudName) {
+      throw new Error("Cloudinary cloud name is missing.");
+    }
+
+if (!uploadPreset) {
+      throw new Error("Cloudinary upload preset is missing.");
+    }
+
+const formData = new FormData();
+
+formData.append("file", fileObject);
+    formData.append("upload_preset", uploadPreset);
+
+const targetFolder =
+      folderType === "profiles"
+        ? "sokodigi/profiles"
+        : "sokodigi/products";
+
+formData.append("folder", targetFolder);
+
+const cloudinaryUrl =
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
+
+console.log("Starting Cloudinary upload:", {
+      cloudName,
+      uploadPreset,
+      targetFolder,
+      fileName: fileObject.name,
+      fileType: fileObject.type,
+      fileSize: fileObject.size,
+    });
+
+const uploadResponse = await fetch(cloudinaryUrl, {
+      method: "POST",
+      body: formData,
+    });
+
+const responseText = await uploadResponse.text();
+
+let uploadResult;
+
+try {
+      uploadResult = JSON.parse(responseText);
+    } catch {
+      throw new Error(
+        `Cloudinary returned an invalid response: ${responseText}`
+      );
+    }
+
+if (!uploadResponse.ok) {
+      throw new Error(
+        uploadResult?.error?.message ||
+          `Cloudinary upload failed with status ${uploadResponse.status}.`
+      );
+    }
+
+if (!uploadResult?.secure_url) {
+      throw new Error(
+        "Cloudinary did not return a secure image URL."
+      );
+    }
+
+console.log("Cloudinary upload successful.");
+
+return uploadResult.secure_url;
   } catch (error) {
-    console.error("❌ Unified Unsigned Media Upload Engine Failure:", error.message);
-    alert(`Media Upload Aborted: ${error.message}`);
-    return null;
+    console.error(
+      "Cloudinary upload failed:",
+      error
+    );
+
+throw error;
   }
 }
