@@ -9,9 +9,10 @@ import AvatarMenuModal from "./AvatarMenuModal";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 
 // 🎯 THE FIX: Force Vite to map the variable cleanly, falling back ONLY if undefined
-const API_URL =
+const API_URL = (
   import.meta.env.VITE_API_URL ||
-  "http://localhost:3000";
+  "https://digimark-h6za.vercel.app"
+).replace(/\/$/, "");
 
 
 
