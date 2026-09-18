@@ -46,47 +46,110 @@ const [isAvatarModalOpen, setIsAvatarModalOpen] =
   const [isUpdatingAvatar, setIsUpdatingAvatar] =
     useState(false);
 
-// Inside your Profile.jsx handleAvatarFileChange function block:
-const handleAvatarFileChange = async (e) => {
-  const selectedFile = e.target.files[0];
-  if (!selectedFile) return;
+const handleAvatarFileChange = async (event) => {
+    const selectedFile = event.target.files?.[0];
 
-  if (selectedFile.size > 2 * 1024 * 1024) {
-    alert("Profile picture files are restricted to a maximum size of 2MB.");
-    return;
-  }
+if (!selectedFile) {
+      return;
+    }
 
-  setIsUpdatingAvatar(true);
-  try {
-    const { uploadImageToCloudinary } = await import("../../../utils/cloudinaryUploader");
+if (!selectedFile.type.startsWith("image/")) {
+      alert("Please select a valid image file.");
+      event.target.value = "";
+      return;
+    }
 
-    console.log("🚀 Triggering direct unsigned avatar pipeline execution...");
-    // 🎯 THE FIX: Call the simplified loader function directly without passing tokens!
-    const uploadedUrl = await uploadImageToCloudinary(selectedFile, "profiles");
-    
-    if (!uploadedUrl) throw new Error("Upload pipeline failed to resolve URL.");
+if (selectedFile.size > 2 * 1024 * 1024) {
+      alert(
+        "Profile picture files are restricted to a maximum size of 2MB."
+      );
+      event.target.value = "";
+      return;
+    }
 
-    setBrandProfile(prev => ({ ...prev, photoURL: uploadedUrl }));
+setIsUpdatingAvatar(true);
 
-    // Sync your text reference string URL down to MongoDB
-    const token = await auth?.currentUser?.getIdToken();
-    await fetch(`${API_URL}/api/auth/profile-update`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify({ profilePic: uploadedUrl })
-    });
+try {
+      const currentUser = auth?.currentUser;
 
-    console.log("✅ Profile avatar changes synced successfully.");
-  } catch (error) {
-    console.error("❌ Avatar Synchronization Error:", error.message);
-  } finally {
-    setIsUpdatingAvatar(false);
-  }
-};
+if (!currentUser) {
+        throw new Error(
+          "Your session has expired. Please sign in again."
+        );
+      }
 
+console.log("Starting profile image upload...");
+
+// This utility should return the Cloudinary secure URL.
+      const uploadedUrl = await uploadImageToCloudinary(
+        selectedFile,
+        "profiles"
+      );
+
+if (
+        typeof uploadedUrl !== "string" ||
+        uploadedUrl.trim() === ""
+      ) {
+        throw new Error(
+          "Upload pipeline failed to resolve an image URL."
+        );
+      }
+
+setBrandProfile((previousProfile) => ({
+        ...previousProfile,
+        photoURL: uploadedUrl,
+        profilePic: uploadedUrl,
+      }));
+
+const token = await currentUser.getIdToken();
+
+const profileResponse = await fetch(
+        `${API_URL}/api/auth/profile-update`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            profilePic: uploadedUrl,
+            photoURL: uploadedUrl,
+          }),
+        }
+      );
+
+if (!profileResponse.ok) {
+        const responseText =
+          await profileResponse.text();
+
+throw new Error(
+          `Profile update failed: ${profileResponse.status} ${responseText}`
+        );
+      }
+
+console.log(
+        "Profile avatar changes synced successfully."
+      );
+
+setIsAvatarModalOpen(false);
+    } catch (error) {
+      console.error("Avatar synchronization error:", error);
+
+if (error?.name === "AbortError") {
+        alert(
+          "The image upload was aborted. Please try again with a smaller image."
+        );
+      } else {
+        alert(
+          error?.message ||
+            "Unable to update the profile picture."
+        );
+      }
+    } finally {
+      setIsUpdatingAvatar(false);
+      event.target.value = "";
+    }
+  };
 
 useEffect(() => {
     let isMounted = true;
@@ -111,7 +174,10 @@ const loadProfile = async () => {
 let resolvedProfile = null;
         let resolvedMatrixMetrics = null;
 
-if (isOwnProfile && loggedInUser) {
+/*
+         * Own profile
+         */
+        if (isOwnProfile && loggedInUser) {
           resolvedProfile = {
             id:
               loggedInProfile?.id ||
@@ -191,6 +257,9 @@ if (auth?.matrixMetrics?.ok) {
             resolvedMatrixMetrics = auth.matrixMetrics;
           }
         } else {
+          /*
+           * Public profile
+           */
           const profileResponse = await fetch(
             `${API_URL}/api/products/market`
           );
@@ -309,7 +378,10 @@ const headers = token
             }
           : {};
 
-if (
+/*
+         * Matrix metrics
+         */
+        if (
           !resolvedMatrixMetrics &&
           (isOwnProfile ||
             resolvedProfile?.accountCategory === "network")
@@ -339,7 +411,10 @@ if (resolvedMatrixMetrics) {
           setMatrixMetrics(resolvedMatrixMetrics);
         }
 
-const productsResponse = await fetch(
+/*
+         * Products
+         */
+        const productsResponse = await fetch(
           `${API_URL}/api/products?shopId=${encodeURIComponent(
             activeTargetId
           )}`
@@ -415,8 +490,8 @@ return Number.isFinite(numericLevel) && numericLevel > 0
       : null;
   }, [brandProfile, matrixMetrics]);
 
-const getNetworkLevelInfo = (level) => {
-    if (!level) {
+const levelInfo = useMemo(() => {
+    if (!networkLevel) {
       return {
         name: "Member",
         shortName: "MEMBER",
@@ -427,7 +502,7 @@ const getNetworkLevelInfo = (level) => {
       };
     }
 
-if (level >= 4) {
+if (networkLevel >= 4) {
       return {
         name: "Level 4 Network",
         shortName: "LEVEL 4",
@@ -438,7 +513,7 @@ if (level >= 4) {
       };
     }
 
-if (level === 3) {
+if (networkLevel === 3) {
       return {
         name: "Level 3 Network",
         shortName: "LEVEL 3",
@@ -449,7 +524,7 @@ if (level === 3) {
       };
     }
 
-if (level === 2) {
+if (networkLevel === 2) {
       return {
         name: "Level 2 Network",
         shortName: "LEVEL 2",
@@ -468,9 +543,7 @@ return {
         "bg-emerald-50 text-emerald-700 border-emerald-200",
       dot: "bg-emerald-500",
     };
-  };
-
-const levelInfo = getNetworkLevelInfo(networkLevel);
+  }, [networkLevel]);
 
 const networkMembers =
     matrixMetrics?.summary?.totalDownline ??
@@ -505,7 +578,7 @@ if (navigator.clipboard) {
 
 setShareMessage("Profile link copied");
 
-setTimeout(() => {
+window.setTimeout(() => {
           setShareMessage("");
         }, 2500);
       }
@@ -515,6 +588,27 @@ setTimeout(() => {
         error
       );
     }
+  };
+
+const getProductImageUrl = (product) => {
+    const imageUrl =
+      product?.imageUrl ||
+      product?.image ||
+      product?.thumbnail ||
+      "";
+
+if (
+      !imageUrl ||
+      imageUrl.startsWith("http://") ||
+      imageUrl.startsWith("https://") ||
+      imageUrl.startsWith("data:")
+    ) {
+      return imageUrl;
+    }
+
+const fileName = imageUrl.split("/").pop();
+
+return `${API_URL}/images/${fileName}`;
   };
 
 if (isLoading) {
@@ -532,10 +626,10 @@ if (isLoading) {
 return (
     <main className="min-h-screen bg-slate-50/60">
       <input
-        type="file"
         ref={fileInputRef}
-        onChange={handleAvatarFileChange}
+        type="file"
         accept="image/*"
+        onChange={handleAvatarFileChange}
         className="hidden"
       />
 
@@ -544,7 +638,8 @@ return (
         onClose={() => setIsAvatarModalOpen(false)}
         currentImageUrl={
           brandProfile?.photoURL ||
-          brandProfile?.profilePic
+          brandProfile?.profilePic ||
+          ""
         }
         isOwnProfile={isOwnProfile}
         onUploadClick={() => fileInputRef.current?.click()}
@@ -562,12 +657,12 @@ return (
                       setIsAvatarModalOpen(true)
                     }
                     disabled={isUpdatingAvatar}
-                    className="group relative block cursor-pointer rounded-full border-0 bg-transparent p-0 focus:outline-none"
                     title={
                       isOwnProfile
                         ? "Manage Profile Photo"
                         : "View Photo"
                     }
+                    className="group relative block cursor-pointer rounded-full border-0 bg-transparent p-0 focus:outline-none"
                   >
                     <div
                       className={`h-28 w-28 rounded-full border-[4px] bg-white p-1 shadow-sm transition duration-200 group-hover:border-emerald-500/40 sm:h-32 sm:w-32 md:h-36 md:w-36 ${levelInfo.ring}`}
@@ -906,26 +1001,8 @@ return (
                   const productId =
                     product?.id || product?._id;
 
-const imageUrl =
-                    product?.imageUrl ||
-                    product?.image ||
-                    product?.thumbnail ||
-                    "";
-
-let fullImageUrl = imageUrl;
-
-if (
-                    imageUrl &&
-                    !imageUrl.startsWith("http://") &&
-                    !imageUrl.startsWith("https://") &&
-                    !imageUrl.startsWith("data:")
-                  ) {
-                    const fileName = imageUrl
-                      .split("/")
-                      .pop();
-
-fullImageUrl = `${API_URL}/images/${fileName}`;
-                  }
+const fullImageUrl =
+                    getProductImageUrl(product);
 
 return (
                     <article
@@ -1067,7 +1144,8 @@ return (
                 </p>
 
 <p className="mt-2 text-sm font-semibold text-slate-800">
-                  {brandProfile?.brandName || "SokoDigi Merchant"}
+                  {brandProfile?.brandName ||
+                    "SokoDigi Merchant"}
                 </p>
               </div>
             </div>
