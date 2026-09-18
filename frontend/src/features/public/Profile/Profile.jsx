@@ -991,7 +991,7 @@ return (
                     onClick={() => navigate("/marketplace")}
                     className="mt-5 rounded-lg bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-emerald-700"
                   >
-                  >                     + Add Product
+                                      + Add Product
                   </button>
                 )}
               </div>
