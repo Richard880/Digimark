@@ -1,63 +1,49 @@
 /**
- * 🚀 Unified Cloudinary Media Upload Infrastructure Utility
- * Streams binary files directly to Cloudinary edge nodes, bypassing Vercel caps entirely.
- * @param {File} fileObject - The raw file from an <input type="file" /> array string source
- * @param {"products"|"profiles"} folderType - Target bucket directory matching backend paths
- * @param {string} sessionToken - The active Firebase verification ID token
- * @returns {Promise<string|null>} - Returns the optimized secure URL string path or null if aborted
+ * 🚀 High-Performance Unified Unsigned Cloudinary Infrastructure Utility
+ * Uploads binary data streams directly to your free Cloudinary tier using the active unsigned preset.
+ * Bypasses Vercel's 4.5MB payload limitations completely.
+ * @param {File} fileObject - The raw file from an <input type="file" />
+ * @param {"products"|"profiles"} folderType - Target bucket directory matching your requirements
+ * @returns {Promise<string|null>} - Returns the permanent optimized secure URL string path or null
  */
-export async function uploadImageToCloudinary(fileObject, folderType = "products", sessionToken) {
+export async function uploadImageToCloudinary(fileObject, folderType = "products") {
   try {
     if (!fileObject) return null;
 
-    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-
-    // 1. Request a secure upload signature from your Express backend gatekeeper
-    const signatureResponse = await fetch(`${API_URL}/api/upload/sign`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${sessionToken}`
-      },
-      body: JSON.stringify({ folderType })
-    });
-
-    if (!signatureResponse.ok) {
-      const errData = await signatureResponse.json();
-      throw new Error(errData.error || "Backend rejected signature creation authorization.");
-    }
-
-    const credentials = await signatureResponse.json();
-    
-    // 2. Wrap the image file and signatures into an browser-native Multipart FormData envelope
+    // 1. Wrap parameters into a standard browser Multipart FormData envelope
     const formData = new FormData();
     formData.append("file", fileObject);
-    formData.append("api_key", credentials.apiKey);
-    formData.append("timestamp", credentials.timestamp);
-    formData.append("signature", credentials.signature);
-    formData.append("folder", credentials.folder);
-    formData.append("upload_preset", "sokodigi_unsigned_preset"); // Matches your Cloudinary dashboard preset name
-
-    // 3. Dispatch the binary payload straight to Cloudinary's media servers
-    const cloudinaryUrl = `https://cloudinary.com{credentials.cloudName}/image/upload`;
+    formData.append("upload_preset", "sokodigi_unsigned_preset"); // 🎯 Matches your dashboard preset exactly!
     
+    // Explicitly organize directories inside your Cloudinary repository structure
+    const targetFolder = folderType === "profiles" ? "sokodigi/profiles" : "sokodigi/products";
+    formData.append("folder", targetFolder);
+
+    // 🎯 THE FIX: Hardcode your Cloudinary cloud name directly into the endpoint URL.
+    // Replace 'rwmnwbe' with the exact "Cloud Name" string shown at the top-left of your Cloudinary console!
+    const CLOUD_NAME = "rwmnwbme"; 
+    const cloudinaryUrl = `https://cloudinary.com{CLOUD_NAME}/image/upload`;
+    
+    console.log("🚀 Initializing direct unsigned cloud file delivery stream...");
+    
+    // 2. Dispatch the binary payload straight to Cloudinary's globally distributed edge CDNs
     const uploadResponse = await fetch(cloudinaryUrl, {
       method: "POST",
-      body: formData // Browser handles Content-Type boundary headers automatically for FormData objects
+      body: formData // Browser handles Content-Type boundaries automatically
     });
 
     if (!uploadResponse.ok) {
       const errLogs = await uploadResponse.json();
-      throw new Error(errLogs.error?.message || "Cloudinary upload request dropped.");
+      throw new Error(errLogs.error?.message || "Cloudinary media server rejected upload stream.");
     }
 
     const uploadResult = await uploadResponse.json();
 
-    // 🎯 THE WIN: Returns the permanent, compressed secure URL link string
+    // 🎯 SUCCESS: Returns the permanent secure asset URL link string path
     return uploadResult.secure_url;
 
   } catch (error) {
-    console.error("❌ Unified Media Upload Engine Failure:", error.message);
+    console.error("❌ Unified Unsigned Media Upload Engine Failure:", error.message);
     alert(`Media Upload Aborted: ${error.message}`);
     return null;
   }
