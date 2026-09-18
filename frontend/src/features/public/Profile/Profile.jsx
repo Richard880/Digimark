@@ -7,6 +7,7 @@ import LegDistributionCards from "../../vendor-dashboard/LegDistributionCards";
 import AvatarMenuModal from "./AvatarMenuModal";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 
+
 const API_URL =
   import.meta.env.VITE_API_URL || "http://localhost:3000";
 
