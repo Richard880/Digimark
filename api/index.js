@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+
 const { connectDB } = require("../backend/src/lib/db");
 const apiRoutes = require("../backend/src/routes");
 
@@ -19,20 +20,12 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin(origin, callback) {
-    // Allows requests without an Origin header, such as health checks.
-    if (!origin) {
+    if (!origin || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-console.warn(`Blocked CORS origin: ${origin}`);
-
-return callback(
-      new Error(`CORS origin not allowed: ${origin}`)
-    );
+console.warn("Blocked CORS origin:", origin);
+    return callback(null, false);
   },
 
 methods: [
@@ -53,33 +46,9 @@ credentials: false,
   optionsSuccessStatus: 204,
 };
 
-// CORS must be registered before routes and database middleware.
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
-
 app.use(express.json({ limit: "10mb" }));
-app.use(
-  express.urlencoded({
-    extended: true,
-    limit: "10mb",
-  })
-);
-
-// Connect to MongoDB for API requests.
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (error) {
-    console.error("Database connection failed:", error);
-
-res.status(500).json({
-      ok: false,
-      error: "Database connection failed",
-      reason: error.message,
-    });
-  }
-});
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 app.get("/", (req, res) => {
   res.json({
@@ -93,6 +62,20 @@ app.get("/api/health", (req, res) => {
     status: "ok",
     database: "mongodb",
   });
+});
+
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error("Database connection failed:", error);
+
+res.status(500).json({
+      ok: false,
+      error: "Database connection failed",
+    });
+  }
 });
 
 app.use("/api", apiRoutes);
