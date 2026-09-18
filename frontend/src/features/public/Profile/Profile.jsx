@@ -8,8 +8,9 @@ import AvatarMenuModal from "./AvatarMenuModal";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3000";
+// 🎯 THE FIX: Move away from hardcoded localhost configurations completely
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+
 
 const MEMBER_SETTINGS_ROUTE = "/settings";
 const NETWORK_DASHBOARD_ROUTE = "/dashboard/network";
