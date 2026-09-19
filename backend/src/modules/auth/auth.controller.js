@@ -47,15 +47,16 @@ async function syncCurrentUser(req, res) {
     });
     
   } catch (error) {
-    console.error("❌ Crash in syncCurrentUser:", error);
+    // 🎯 Temporarily log the full error stack to see the exact file and line number breaking!
+    console.error("❌ Detailed Sync Crash Stack:", error.stack);
     
-    // 🎯 THE FIX: Catch the error and pass the exact message back to your browser screen
     return res.status(500).json({
       error: "SYNC_CONTROLLER_CRASH",
       message: error.message,
-      stack: process.env.NODE_ENV === "development" ? error.stack : undefined
+      stack: error.stack // This will display the exact line number on your screen
     });
   }
+
 }
 
 module.exports = { syncCurrentUser };
