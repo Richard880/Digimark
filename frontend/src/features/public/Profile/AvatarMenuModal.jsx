@@ -1,8 +1,13 @@
-
 import React from "react";
 
 export default function AvatarMenuModal({ isOpen, onClose, currentImageUrl, onUploadClick, isOwnProfile }) {
   if (!isOpen) return null;
+
+  // 🎯 THE CORS FIX: If the URL is an absolute Cloudinary link, rewrite it to your Vercel proxy route.
+  // This avoids origin-switching problems and keeps asset tracking within your deployment domain context.
+  const cleanImageUrl = currentImageUrl?.startsWith("https://cloudinary.com")
+    ? currentImageUrl.replace("https://cloudinary.com", "/cloudinary-assets")
+    : currentImageUrl;
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200">
@@ -16,8 +21,8 @@ export default function AvatarMenuModal({ isOpen, onClose, currentImageUrl, onUp
           <button
             type="button"
             onClick={() => {
-              if (currentImageUrl) {
-                window.open(currentImageUrl, "_blank");
+              if (cleanImageUrl) {
+                window.open(cleanImageUrl, "_blank");
               } else {
                 alert("No active profile avatar uploaded yet.");
               }
