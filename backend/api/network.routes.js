@@ -4,7 +4,7 @@ const crypto = require("crypto"); // Built-in Node utility to generate secure un
 const mongoose = require("mongoose");
 
 // 🎯 THE FIX: Use our central Firebase-backed asymmetric validation check completed in Layer 3
-const authenticate = require("../middleware/authenticate"); 
+const authenticate = require("../src/middleware/authenticate"); 
 const User = require("../models/User");
 const matrixService = require("../services/matrixService"); 
 
