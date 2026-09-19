@@ -83,7 +83,11 @@ const userSchema = new mongoose.Schema(
 // =========================================================================
 // 🔒 DATA INTEGRITY VALIDATION GUARD (Pre-Save Middleware Hook)
 // =========================================================================
-userSchema.pre("save", function (next) {
+// =========================================================================
+// 🔒 DATA INTEGRITY VALIDATION GUARD (Pre-Save Middleware Hook)
+// =========================================================================
+// 🎯 THE FIX: Changed from function(next) to an async function without parameters.
+userSchema.pre("save", async function () {
   // If user is a standard retail shopper, force-wipe any matrix tracking properties
   if (this.accountCategory === "retail") {
     this.sponsorId = null;
@@ -94,10 +98,11 @@ userSchema.pre("save", function (next) {
 
   // Enforce structural boundary rules for Network Members
   if (this.accountCategory === "network" && this.referrals.length > 10) {
-    return next(new Error("MATRIX_INTEGRITY_VIOLATION: Referrals array cannot exceed MAX_DIRECT (10 legs)."));
+    // 🎯 THE FIX: Throwing a native Error replaces next(error) cleanly inside an async hook block
+    throw new Error("MATRIX_INTEGRITY_VIOLATION: Referrals array cannot exceed MAX_DIRECT (10 legs).");
   }
 
-  next();
+  // 🎯 THE FIX: Omit next() entirely. Mongoose automatically continues when this async function finishes!
 });
 
 module.exports = mongoose.model("User", userSchema);
