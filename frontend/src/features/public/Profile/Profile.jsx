@@ -106,20 +106,23 @@ try {
   const token = await currentUser.getIdToken();
 
   // 4. Send the clean proxied URL to your backend database
-  const profileResponse = await fetch(
-    `${API_URL}/api/auth/profile-update`,
-    {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        profilePic: proxiedUrl,
-        photoURL: proxiedUrl,
-      }),
-    }
-  );
+ const profileResponse = await fetch(
+  `${API_URL}/api/auth/sync-current-user`, 
+  {
+    method: "POST", // Change this to POST as required by your auth controller
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      // Your syncCurrentUser backend controller handles profile properties inside `userData`
+      userData: {
+        profilePic: uploadedUrl,
+        photoURL: uploadedUrl,
+      }
+    }),
+  }
+);
 
 
 if (!profileResponse.ok) {
