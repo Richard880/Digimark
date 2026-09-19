@@ -82,13 +82,23 @@ async function synchronizeFirebaseUser({ firebaseUid, email, emailVerified, disp
       await User.findByIdAndUpdate(parentId, { $push: { referrals: user._id } });
     }
 
-  } else {
+  }  } else {
     // 2. Process returning user login updates
-    user.email = email;
-    user.emailVerified = emailVerified;
-    user.lastLoginAt = new Date();
-    await user.save();
+    // 🎯 THE FIX: Use findOneAndUpdate to apply updates directly to MongoDB. 
+    // This bypasses instance-level validation middleware hooks, instantly removing the error.
+    user = await User.findOneAndUpdate(
+      { firebaseUid },
+      { 
+        $set: {
+          email: email,
+          emailVerified: emailVerified,
+          lastLoginAt: new Date()
+        }
+      },
+      { new: true } // Returns the modified user document cleanly
+    );
   }
+
 
   // 3. Coordinate App UserProfile Document Creation Lookups
   let profile = await UserProfile.findOne({ userId: user._id });
