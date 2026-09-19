@@ -101,22 +101,24 @@ try {
     profilePic: proxiedUrl,
   }));
 
-  const token = await currentUser.getIdToken();
+ // 🎯 UPDATE THIS IN YOUR PROFILE.JSX (Inside handleAvatarFileChange)
+const token = await currentUser.getIdToken();
 
-  // 4. Send the clean proxied URL to your backend database
- // 🎯 REWRITE THIS IN YOUR PROFILE.JSX:
 const profileResponse = await fetch(
-  `${API_URL}/api/auth/sync`, // Change this to exactly /sync
+  `${API_URL}/api/auth/sync`,
   {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
+    // Mirror the exact structure your auth controllers require
     body: JSON.stringify({
+      profilePic: uploadedUrl,
+      photoURL: uploadedUrl,
       userData: {
         profilePic: uploadedUrl,
-        photoURL: uploadedUrl,
+        photoURL: uploadedUrl
       }
     }),
   }
