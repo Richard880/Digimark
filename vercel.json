@@ -16,6 +16,10 @@
   ],
   "rewrites": [
     {
+      "source": "/cloudinary-assets/:path*",
+      "destination": "https://cloudinary.com*"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/backend/api/index.js"
     },
