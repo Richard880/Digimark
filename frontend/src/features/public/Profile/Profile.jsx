@@ -680,24 +680,17 @@ return (
                         {brandProfile?.photoURL ||
                         brandProfile?.profilePic ? (
                           <img
-                            src={
-                              brandProfile?.photoURL ||
-                              brandProfile?.profilePic
-                            }
-                            alt={
-                              brandProfile?.name ||
-                              "SokoDigi member"
-                            }
-                            className={`h-full w-full object-cover transition duration-200 ${
-                              isUpdatingAvatar
-                                ? "animate-pulse opacity-30"
-                                : "group-hover:opacity-90"
-                            }`}
-                            onError={(event) => {
-                              event.currentTarget.style.display =
-                                "none";
-                            }}
-                          />
+  src={brandProfile?.photoURL || brandProfile?.profilePic}
+  crossOrigin="anonymous" // 🎯 THE FIX: Authorizes standard cross-origin image loads
+  alt={brandProfile?.name || "SokoDigi member"}
+  className={`h-full w-full object-cover transition duration-200 ${
+    isUpdatingAvatar ? "animate-pulse opacity-30" : "group-hover:opacity-90"
+  }`}
+  onError={(event) => {
+    event.currentTarget.style.display = "none";
+  }}
+/>
+
                         ) : (
                           <svg
                             viewBox="0 0 24 24"
