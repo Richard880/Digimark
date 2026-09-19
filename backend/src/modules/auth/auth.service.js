@@ -82,7 +82,7 @@ async function synchronizeFirebaseUser({ firebaseUid, email, emailVerified, disp
       await User.findByIdAndUpdate(parentId, { $push: { referrals: user._id } });
     }
 
-  }  } else {
+  } else {
     // 2. Process returning user login updates
     // 🎯 THE FIX: Use findOneAndUpdate to apply updates directly to MongoDB. 
     // This bypasses instance-level validation middleware hooks, instantly removing the error.
