@@ -124,7 +124,7 @@ router.post("/register", async (req, res) => {
     });
 
     if (parentObjectId) {
-      await User.findByIdAndUpdate(parentObjectId, { \$push: { referrals: newUser._id } });
+      await User.findByIdAndUpdate(parentObjectId, { $push: { referrals: newUser._id } });
     }
 
     // For fallback direct route accounts, keep your response payload unified
