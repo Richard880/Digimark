@@ -1,5 +1,6 @@
 /**
  * Upload an image directly to Cloudinary using an unsigned upload preset.
+ * Automatically transforms the absolute URL into a same-origin proxy path to prevent CORS errors.
  *
  * @param {File} fileObject
  * @param {"products"|"profiles"} folderType
@@ -14,38 +15,37 @@ export async function uploadImageToCloudinary(
       throw new Error("No image file was selected.");
     }
 
-const cloudName =
+    const cloudName =
       import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ||
       "rwmnwbme";
 
-const uploadPreset =
+    const uploadPreset =
       import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ||
       "sokodigi_unsigned_preset";
 
-if (!cloudName) {
+    if (!cloudName) {
       throw new Error("Cloudinary cloud name is missing.");
     }
 
-if (!uploadPreset) {
+    if (!uploadPreset) {
       throw new Error("Cloudinary upload preset is missing.");
     }
 
-const formData = new FormData();
-
-formData.append("file", fileObject);
+    const formData = new FormData();
+    formData.append("file", fileObject);
     formData.append("upload_preset", uploadPreset);
 
-const targetFolder =
+    const targetFolder =
       folderType === "profiles"
         ? "sokodigi/profiles"
         : "sokodigi/products";
 
-formData.append("folder", targetFolder);
+    formData.append("folder", targetFolder);
 
-const cloudinaryUrl =
+    const cloudinaryUrl =
       `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
 
-console.log("Starting Cloudinary upload:", {
+    console.log("Starting Cloudinary upload:", {
       cloudName,
       uploadPreset,
       targetFolder,
@@ -54,16 +54,15 @@ console.log("Starting Cloudinary upload:", {
       fileSize: fileObject.size,
     });
 
-const uploadResponse = await fetch(cloudinaryUrl, {
+    const uploadResponse = await fetch(cloudinaryUrl, {
       method: "POST",
       body: formData,
     });
 
-const responseText = await uploadResponse.text();
+    const responseText = await uploadResponse.text();
+    let uploadResult;
 
-let uploadResult;
-
-try {
+    try {
       uploadResult = JSON.parse(responseText);
     } catch {
       throw new Error(
@@ -71,28 +70,33 @@ try {
       );
     }
 
-if (!uploadResponse.ok) {
+    if (!uploadResponse.ok) {
       throw new Error(
         uploadResult?.error?.message ||
           `Cloudinary upload failed with status ${uploadResponse.status}.`
       );
     }
 
-if (!uploadResult?.secure_url) {
+    if (!uploadResult?.secure_url) {
       throw new Error(
         "Cloudinary did not return a secure image URL."
       );
     }
 
-console.log("Cloudinary upload successful.");
+    console.log("Cloudinary upload successful.");
 
-return uploadResult.secure_url;
+    // 🎯 THE CORS FIX: Map the absolute URL to your Vercel reverse proxy route
+    // Transforms: https://cloudinary.com...
+    // Into: /cloudinary-assets/rwmnwbme/image/upload/...
+    const absoluteUrl = uploadResult.secure_url;
+    const proxiedUrl = absoluteUrl.replace("https://res.cloudinary.com", "/cloudinary-assets");
+
+    return proxiedUrl;
   } catch (error) {
     console.error(
       "Cloudinary upload failed:",
       error
     );
-
-throw error;
+    throw error;
   }
 }
