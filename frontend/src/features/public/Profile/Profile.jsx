@@ -175,100 +175,111 @@ if (!activeTargetId) {
     }
 
 const loadProfile = async () => {
-      try {
-        setIsLoading(true);
+  try {
+    setIsLoading(true);
 
-let resolvedProfile = null;
-        let resolvedMatrixMetrics = null;
+    let resolvedProfile = null;
+    let resolvedMatrixMetrics = null;
 
-/*
-         * Own profile
-         */
-        if (isOwnProfile && loggedInUser) {
-          resolvedProfile = {
-            id:
-              loggedInProfile?.id ||
-              loggedInProfile?._id ||
-              auth?.user?.id ||
-              auth?.user?._id ||
-              loggedInUser?.uid,
+    /*
+     * Own profile
+     */
+    if (isOwnProfile && loggedInUser) {
+      // 1. Establish the base profile context first
+      const accountCategory =
+        loggedInProfile?.accountCategory ||
+        auth?.user?.accountCategory ||
+        "retail";
 
-name:
-              `${loggedInProfile?.firstName || ""} ${
-                loggedInProfile?.lastName || ""
-              }`.trim() ||
-              loggedInProfile?.name ||
-              loggedInUser?.displayName ||
-              loggedInUser?.email ||
-              "SokoDigi Member",
+      resolvedProfile = {
+        id:
+          loggedInProfile?.id ||
+          loggedInProfile?._id ||
+          auth?.user?.id ||
+          auth?.user?._id ||
+          loggedInUser?.uid,
 
-username:
-              loggedInProfile?.username ||
-              loggedInUser?.email?.split("@")[0] ||
-              "member",
+        name:
+          `${loggedInProfile?.firstName || ""} ${
+            loggedInProfile?.lastName || ""
+          }`.trim() ||
+          loggedInProfile?.name ||
+          loggedInUser?.displayName ||
+          loggedInUser?.email ||
+          "SokoDigi Member",
 
-accountCategory:
-              loggedInProfile?.accountCategory ||
-              auth?.user?.accountCategory ||
-              "network",
+        username:
+          loggedInProfile?.username ||
+          loggedInUser?.email?.split("@")[0] ||
+          "member",
 
-membershipNumber:
-              loggedInProfile?.membershipNumber ||
-              auth?.user?.membershipNumber ||
-              "PENDING",
+        accountCategory: accountCategory,
 
-brandName:
-              loggedInProfile?.brandName ||
-              "SokoDigi Merchant",
+        membershipNumber:
+          loggedInProfile?.membershipNumber ||
+          auth?.user?.membershipNumber ||
+          "PENDING",
 
-phoneNumber:
-              loggedInProfile?.phoneNumber ||
-              loggedInUser?.phoneNumber ||
-              "",
+        brandName:
+          loggedInProfile?.brandName ||
+          "SokoDigi Merchant",
 
-bio:
-              loggedInProfile?.bio ||
-              loggedInProfile?.description ||
-              "",
+        phoneNumber:
+          loggedInProfile?.phoneNumber ||
+          loggedInUser?.phoneNumber ||
+          "",
 
-photoURL: (() => {
-  const rawUrl = 
-    loggedInProfile?.photoURL ||
-    loggedInProfile?.photoUrl ||
-    loggedInProfile?.profilePic ||
-    loggedInUser?.photoURL ||
-    "";
-  // Dynamically rewrite absolute paths to same-origin proxies on feed load
-  return rawUrl.startsWith("https://cloudinary.com") 
-    ? rawUrl.replace("https://cloudinary.com", "/cloudinary-assets") 
-    : rawUrl;
-})(),
+        bio:
+          loggedInProfile?.bio ||
+          loggedInProfile?.description ||
+          "",
 
+        // 🎯 THE PHOTO FIX: Corrected target host to res.cloudinary.com
+        photoURL: (() => {
+          const rawUrl = 
+            loggedInProfile?.photoURL ||
+            loggedInProfile?.photoUrl ||
+            loggedInProfile?.profilePic ||
+            loggedInUser?.photoURL ||
+            "";
+          
+          return rawUrl.startsWith("https://res.cloudinary.com") 
+            ? rawUrl.replace("https://res.cloudinary.com", "/cloudinary-assets") 
+            : rawUrl;
+        })(),
 
-networkLevel:
-              loggedInProfile?.networkLevel ||
-              loggedInProfile?.marketerLevel ||
-              loggedInProfile?.level ||
-              auth?.user?.networkLevel ||
-              auth?.user?.marketerLevel ||
-              auth?.user?.level ||
-              null,
+        networkLevel:
+          loggedInProfile?.networkLevel ||
+          loggedInProfile?.marketerLevel ||
+          loggedInProfile?.level ||
+          auth?.user?.networkLevel ||
+          auth?.user?.marketerLevel ||
+          auth?.user?.level ||
+          null,
 
-subscribers:
-              loggedInProfile?.subscriberCount ||
-              loggedInProfile?.subscribers ||
-              0,
+        subscribers:
+          loggedInProfile?.subscriberCount ||
+          loggedInProfile?.subscribers ||
+          0,
 
-subscriptions:
-              loggedInProfile?.subscriptionCount ||
-              loggedInProfile?.subscriptions ||
-              0,
-          };
+        subscriptions:
+          loggedInProfile?.subscriptionCount ||
+          loggedInProfile?.subscriptions ||
+          0,
+      };
 
-if (auth?.matrixMetrics?.ok) {
-            resolvedMatrixMetrics = auth.matrixMetrics;
-          }
-        } else {
+      // 🎯 THE 403 GUARD FIX: Only hydated metrics if user category allows it
+      if (accountCategory === "network" && auth?.matrixMetrics?.ok) {
+        resolvedMatrixMetrics = auth.matrixMetrics;
+      } else {
+        resolvedMatrixMetrics = null; // Clean fallback for retailers and regular users
+      }
+    } else {
+      /*
+       * Public profile
+       */
+      // ... keep your exact public profile code below untouched ...
+
           /*
            * Public profile
            */
