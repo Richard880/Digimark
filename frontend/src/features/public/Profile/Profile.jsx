@@ -228,14 +228,19 @@ bio:
               loggedInProfile?.description ||
               "",
 
-photoURL:
-              loggedInProfile?.photoURL ||
-              loggedInProfile?.photoUrl ||
-              loggedInProfile?.profilePhoto ||
-              loggedInProfile?.profilePic ||
-              loggedInProfile?.avatar ||
-              loggedInUser?.photoURL ||
-              "",
+photoURL: (() => {
+  const rawUrl = 
+    loggedInProfile?.photoURL ||
+    loggedInProfile?.photoUrl ||
+    loggedInProfile?.profilePic ||
+    loggedInUser?.photoURL ||
+    "";
+  // Dynamically rewrite absolute paths to same-origin proxies on feed load
+  return rawUrl.startsWith("https://cloudinary.com") 
+    ? rawUrl.replace("https://cloudinary.com", "/cloudinary-assets") 
+    : rawUrl;
+})(),
+
 
 networkLevel:
               loggedInProfile?.networkLevel ||
