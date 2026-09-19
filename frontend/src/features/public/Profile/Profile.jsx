@@ -72,56 +72,55 @@ if (selectedFile.size > 2 * 1024 * 1024) {
       return;
     }
 
+// ... existing validation checks ...
+
 setIsUpdatingAvatar(true);
 
 try {
-      const currentUser = auth?.currentUser;
+  const currentUser = auth?.currentUser;
+  if (!currentUser) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
 
-if (!currentUser) {
-        throw new Error(
-          "Your session has expired. Please sign in again."
-        );
-      }
+  console.log("Starting profile image upload...");
 
-console.log("Starting profile image upload...");
+  // 1. Get the absolute URL from your Cloudinary utility
+  const uploadedUrl = await uploadImageToCloudinary(selectedFile, "profiles");
 
-// This utility should return the Cloudinary secure URL.
-      const uploadedUrl = await uploadImageToCloudinary(
-        selectedFile,
-        "profiles"
-      );
+  if (typeof uploadedUrl !== "string" || uploadedUrl.trim() === "") {
+    throw new Error("Upload pipeline failed to resolve an image URL.");
+  }
 
-if (
-        typeof uploadedUrl !== "string" ||
-        uploadedUrl.trim() === ""
-      ) {
-        throw new Error(
-          "Upload pipeline failed to resolve an image URL."
-        );
-      }
+  // 2. CONVERT THE URL TO USE YOUR VERCEL PROXY PATH
+  // Transforms: https://cloudinary.com...
+  // Into: /cloudinary-assets/cloud_name/image/upload/...
+  const proxiedUrl = uploadedUrl.replace("https://cloudinary.com", "/cloudinary-assets");
 
-setBrandProfile((previousProfile) => ({
-        ...previousProfile,
-        photoURL: uploadedUrl,
-        profilePic: uploadedUrl,
-      }));
+  // 3. Update the local UI state using the proxied relative link
+  setBrandProfile((previousProfile) => ({
+    ...previousProfile,
+    photoURL: proxiedUrl,
+    profilePic: proxiedUrl,
+  }));
 
-const token = await currentUser.getIdToken();
+  const token = await currentUser.getIdToken();
 
-const profileResponse = await fetch(
-        `${API_URL}/api/auth/profile-update`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            profilePic: uploadedUrl,
-            photoURL: uploadedUrl,
-          }),
-        }
-      );
+  // 4. Send the clean proxied URL to your backend database
+  const profileResponse = await fetch(
+    `${API_URL}/api/auth/profile-update`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        profilePic: proxiedUrl,
+        photoURL: proxiedUrl,
+      }),
+    }
+  );
+
 
 if (!profileResponse.ok) {
         const responseText =
