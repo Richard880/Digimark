@@ -104,16 +104,16 @@ try {
   const token = await currentUser.getIdToken();
 
   // 4. Send the clean proxied URL to your backend database
- const profileResponse = await fetch(
-  `${API_URL}/api/auth/sync-current-user`, 
+ // 🎯 REWRITE THIS IN YOUR PROFILE.JSX:
+const profileResponse = await fetch(
+  `${API_URL}/api/auth/sync`, // Change this to exactly /sync
   {
-    method: "POST", // Change this to POST as required by your auth controller
+    method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      // Your syncCurrentUser backend controller handles profile properties inside `userData`
       userData: {
         profilePic: uploadedUrl,
         photoURL: uploadedUrl,
