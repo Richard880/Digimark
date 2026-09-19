@@ -91,6 +91,13 @@ export async function uploadImageToCloudinary(
     const absoluteUrl = uploadResult.secure_url;
     const proxiedUrl = absoluteUrl.replace("https://res.cloudinary.com", "/cloudinary-assets");
 
+    // 🎯 UPDATE THIS AT THE BOTTOM OF CLOUDINARYUPLOADER.JS:
+console.log("Cloudinary upload successful.");
+
+// Return the absolute secure url string directly, bypassing the broken vercel asset proxy rule entirely
+return uploadResult.secure_url;
+
+
     return proxiedUrl;
   } catch (error) {
     console.error(
