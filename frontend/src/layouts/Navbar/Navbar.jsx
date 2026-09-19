@@ -12,40 +12,39 @@ export default function Navbar({
 }) {
   const location = useLocation();
 
-const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [showSearchInput, setShowSearchInput] =
-    useState(false);
+  const [showSearchInput, setShowSearchInput] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState("");
 
-const closeMenu = () => {
+  const closeMenu = () => {
     setIsOpen(false);
   };
 
-const toggleMenu = () => {
+  const toggleMenu = () => {
     setIsOpen((previous) => !previous);
   };
 
-const handleInputChange = (event) => {
+  const handleInputChange = (event) => {
     const value = event.target.value;
-
-setQuery(value);
-
-onSearchUpdate?.({
+    setQuery(value);
+    onSearchUpdate?.({
       q: value.toLowerCase(),
       type: "",
     });
   };
 
-const profileUserId =
+  const profileUserId =
     user?.uid ||
     user?.id ||
     user?._id ||
     user?.profile?.id ||
     user?.profile?._id ||
+    user?.profile?.userId || // 🎯 Added fallback identifier path
     "";
 
-const resolvedAvatarUrl = useMemo(() => {
+  // 🎯 THE FIX: Exhaustive object extraction covering both your context models and sync payloads
+  const resolvedAvatarUrl = useMemo(() => {
     return (
       user?.profilePic ||
       user?.photoURL ||
@@ -61,28 +60,34 @@ const resolvedAvatarUrl = useMemo(() => {
     );
   }, [user]);
 
-useEffect(() => {
-    setAvatarUrl(resolvedAvatarUrl);
+  // Sync avatarUrl state when the root authenticated user state changes
+  useEffect(() => {
+    if (resolvedAvatarUrl) {
+      setAvatarUrl(resolvedAvatarUrl);
+    }
   }, [resolvedAvatarUrl]);
 
-useEffect(() => {
+  // 🎯 THE FIX: Robustly catch your custom image update broadcast events
+  useEffect(() => {
     const handleProfileAvatarUpdated = (event) => {
+      console.log("Navbar intercepted custom update event:", event.detail);
       const newAvatarUrl =
         event?.detail?.profilePic ||
         event?.detail?.photoURL ||
+        event?.detail?.url || // Common event wrapper backup properties
         "";
 
-if (newAvatarUrl) {
+      if (newAvatarUrl) {
         setAvatarUrl(newAvatarUrl);
       }
     };
 
-window.addEventListener(
+    window.addEventListener(
       "profile-avatar-updated",
       handleProfileAvatarUpdated
     );
 
-return () => {
+    return () => {
       window.removeEventListener(
         "profile-avatar-updated",
         handleProfileAvatarUpdated
@@ -90,25 +95,22 @@ return () => {
     };
   }, []);
 
-useEffect(() => {
+  useEffect(() => {
     setIsOpen(false);
   }, [location.pathname]);
 
-const displayName =
+  const displayName =
     user?.name ||
     user?.displayName ||
     user?.profile?.name ||
+    user?.profile?.displayName ||
     user?.email ||
     "User";
 
-return (
+  return (
     <header className={styles["sokodigi-header"]}>
       <div className={styles["sokodigi-header__inner"]}>
-        <Link
-          to="/"
-          className={styles["sokodigi-brand"]}
-          onClick={closeMenu}
-        >
+        <Link to="/" className={styles["sokodigi-brand"]} onClick={closeMenu}>
           {brand.logo ? (
             <img
               src={brand.logo}
@@ -116,13 +118,11 @@ return (
               className={styles["sokodigi-brand__logo"]}
             />
           ) : (
-            <span className={styles["brand-text"]}>
-              {brand.name}
-            </span>
+            <span className={styles["brand-text"]}>{brand.name}</span>
           )}
         </Link>
 
-<nav
+        <nav
           className={`${styles["sokodigi-nav"]} ${
             isOpen ? styles["menu-expanded"] : ""
           }`}
@@ -130,34 +130,26 @@ return (
           <Link to="/" onClick={closeMenu}>
             Home
           </Link>
-
-<Link to="/marketplace" onClick={closeMenu}>
+          <Link to="/marketplace" onClick={closeMenu}>
             MarketHub
           </Link>
-
-{user && (
+          {user && (
             <Link to="/dashboard" onClick={closeMenu}>
               Dashboard
             </Link>
           )}
         </nav>
 
-<div className={styles["nav-actions-block"]}>
+        <div className={styles["nav-actions-block"]}>
           <div
             className={`${styles["nav-search-wrapper"]} ${
-              showSearchInput
-                ? styles["active-input"]
-                : ""
+              showSearchInput ? styles["active-input"] : ""
             }`}
           >
             <button
               type="button"
               className={styles["nav-search-trigger"]}
-              onClick={() =>
-                setShowSearchInput(
-                  (previous) => !previous
-                )
-              }
+              onClick={() => setShowSearchInput((previous) => !previous)}
               aria-label="Toggle search container"
             >
               <svg
@@ -173,16 +165,11 @@ return (
                 aria-hidden="true"
               >
                 <circle cx="11" cy="11" r="8" />
-                <line
-                  x1="21"
-                  y1="21"
-                  x2="16.65"
-                  y2="16.65"
-                />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </button>
 
-<input
+            <input
               type="text"
               value={query}
               onChange={handleInputChange}
@@ -191,14 +178,10 @@ return (
             />
           </div>
 
-{user ? (
+          {user ? (
             <div className={styles["profile-avatar-wrapper"]}>
               <Link
-                to={
-                  profileUserId
-                    ? `/profile/${profileUserId}`
-                    : "/profile"
-                }
+                to={profileUserId ? `/profile/${profileUserId}` : "/profile"}
                 onClick={closeMenu}
                 className={styles["avatar-profile-link"]}
                 title="View My Profile Storefront"
@@ -215,10 +198,13 @@ return (
                     <img
                       src={avatarUrl}
                       alt={`${displayName} profile`}
+                      className={styles["avatar-img-element"]} // Clean styling hook reference
+                      crossOrigin="anonymous" // Ensure your newly uploaded Cloudinary image maps securely here too!
                       onError={(event) => {
-                        event.currentTarget.style.display =
-                          "none";
-                        setAvatarUrl("");
+                        console.error("Navbar failed to render avatar source:", avatarUrl);
+                        event.currentTarget.style.display = "none";
+                        // If it fails with an invalid link layout, fallback safely to the SVG icon
+                        setAvatarUrl(""); 
                       }}
                     />
                   ) : (
@@ -236,7 +222,7 @@ return (
                 </div>
               </Link>
 
-<button
+              <button
                 type="button"
                 className={styles["logout-btn"]}
                 onClick={() => {
@@ -260,7 +246,7 @@ return (
             </button>
           )}
 
-<button
+          <button
             type="button"
             className={styles["mobile-toggle"]}
             onClick={toggleMenu}
@@ -274,14 +260,8 @@ return (
                   : "none",
               }}
             />
-
-<span
-              style={{
-                opacity: isOpen ? 0 : 1,
-              }}
-            />
-
-<span
+            <span style={{ opacity: isOpen ? 0 : 1 }} />
+            <span
               style={{
                 transform: isOpen
                   ? "rotate(-45deg) translate(5px, -6px)"
