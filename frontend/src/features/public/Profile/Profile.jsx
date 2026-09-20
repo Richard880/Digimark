@@ -198,11 +198,18 @@ export default function Profile() {
               loggedInProfile?.bio ||
               loggedInProfile?.description ||
               "",
-            photoURL:
-              loggedInProfile?.photoURL ||
-              loggedInProfile?.profilePic ||
-              loggedInUser?.photoURL ||
-              "",
+// 🎯 UPDATE THIS SPECIFIC PROPERTY BLOCK INSIDE YOUR PROFILE.JSX LOADPROFILE HOOK:
+photoURL: (() => {
+  const rawUrl = 
+    loggedInProfile?.profilePhoto || // 🎯 PRIORITIZE THE DICTATED AUTHORITATIVE DATABASE FIELD FIRST
+    loggedInProfile?.photoURL ||
+    loggedInProfile?.profilePic ||
+    loggedInUser?.photoURL ||
+    "";
+  
+  return rawUrl;
+})(),
+
             profilePic:
               loggedInProfile?.profilePic ||
               loggedInProfile?.photoURL ||
@@ -542,17 +549,16 @@ return (
                       <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-emerald-50">
                         {brandProfile?.photoURL ||
                         brandProfile?.profilePic ? (
-                          <img
-  src={brandProfile?.photoURL || brandProfile?.profilePic}
-  crossOrigin="anonymous" // 🎯 THE FIX: Authorizes standard cross-origin image loads
-  alt={brandProfile?.name || "SokoDigi member"}
-  className={`h-full w-full object-cover transition duration-200 ${
-    isUpdatingAvatar ? "animate-pulse opacity-30" : "group-hover:opacity-90"
-  }`}
-  onError={(event) => {
-    event.currentTarget.style.display = "none";
+                         <img
+  src={brandProfile?.photoURL || brandProfile?.profilePhoto || brandProfile?.profilePic || ""}
+  crossOrigin="anonymous"
+  alt="SokoDigi profile avatar"
+  className={`h-full w-full object-cover transition duration-200 ${isUpdatingAvatar ? "animate-pulse opacity-30" : "group-hover:opacity-90"}`}
+  onError={(e) => {
+    e.currentTarget.style.display = "none";
   }}
 />
+
 
                         ) : (
                           <svg
