@@ -8,11 +8,10 @@ import LegDistributionCards from "../../vendor-dashboard/LegDistributionCards";
 import AvatarMenuModal from "./AvatarMenuModal";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 
-// 🎯 THE FIX: Force Vite to map the variable cleanly, falling back ONLY if undefined
+// Force production builds to use clean relative roots, falling back to localhost only in development
 const API_URL = import.meta.env.PROD 
   ? "" 
-  : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
-
+  : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/\$/, "");
 
 const MEMBER_SETTINGS_ROUTE = "/settings";
 const NETWORK_DASHBOARD_ROUTE = "/dashboard/network";
@@ -22,12 +21,12 @@ export default function Profile() {
   const navigate = useNavigate();
   const { auth } = useAuth();
 
-const fileInputRef = useRef(null);
+  const fileInputRef = useRef(null);
 
-const loggedInUser = auth?.currentUser;
+  const loggedInUser = auth?.currentUser;
   const loggedInProfile = auth?.profile || {};
 
-const isOwnProfile =
+  const isOwnProfile =
     !userId ||
     userId === loggedInUser?.uid ||
     userId === loggedInProfile?.id ||
@@ -35,389 +34,199 @@ const isOwnProfile =
     userId === auth?.user?.id ||
     userId === auth?.user?._id;
 
-const [brandProfile, setBrandProfile] = useState(null);
+  const [brandProfile, setBrandProfile] = useState(null);
   const [matrixMetrics, setMatrixMetrics] = useState(null);
   const [products, setProducts] = useState([]);
 
-const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("products");
-  const [shareMessage, setShareMessage] = useState("");
 
-const [isAvatarModalOpen, setIsAvatarModalOpen] =
-    useState(false);
-  const [isUpdatingAvatar, setIsUpdatingAvatar] =
-    useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
 
-const handleAvatarFileChange = async (event) => {
+  const handleAvatarFileChange = async (event) => {
     const selectedFile = event.target.files?.[0];
 
-if (!selectedFile) {
-      return;
-    }
+    if (!selectedFile) return;
 
-if (!selectedFile.type.startsWith("image/")) {
+    if (!selectedFile.type.startsWith("image/")) {
       alert("Please select a valid image file.");
       event.target.value = "";
       return;
     }
 
-if (selectedFile.size > 2 * 1024 * 1024) {
-      alert(
-        "Profile picture files are restricted to a maximum size of 2MB."
-      );
+    if (selectedFile.size > 2 * 1024 * 1024) {
+      alert("Profile picture files are restricted to a maximum size of 2MB.");
       event.target.value = "";
       return;
     }
 
-// ... existing validation checks ...
+    setIsUpdatingAvatar(true);
 
-setIsUpdatingAvatar(true);
+    try {
+      const currentUser = auth?.currentUser;
+      if (!currentUser) {
+        throw new Error("Your session has expired. Please sign in again.");
+      }
 
-try {
-  const currentUser = auth?.currentUser;
-  if (!currentUser) {
-    throw new Error("Your session has expired. Please sign in again.");
-  }
+      console.log("Starting profile image upload to Cloudinary...");
 
-  console.log("Starting profile image upload...");
+      // 1. Get the pure, clean absolute URL from your Cloudinary utility
+      const uploadedUrl = await uploadImageToCloudinary(selectedFile, "profiles");
 
-  // 1. Get the absolute URL from your Cloudinary utility
-  const uploadedUrl = await uploadImageToCloudinary(selectedFile, "profiles");
+      if (typeof uploadedUrl !== "string" || uploadedUrl.trim() === "") {
+        throw new Error("Upload pipeline failed to resolve an image URL.");
+      }
 
-  if (typeof uploadedUrl !== "string" || uploadedUrl.trim() === "") {
-    throw new Error("Upload pipeline failed to resolve an image URL.");
-  }
-
-  // 2. CONVERT THE URL TO USE YOUR VERCEL PROXY PATH
-  // Transforms: https://cloudinary.com...
-  // Into: /cloudinary-assets/cloud_name/image/upload/...
-  const proxiedUrl = uploadedUrl.replace("https://cloudinary.com", "/cloudinary-assets");
-
-  // 3. Update the local UI state using the proxied relative link
-  setBrandProfile((previousProfile) => ({
-    ...previousProfile,
-    photoURL: proxiedUrl,
-    profilePic: proxiedUrl,
-  }));
-
- // 🎯 UPDATE THIS IN YOUR PROFILE.JSX (Inside handleAvatarFileChange)
-const token = await currentUser.getIdToken();
-
-const profileResponse = await fetch(
-  `${API_URL}/api/auth/sync`,
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    // Mirror the exact structure your auth controllers require
-    body: JSON.stringify({
-      profilePic: uploadedUrl,
-      photoURL: uploadedUrl,
-      userData: {
+      // 🎯 THE FIX: Store the absolute URL directly in local UI state, completely bypassing proxies
+      setBrandProfile((previousProfile) => ({
+        ...previousProfile,
+        photoURL: uploadedUrl,
         profilePic: uploadedUrl,
-        photoURL: uploadedUrl
+      }));
+
+      const token = await currentUser.getIdToken();
+
+      // 2. Sync absolute values with your backend database records
+      const profileResponse = await fetch(`${API_URL}/api/auth/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          profilePic: uploadedUrl,
+          photoURL: uploadedUrl,
+          userData: {
+            profilePic: uploadedUrl,
+            photoURL: uploadedUrl
+          }
+        }),
+      });
+
+      if (!profileResponse.ok) {
+        const responseText = await profileResponse.text();
+        throw new Error(`Profile sync failed: ${profileResponse.status} ${responseText}`);
       }
-    }),
-  }
-);
 
+      console.log("Profile avatar changes synced successfully.");
+      setIsAvatarModalOpen(false);
 
-if (!profileResponse.ok) {
-        const responseText =
-          await profileResponse.text();
-
-throw new Error(
-          `Profile update failed: ${profileResponse.status} ${responseText}`
-        );
-      }
-
-console.log(
-        "Profile avatar changes synced successfully."
+      // Trigger a clean custom event notification so components like your Navbar catch it instantly
+      window.dispatchEvent(
+        new CustomEvent("profile-avatar-updated", { detail: { profilePic: uploadedUrl, photoURL: uploadedUrl } })
       );
 
-setIsAvatarModalOpen(false);
     } catch (error) {
       console.error("Avatar synchronization error:", error);
-
-if (error?.name === "AbortError") {
-        alert(
-          "The image upload was aborted. Please try again with a smaller image."
-        );
-      } else {
-        alert(
-          error?.message ||
-            "Unable to update the profile picture."
-        );
-      }
+      alert(error?.message || "Unable to update the profile picture.");
     } finally {
       setIsUpdatingAvatar(false);
       event.target.value = "";
     }
   };
 
-useEffect(() => {
-  let isMounted = true;
+  useEffect(() => {
+    let isMounted = true;
 
-  const activeTargetId = isOwnProfile
-    ? loggedInProfile?.id ||
-      loggedInProfile?._id ||
-      auth?.user?.id ||
-      auth?.user?._id ||
-      loggedInUser?.uid
-    : userId;
+    const activeTargetId = isOwnProfile
+      ? loggedInProfile?.id || loggedInProfile?._id || auth?.user?.id || auth?.user?._id || loggedInUser?.uid
+      : userId;
 
-  if (!activeTargetId) {
-    setIsLoading(false);
-    return undefined;
-  }
+    if (!activeTargetId) {
+      setIsLoading(false);
+      return undefined;
+    }
 
-  const loadProfile = async () => {
-    try {
-      setIsLoading(true);
+    const loadProfile = async () => {
+      try {
+        setIsLoading(true);
 
-      let resolvedProfile = null;
-      let resolvedMatrixMetrics = null;
+        let resolvedProfile = null;
+        let resolvedMatrixMetrics = null;
 
-      /*
-       * Own profile
-       */
-      if (isOwnProfile && loggedInUser) {
-        // 1. Establish the base profile context first (Defaults safely to retail)
-        const accountCategory =
-          loggedInProfile?.accountCategory ||
-          auth?.user?.accountCategory ||
-          "retail";
+        if (isOwnProfile && loggedInUser) {
+          const accountCategory = loggedInProfile?.accountCategory || auth?.user?.accountCategory || "retail";
 
-        resolvedProfile = {
-          id:
-            loggedInProfile?.id ||
-            loggedInProfile?._id ||
-            auth?.user?.id ||
-            auth?.user?._id ||
-            loggedInUser?.uid,
-
-          name:
-            `${loggedInProfile?.firstName || ""} ${
-              loggedInProfile?.lastName || ""
-            }`.trim() ||
-            loggedInProfile?.name ||
-            loggedInUser?.displayName ||
-            loggedInUser?.email ||
-            "SokoDigi Member",
-
-          username:
-            loggedInProfile?.username ||
-            loggedInUser?.email?.split("@")[0] ||
-            "member",
-
-          accountCategory: accountCategory,
-
-          membershipNumber:
-            loggedInProfile?.membershipNumber ||
-            auth?.user?.membershipNumber ||
-            "PENDING",
-
-          brandName:
-            loggedInProfile?.brandName ||
-            "SokoDigi Merchant",
-
-          phoneNumber:
-            loggedInProfile?.phoneNumber ||
-            loggedInUser?.phoneNumber ||
-            "",
-
-          bio:
-            loggedInProfile?.bio ||
-            loggedInProfile?.description ||
-            "",
-
-          // 🎯 THE PHOTO FIX: Return the absolute secure URL directly, bypassing the broken vercel proxy entirely!
-          photoURL: (() => {
-            const rawUrl = 
-              loggedInProfile?.photoURL ||
-              loggedInProfile?.photoUrl ||
-              loggedInProfile?.profilePic ||
-              loggedInUser?.photoURL ||
-              "";
+          resolvedProfile = {
+            id: loggedInProfile?.id || loggedInProfile?._id || auth?.user?.id || auth?.user?._id || loggedInUser?.uid,
+            name: `${loggedInProfile?.firstName || ""} ${loggedInProfile?.lastName || ""}`.trim() || 
+                  loggedInProfile?.name || loggedInUser?.displayName || loggedInUser?.email || "SokoDigi Member",
+            username: loggedInProfile?.username || loggedInUser?.email?.split("@")[0] || "member",
+            accountCategory: accountCategory,
+            membershipNumber: loggedInProfile?.membershipNumber || auth?.user?.membershipNumber || "PENDING",
+            brandName: loggedInProfile?.brandName || "SokoDigi Merchant",
+            phoneNumber: loggedInProfile?.phoneNumber || loggedInUser?.phoneNumber || "",
+            bio: loggedInProfile?.bio || loggedInProfile?.description || "",
             
-            return rawUrl; // Clean, absolute, cross-origin resource path
-          })(),
+            // 🎯 THE FIX: Return clean absolute assets directly
+            photoURL: (() => {
+              return loggedInProfile?.photoURL || loggedInProfile?.profilePic || loggedInUser?.photoURL || "";
+            })(),
 
-          networkLevel:
-            loggedInProfile?.networkLevel ||
-            loggedInProfile?.marketerLevel ||
-            loggedInProfile?.level ||
-            auth?.user?.networkLevel ||
-            auth?.user?.marketerLevel ||
-            auth?.user?.level ||
-            null,
+            networkLevel: loggedInProfile?.networkLevel || loggedInProfile?.marketerLevel || null,
+            subscribers: loggedInProfile?.subscriberCount || 0,
+            subscriptions: loggedInProfile?.subscriptionCount || 0,
+          };
 
-          subscribers:
-            loggedInProfile?.subscriberCount ||
-            loggedInProfile?.subscribers ||
-            0,
-
-          subscriptions:
-            loggedInProfile?.subscriptionCount ||
-            loggedInProfile?.subscriptions ||
-            0,
-        };
-
-        // 🎯 THE 403 GUARD FIX: Only pull down metrics from the backend if the profile is explicitly network-tier
-        if (accountCategory === "network") {
-          try {
-            const token = await loggedInUser.getIdToken();
-            const metricsResponse = await fetch(`${API_URL}/api/network/matrix-metrics`, {
-              headers: {
-                Authorization: `Bearer ${token}`
+          // 🎯 THE FIX: Only call the network metrics API if the validated category is "network"
+          if (accountCategory === "network") {
+            try {
+              const token = await loggedInUser.getIdToken();
+              const metricsResponse = await fetch(`${API_URL}/api/network/matrix-metrics`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              if (metricsResponse.ok) {
+                resolvedMatrixMetrics = await metricsResponse.json();
               }
-            });
-            
-            if (metricsResponse.ok) {
-              resolvedMatrixMetrics = await metricsResponse.json();
+            } catch (metricsErr) {
+              console.error("Delayed matrix aggregation lookup error:", metricsErr);
+              resolvedMatrixMetrics = null;
             }
-          } catch (metricsErr) {
-            console.error("Delayed matrix aggregation lookup error:", metricsErr);
-            resolvedMatrixMetrics = null;
           }
         } else {
-          // Retail accounts exit cleanly right here without firing the API call
-          resolvedMatrixMetrics = null;
-        }
-      } else {
-        /*
-         * Public profile
-         */
-        // ... Keep your exact public profile code below untouched ...
-
-      /*
-       * Public profile
-       */
-      // ... keep your exact public profile code below untouched ...
-
-          /*
-           * Public profile
-           */
-          const profileResponse = await fetch(
-            `${API_URL}/api/products/market`
-          );
-
-if (profileResponse.ok) {
+          // Public Profile Mapping Track
+          const profileResponse = await fetch(`${API_URL}/api/products/market`);
+          if (profileResponse.ok) {
             const feedData = await profileResponse.json();
+            const feedList = Array.isArray(feedData) ? feedData : (feedData?.products || []);
+            const matchedItem = feedList.find(p => p?.shopId === activeTargetId || p?.userId === activeTargetId);
 
-const feedList = Array.isArray(feedData)
-              ? feedData
-              : Array.isArray(feedData?.products)
-              ? feedData.products
-              : [];
-
-const matchedItem = feedList.find(
-              (product) =>
-                product?.shopId === activeTargetId ||
-                product?.userId === activeTargetId ||
-                product?.ownerId === activeTargetId
-            );
-
-if (matchedItem) {
+            if (matchedItem) {
               resolvedProfile = {
                 id: activeTargetId,
-
-name:
-                  matchedItem?.displayName ||
-                  matchedItem?.sellerName ||
-                  matchedItem?.name ||
-                  "SokoDigi Merchant",
-
-username:
-                  matchedItem?.username ||
-                  "merchant",
-
-accountCategory:
-                  matchedItem?.accountCategory ||
-                  "retail",
-
-membershipNumber:
-                  matchedItem?.membershipNumber ||
-                  "N/A",
-
-brandName:
-                  matchedItem?.brandName ||
-                  "",
-
-phoneNumber:
-                  matchedItem?.phoneNumber ||
-                  "",
-
-bio:
-                  matchedItem?.bio ||
-                  matchedItem?.description ||
-                  "",
-
-photoURL:
-                  matchedItem?.photoURL ||
-                  matchedItem?.photoUrl ||
-                  matchedItem?.profilePhoto ||
-                  matchedItem?.profilePic ||
-                  matchedItem?.avatar ||
-                  "",
-
-networkLevel:
-                  matchedItem?.networkLevel ||
-                  matchedItem?.marketerLevel ||
-                  matchedItem?.level ||
-                  null,
-
-subscribers:
-                  matchedItem?.subscriberCount ||
-                  matchedItem?.subscribers ||
-                  0,
-
-subscriptions:
-                  matchedItem?.subscriptionCount ||
-                  matchedItem?.subscriptions ||
-                  0,
+                name: matchedItem?.displayName || matchedItem?.sellerName || "SokoDigi Merchant",
+                username: matchedItem?.username || "merchant",
+                accountCategory: matchedItem?.accountCategory || "retail",
+                membershipNumber: matchedItem?.membershipNumber || "N/A",
+                brandName: matchedItem?.brandName || "",
+                phoneNumber: matchedItem?.phoneNumber || "",
+                bio: matchedItem?.bio || "",
+                photoURL: matchedItem?.photoURL || matchedItem?.profilePic || "",
+                networkLevel: matchedItem?.networkLevel || null,
+                subscribers: matchedItem?.subscriberCount || 0,
+                subscriptions: matchedItem?.subscriptionCount || 0,
               };
             }
           }
-
-if (!resolvedProfile) {
-            resolvedProfile = {
-              id: activeTargetId,
-              name: "Independent SokoDigi Merchant",
-              username: "merchant",
-              accountCategory: "retail",
-              membershipNumber: "N/A",
-              brandName: "",
-              phoneNumber: "",
-              bio: "",
-              photoURL: "",
-              networkLevel: null,
-              subscribers: 0,
-              subscriptions: 0,
-            };
-          }
         }
 
-if (!isMounted) {
-          return;
+        if (isMounted) {
+          setBrandProfile(resolvedProfile);
+          setMatrixMetrics(resolvedMatrixMetrics);
         }
+      } catch (error) {
+        console.error("Error populating component profile dependencies:", error);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
 
-setBrandProfile(resolvedProfile);
+    loadProfile();
+    return () => { isMounted = false; };
+  }, [userId, isOwnProfile, loggedInProfile, auth?.user, loggedInUser]);
 
-const token = loggedInUser
-          ? await loggedInUser
-              .getIdToken()
-              .catch(() => null)
-          : null;
-
-const headers = token
-          ? {
-              Authorization: `Bearer ${token}`,
-            }
-          : {};
 
 /*
          * Matrix metrics
