@@ -44,21 +44,19 @@ export default function Navbar({
     "";
 
   // 🎯 THE FIX: Exhaustive object extraction covering both your context models and sync payloads
-  const resolvedAvatarUrl = useMemo(() => {
-    return (
-      user?.profilePic ||
-      user?.photoURL ||
-      user?.photoUrl ||
-      user?.profilePhoto ||
-      user?.avatar ||
-      user?.profile?.profilePic ||
-      user?.profile?.photoURL ||
-      user?.profile?.photoUrl ||
-      user?.profile?.profilePhoto ||
-      user?.profile?.avatar ||
-      ""
-    );
-  }, [user]);
+// 🎯 UPDATE THIS INSIDE YOUR NAVBAR.JSX TO ENSURE SURVIVAL ON GENERAL TAB LEAVE/RETURN ROUTINGS:
+const resolvedAvatarUrl = useMemo(() => {
+  return (
+    user?.profilePhoto || // 🎯 PRIORITIZE THE MONGO KEY AT ROOT
+    user?.profile?.profilePhoto || // PRIORITIZE THE MONGO KEY INSIDE THE NESTED DATA BLOCKS
+    user?.profilePic ||
+    user?.photoURL ||
+    user?.profile?.profilePic ||
+    user?.profile?.photoURL ||
+    ""
+  );
+}, [user]);
+
 
   // Sync avatarUrl state when the root authenticated user state changes
   useEffect(() => {
