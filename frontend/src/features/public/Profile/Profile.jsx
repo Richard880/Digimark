@@ -159,122 +159,140 @@ if (error?.name === "AbortError") {
   };
 
 useEffect(() => {
-    let isMounted = true;
+  let isMounted = true;
 
-const activeTargetId = isOwnProfile
-      ? loggedInProfile?.id ||
-        loggedInProfile?._id ||
-        auth?.user?.id ||
-        auth?.user?._id ||
-        loggedInUser?.uid
-      : userId;
+  const activeTargetId = isOwnProfile
+    ? loggedInProfile?.id ||
+      loggedInProfile?._id ||
+      auth?.user?.id ||
+      auth?.user?._id ||
+      loggedInUser?.uid
+    : userId;
 
-if (!activeTargetId) {
-      setIsLoading(false);
-      return undefined;
-    }
+  if (!activeTargetId) {
+    setIsLoading(false);
+    return undefined;
+  }
 
-const loadProfile = async () => {
-  try {
-    setIsLoading(true);
+  const loadProfile = async () => {
+    try {
+      setIsLoading(true);
 
-    let resolvedProfile = null;
-    let resolvedMatrixMetrics = null;
+      let resolvedProfile = null;
+      let resolvedMatrixMetrics = null;
 
-    /*
-     * Own profile
-     */
-    if (isOwnProfile && loggedInUser) {
-      // 1. Establish the base profile context first
-      const accountCategory =
-        loggedInProfile?.accountCategory ||
-        auth?.user?.accountCategory ||
-        "retail";
+      /*
+       * Own profile
+       */
+      if (isOwnProfile && loggedInUser) {
+        // 1. Establish the base profile context first (Defaults safely to retail)
+        const accountCategory =
+          loggedInProfile?.accountCategory ||
+          auth?.user?.accountCategory ||
+          "retail";
 
-      resolvedProfile = {
-        id:
-          loggedInProfile?.id ||
-          loggedInProfile?._id ||
-          auth?.user?.id ||
-          auth?.user?._id ||
-          loggedInUser?.uid,
+        resolvedProfile = {
+          id:
+            loggedInProfile?.id ||
+            loggedInProfile?._id ||
+            auth?.user?.id ||
+            auth?.user?._id ||
+            loggedInUser?.uid,
 
-        name:
-          `${loggedInProfile?.firstName || ""} ${
-            loggedInProfile?.lastName || ""
-          }`.trim() ||
-          loggedInProfile?.name ||
-          loggedInUser?.displayName ||
-          loggedInUser?.email ||
-          "SokoDigi Member",
+          name:
+            `${loggedInProfile?.firstName || ""} ${
+              loggedInProfile?.lastName || ""
+            }`.trim() ||
+            loggedInProfile?.name ||
+            loggedInUser?.displayName ||
+            loggedInUser?.email ||
+            "SokoDigi Member",
 
-        username:
-          loggedInProfile?.username ||
-          loggedInUser?.email?.split("@")[0] ||
-          "member",
+          username:
+            loggedInProfile?.username ||
+            loggedInUser?.email?.split("@")[0] ||
+            "member",
 
-        accountCategory: accountCategory,
+          accountCategory: accountCategory,
 
-        membershipNumber:
-          loggedInProfile?.membershipNumber ||
-          auth?.user?.membershipNumber ||
-          "PENDING",
+          membershipNumber:
+            loggedInProfile?.membershipNumber ||
+            auth?.user?.membershipNumber ||
+            "PENDING",
 
-        brandName:
-          loggedInProfile?.brandName ||
-          "SokoDigi Merchant",
+          brandName:
+            loggedInProfile?.brandName ||
+            "SokoDigi Merchant",
 
-        phoneNumber:
-          loggedInProfile?.phoneNumber ||
-          loggedInUser?.phoneNumber ||
-          "",
+          phoneNumber:
+            loggedInProfile?.phoneNumber ||
+            loggedInUser?.phoneNumber ||
+            "",
 
-        bio:
-          loggedInProfile?.bio ||
-          loggedInProfile?.description ||
-          "",
+          bio:
+            loggedInProfile?.bio ||
+            loggedInProfile?.description ||
+            "",
 
-        // 🎯 THE PHOTO FIX: Corrected target host to res.cloudinary.com
-        photoURL: (() => {
-          const rawUrl = 
-            loggedInProfile?.photoURL ||
-            loggedInProfile?.photoUrl ||
-            loggedInProfile?.profilePic ||
-            loggedInUser?.photoURL ||
-            "";
-          
-          return rawUrl.startsWith("https://res.cloudinary.com") 
-            ? rawUrl.replace("https://res.cloudinary.com", "/cloudinary-assets") 
-            : rawUrl;
-        })(),
+          // 🎯 THE PHOTO FIX: Return the absolute secure URL directly, bypassing the broken vercel proxy entirely!
+          photoURL: (() => {
+            const rawUrl = 
+              loggedInProfile?.photoURL ||
+              loggedInProfile?.photoUrl ||
+              loggedInProfile?.profilePic ||
+              loggedInUser?.photoURL ||
+              "";
+            
+            return rawUrl; // Clean, absolute, cross-origin resource path
+          })(),
 
-        networkLevel:
-          loggedInProfile?.networkLevel ||
-          loggedInProfile?.marketerLevel ||
-          loggedInProfile?.level ||
-          auth?.user?.networkLevel ||
-          auth?.user?.marketerLevel ||
-          auth?.user?.level ||
-          null,
+          networkLevel:
+            loggedInProfile?.networkLevel ||
+            loggedInProfile?.marketerLevel ||
+            loggedInProfile?.level ||
+            auth?.user?.networkLevel ||
+            auth?.user?.marketerLevel ||
+            auth?.user?.level ||
+            null,
 
-        subscribers:
-          loggedInProfile?.subscriberCount ||
-          loggedInProfile?.subscribers ||
-          0,
+          subscribers:
+            loggedInProfile?.subscriberCount ||
+            loggedInProfile?.subscribers ||
+            0,
 
-        subscriptions:
-          loggedInProfile?.subscriptionCount ||
-          loggedInProfile?.subscriptions ||
-          0,
-      };
+          subscriptions:
+            loggedInProfile?.subscriptionCount ||
+            loggedInProfile?.subscriptions ||
+            0,
+        };
 
-      // 🎯 THE 403 GUARD FIX: Only hydated metrics if user category allows it
-      if (accountCategory === "network" && auth?.matrixMetrics?.ok) {
-        resolvedMatrixMetrics = auth.matrixMetrics;
+        // 🎯 THE 403 GUARD FIX: Only pull down metrics from the backend if the profile is explicitly network-tier
+        if (accountCategory === "network") {
+          try {
+            const token = await loggedInUser.getIdToken();
+            const metricsResponse = await fetch(`${API_URL}/api/network/matrix-metrics`, {
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            });
+            
+            if (metricsResponse.ok) {
+              resolvedMatrixMetrics = await metricsResponse.json();
+            }
+          } catch (metricsErr) {
+            console.error("Delayed matrix aggregation lookup error:", metricsErr);
+            resolvedMatrixMetrics = null;
+          }
+        } else {
+          // Retail accounts exit cleanly right here without firing the API call
+          resolvedMatrixMetrics = null;
+        }
       } else {
-        resolvedMatrixMetrics = null; // Clean fallback for retailers and regular users
-      }
-    } else {
+        /*
+         * Public profile
+         */
+        // ... Keep your exact public profile code below untouched ...
+
       /*
        * Public profile
        */
