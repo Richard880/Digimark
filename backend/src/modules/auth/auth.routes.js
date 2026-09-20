@@ -1,9 +1,13 @@
 const express = require("express");
 const authenticate = require("../../middleware/authenticate");
-const UserProfile = require("../../models/UserProfile");
-const User = require("../../models/User"); // 🎯 NEW: Brought in to locate un-synchronized users safely
+
+// 🎯 THE FIX: Backtrack three levels (../../../) to step fully out of modules/auth/ and into src/ safely
+const UserProfile = require("../../../models/UserProfile");
+const User = require("../../../models/User");
+
 const matrixService = require("../../../services/matrixService"); 
 const { syncCurrentUser } = require("./auth.controller");
+
 
 const router = express.Router();
 
