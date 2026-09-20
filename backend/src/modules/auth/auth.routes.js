@@ -1,7 +1,8 @@
 const express = require("express");
 const authenticate = require("../../middleware/authenticate");
 const UserProfile = require("../../models/UserProfile");
-const matrixService = require("../../../services/matrixService"); // 🎯 NEW: Brought in for dashboard metric query execution
+const User = require("../../models/User"); // 🎯 NEW: Brought in to locate un-synchronized users safely
+const matrixService = require("../../../services/matrixService"); 
 const { syncCurrentUser } = require("./auth.controller");
 
 const router = express.Router();
@@ -12,27 +13,69 @@ const router = express.Router();
  */
 router.get("/me", authenticate, async (req, res) => {
   try {
-    const profile = await UserProfile.findOne({ userId: req.user._id }).lean();
+    // 🎯 THE CRASH SAFEGUARD: If middleware returned a null user doc, locate them via their verified Firebase Uid
+    let dbUserId = req.user?._id;
+    let currentCategory = req.userCategory || "retail";
+    let activeUserDoc = req.user;
+
+    if (!dbUserId && req.firebaseUser?.uid) {
+      // Look up if the core user record was generated during background sync delays
+      const lazyUser = await User.findOne({ firebaseUid: req.firebaseUser.uid }).lean();
+      if (lazyUser) {
+        dbUserId = lazyUser._id;
+        currentCategory = lazyUser.accountCategory || "retail";
+        activeUserDoc = lazyUser;
+      }
+    }
+
+    // If they completely skip basic DB records, return a clean payload blueprint instead of crashing the server!
+    if (!dbUserId) {
+      return res.json({
+        ok: true,
+        user: null,
+        profile: {
+          firstName: "",
+          lastName: "",
+          displayName: req.firebaseUser?.name || "",
+          profilePhoto: req.firebaseUser?.photoURL || ""
+        },
+        matrixMetrics: null
+      });
+    }
+
+    const profile = await UserProfile.findOne({ userId: dbUserId }).lean();
     
     // Initialise response structure package
     const responsePayload = {
-      user: req.user,
-      profile: profile || null,
+      ok: true,
+      user: activeUserDoc,
+      // 🎯 FORCE SAFE PALOAD BLUEPRINT SO MISSING PROPERTIES NEVER TRIP UP FRONTEND MAP LOOPS
+      profile: profile || {
+        firstName: "",
+        lastName: "",
+        displayName: req.firebaseUser?.name || "",
+        brandName: "",
+        phoneNumber: "",
+        profilePhoto: ""
+      },
       matrixMetrics: null
     };
 
-    // 🎯 SECURITY HOLE CHECK: Only compute deep tree metrics if the user track category is explicitly a network member
-    if (req.userCategory === "network") {
-      const metricsResult = await matrixService.getMatrixMetrics(req.user._id);
-      if (metricsResult.ok) {
+    // Only compute deep tree metrics if the user track category is explicitly a network member
+    if (currentCategory === "network") {
+      const metricsResult = await matrixService.getMatrixMetrics(dbUserId);
+      if (metricsResult && metricsResult.ok) {
         responsePayload.matrixMetrics = metricsResult;
       }
     }
 
-    res.json(responsePayload);
+    return res.json(responsePayload);
   } catch (error) {
-    console.error("❌ Profile Retrieval Route Failure:", error.message);
-    res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+    console.error("❌ Profile Retrieval Route Failure:", error.stack || error.message);
+    return res.status(500).json({ 
+      error: "INTERNAL_SERVER_ERROR",
+      message: error.message 
+    });
   }
 });
 
