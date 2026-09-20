@@ -9,21 +9,19 @@ const { synchronizeFirebaseUser } = require("./auth.service");
  */
 async function syncCurrentUser(req, res) {
   try {
-    const {
-      firstName,
-      lastName,
-      phoneNumber,
-      username,
-      brandName,
-      accountType,
-      sponsorUserId,
-      accountCategory,
-
-      // Profile image fields
-      profilePic,
-      photoURL,
-    } = req.body || {};
-
+   const {
+  firstName,
+  lastName,
+  phoneNumber,
+  username,
+  brandName,
+  accountType,
+  sponsorUserId,
+  accountCategory,
+  profilePic,
+  photoURL,
+  profilePhoto,
+} = req.body || {};
     // Ensure Firebase authentication middleware has populated the user.
     if (!req.firebaseUser) {
       return res.status(401).json({
@@ -39,21 +37,21 @@ async function syncCurrentUser(req, res) {
       displayName: req.firebaseUser.name || "",
 
       userData: {
-        firstName,
-        lastName,
-        phoneNumber,
-        username,
-        brandName,
-        accountType,
-        sponsorUserId: sponsorUserId || null,
+  firstName,
+  lastName,
+  phoneNumber,
+  username,
+  brandName,
+  accountType,
+  sponsorUserId: sponsorUserId || null,
+  accountCategory: accountCategory || "retail",
 
-        // Account category
-        accountCategory: accountCategory || "retail",
-
-        // Profile image
-        profilePic: profilePic || null,
-        photoURL: photoURL || null,
-      },
+  profilePhoto:
+    profilePhoto ||
+    photoURL ||
+    profilePic ||
+    null,
+},
     });
 
     return res.json({
