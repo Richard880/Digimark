@@ -1,23 +1,28 @@
 /**
- * 🛡️ Layer 3b Role & Category Authorization Guard
- * Enforces permission boundaries across business tracks.
- * @param {...string} allowedCategories - "network", "retail"
+ * 🛡️ Layer 3b Business Track & Category Authorization Guard
+ * Intercepts incoming network transactions to protect route nodes.
+ * @param {...string} allowedCategories - e.g., "network", "retail"
  */
 function authorize(...allowedCategories) {
   return (req, res, next) => {
-    // 1. Guest Session Safeguard: If authenticate middleware didn't find a user
+    // 1. Session Safeguard: Fallback if the parent authentication guard skipped hydration steps
     if (!req.user || !req.userCategory) {
-      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED", reason: "GUEST_ACCESS_DENIED" });
-    }
-
-    // 2. Strict Category Enforcement Rule
-    if (!allowedCategories.includes(req.userCategory)) {
-      return res.status(403).json({
-        error: "ACCESS_DENIED",
-        reason: `REQUIRED_TRACKS_MISSING: Requires (${allowedCategories.join(" or ")}) but account tier is ${req.userCategory}`
+      return res.status(401).json({ 
+        error: "AUTHENTICATION_REQUIRED", 
+        reason: "GUEST_SESSION_RESTRICTED" 
       });
     }
 
+    // 2. Strict Account Category Verification
+    if (!allowedCategories.includes(req.userCategory)) {
+      console.warn(`[ACL Violation] Blocked request from account category: "${req.userCategory}"`);
+      return res.status(403).json({
+        error: "ACCESS_DENIED",
+        reason: `TRACK_RESTRICTED: Requires (${allowedCategories.join(" or ")}) permissions. Your current account tier matches "${req.userCategory}".`
+      });
+    }
+
+    // 3. Verification criteria satisfied, advance payload processing safely to the controller layer
     next();
   };
 }
