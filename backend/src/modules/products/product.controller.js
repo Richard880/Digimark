@@ -28,7 +28,7 @@ async function listProducts(req, res) {
     }
 
     if (q) {
-      filter.\$or = [
+      filter.$or = [
         { name: { regex: q, options: "i" } },
         { brandName: { regex: q, options: "i" } },
         { category: { regex: q, options: "i" } },
