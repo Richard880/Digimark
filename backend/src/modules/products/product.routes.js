@@ -18,5 +18,8 @@ router.get("/", listProducts);
 router.post("/", authenticate, authorize("network"), createProduct);
 router.put("/:id", authenticate, authorize("network"), updateProduct);
 router.delete("/:id", authenticate, authorize("network"), deleteProduct);
+// 🎯 ADD THIS UNDER YOUR SECURE ROUTE LIST:
+router.patch("/:id/toggle-shelf", authenticate, authorize("network"), createProduct);
+
 
 module.exports = router;
