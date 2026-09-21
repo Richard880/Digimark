@@ -2,7 +2,7 @@ const express = require("express");
 const authenticate = require("../../middleware/authenticate");
 
 // 🎯 REVERT TO THIS: Two levels back is the correct location relative to src/
-const UserProfile = require("../../models/UserProfile");
+const UserProfile = require("../../models/UserProfile.js");
 const User = require("../../models/User");
 
 const matrixService = require("../../services/matrixService"); 
