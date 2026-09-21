@@ -5,7 +5,7 @@ const authenticate = require("../../middleware/authenticate");
 const UserProfile = require("../../models/UserProfile.js");
 const User = require("../../models/User");
 
-const matrixService = require("../../services/matrixService"); 
+const matrixService = require("../../../services/matrixService"); 
 const { syncCurrentUser } = require("./auth.controller");
 
 const router = express.Router();
