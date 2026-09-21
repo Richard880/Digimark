@@ -33,6 +33,70 @@ router.get("/matrix-metrics", authenticate, async (req, res) => {
   }
 });
 
+
+
+/**
+ * GET /api/network/team-directory
+ * 🌲 Returns structured profile cards of all matrix ancestors sitting up to 4 generations deep
+ */
+router.get("/team-directory", authenticate, async (req, res) => {
+  try {
+    if (req.userCategory !== "network") {
+      return res.status(403).json({ error: "ACCESS_DENIED_NETWORK_TRACK_REQUIRED" });
+    }
+
+    // Use single-pass aggregation lookup to grab profiles belonging to this user's tree path lineage
+    const UserProfile = require("../../models/UserProfile");
+    const User = require("../../models/User");
+
+    // Extract all members whose pathFromRoot array contains this user's unique id token
+    const downlineUsers = await User.find({ pathFromRoot: req.user._id })
+      .select("name email accountType membershipStatus isActive createdAt pathFromRoot")
+      .lean();
+
+    if (downlineUsers.length === 0) {
+      return res.json({ ok: true, generations: { level_1: [], level_2: [], level_3: [], level_4: [] } });
+    }
+
+    const userObjectIdString = req.user._id.toString();
+
+    // Map profile photos and bios into the output array by querying UserProfiles collection
+    const userIds = downlineUsers.map(u => u._id);
+    const profiles = await UserProfile.find({ userId: { \$in: userIds } }).lean();
+    const profileMap = new Map(profiles.map(p => [p.userId.toString(), p]));
+
+    const generations = { level_1: [], level_2: [], level_3: [], level_4: [] };
+
+    downlineUsers.forEach(u => {
+      const uIdStr = u._id.toString();
+      const prof = profileMap.get(uIdStr);
+      
+      // Calculate generational depth based on their index distance from this user in the path array
+      const ancestorIndex = u.pathFromRoot.findIndex(id => id.toString() === userObjectIdString);
+      const generationDepth = u.pathFromRoot.length - 1 - ancestorIndex; 
+      const exactLevel = generationDepth + 1;
+
+      if (exactLevel >= 1 && exactLevel <= 4) {
+        generations[`level_${exactLevel}`].push({
+          id: uIdStr,
+          name: u.name,
+          username: prof?.username || "sokodigi_member",
+          profilePhoto: prof?.profilePhoto || "",
+          brandName: prof?.brandName || "SokoDigi Merchant",
+          membershipStatus: u.membershipStatus,
+          isActive: u.isActive,
+          joinedAt: u.createdAt
+        });
+      }
+    });
+
+    return res.json({ ok: true, generations });
+  } catch (err) {
+    console.error("❌ Directory compilation error:", err.stack);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+});
+
 /**
  * POST /api/network/register
  * 🔒 Strict Verification Completeness Engine for Custom Fallback Signups
