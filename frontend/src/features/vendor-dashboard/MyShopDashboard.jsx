@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../../features/auth/hooks/useAuth";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader"; // Your utility
-import styles from "./MyShopDashboard.css"; // Ensure your CSS modules/classes are correct
+import styles from "./MyShopDashboard.module.css"; // Ensure your CSS modules/classes are correct
 
 // Dynamic URL router parsing
 const API_URL = import.meta.env.PROD 
