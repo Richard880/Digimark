@@ -624,55 +624,67 @@ return (
                   </div>
 
 {isOwnProfile ? (
-                    <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          navigate(MEMBER_SETTINGS_ROUTE)
-                        }
-                        className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
-                      >
-                        Edit Profile
-                      </button>
+  <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
+    
+    {/* 🎯 THE FIX: Conditionally render the directory navigation shortcut ONLY for network track accounts */}
+    {(brandProfile?.accountCategory === "network" || auth?.profile?.accountCategory === "network") && (
+      <button
+        type="button"
+        onClick={() => navigate("/my-team")}
+        className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 shadow-xs"
+      >
+        <svg 
+          className="h-3.5 w-3.5" 
+          fill="none" 
+          viewBox="0 0 24 24" 
+          stroke="currentColor" 
+          strokeWidth="2.5"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+        My Team Directory
+      </button>
+    )}
 
-<button
-                        type="button"
-                        onClick={handleShareProfile}
-                        className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
-                      >
-                        Share
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setIsSubscribed(
-                            (previous) => !previous
-                          )
-                        }
-                        className={`rounded-lg px-6 py-2 text-xs font-bold transition ${
-                          isSubscribed
-                            ? "border border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
-                        }`}
-                      >
-                        {isSubscribed
-                          ? "✓ Subscribed"
-                          : "+ Subscribe"}
-                      </button>
+    <button
+      type="button"
+      onClick={() => navigate(MEMBER_SETTINGS_ROUTE)}
+      className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
+    >
+      Edit Profile
+    </button>
 
-<button
-                        type="button"
-                        onClick={handleShareProfile}
-                        className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
-                      >
-                        Share
-                      </button>
-                    </div>
-                  )}
-                </div>
+    <button
+      type="button"
+      onClick={handleShareProfile}
+      className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
+    >
+      Share
+    </button>
+  </div>
+) : (
+  <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
+    <button
+      type="button"
+      onClick={() => setIsSubscribed((previous) => !previous)}
+      className={`rounded-lg px-6 py-2 text-xs font-bold transition ${
+        isSubscribed
+          ? "border border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-200"
+          : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
+      }`}
+    >
+      {isSubscribed ? "✓ Subscribed" : "+ Subscribe"}
+    </button>
+
+    <button
+      type="button"
+      onClick={handleShareProfile}
+      className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+    >
+      Share
+    </button>
+  </div>
+)}
 
 <div className="mt-5 text-center sm:text-left">
                   <h2 className="text-lg font-bold text-slate-900">
