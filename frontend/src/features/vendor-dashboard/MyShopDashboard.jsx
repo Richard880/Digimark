@@ -35,27 +35,47 @@ export default function MyShopDashboard() {
   const fileInputRef = useRef(null);
 
   // Fetch inventory on auth change or component mount
-  useEffect(() => {
-    const fetchShopInventory = async () => {
-      try {
-        setIsLoading(true);
-        const token = await auth?.currentUser?.getIdToken();
-        const response = await fetch(`${API_URL}/api/products?sellerId=${auth?.profile?.id || auth?.user?._id}&status=all`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setAllProducts(Array.isArray(data) ? data : []);
-        }
-      } catch (err) {
-        console.error("Inventory synchronization lookup failure:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+ // 🎯 UPDATE THIS HOOK BLOCKS INSIDE MYSHOPDASHBOARD.JSX:
+useEffect(() => {
+  const fetchShopInventory = async () => {
+    try {
+      setIsLoading(true);
+      const token = await auth?.currentUser?.getIdToken();
+      
+      // Determine the authoritative database id reference matching your auth schema spreading profile mapping track
+      const resolvedSellerId = 
+        auth?.user?.id || 
+        auth?.user?._id || 
+        auth?.profile?.id || 
+        auth?.profile?._id || 
+        auth?.currentUser?.uid;
 
-    if (auth?.currentUser) fetchShopInventory();
-  }, [auth]);
+      if (!resolvedSellerId) {
+        console.warn("Delaying inventory sync query execution layer: user identifier string is resolving empty.");
+        return;
+      }
+
+      console.log(`Synchronizing shop vault records for seller allocation identity: ${resolvedSellerId}`);
+
+      // Query passing the verified database ID
+      const response = await fetch(`${API_URL}/api/products?sellerId=${resolvedSellerId}&status=all`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAllProducts(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error("Inventory synchronization lookup failure:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (auth?.currentUser) fetchShopInventory();
+}, [auth]);
+
 
   // Toggle shelf placement
   const handleToggleShelfPlacement = async (productId) => {
