@@ -155,22 +155,98 @@ export default function MyShopDashboard() {
               </div>
             </div>
 
-            {/* Input Parameter Form Sheets */}
+                     {/* INPUT PARAMETER FORM SHEETS */}
             <div className="space-y-3 mb-6">
-              <input type="text" name="name" placeholder="Item descriptive profile title name..." value={formData.name} onChange={handleInputChange} disabled={isCommitting} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-emerald-500 focus:outline-none" />
+              <input 
+                type="text" 
+                name="name" 
+                placeholder="Item descriptive profile title name..." 
+                value={formData.name} 
+                onChange={handleInputChange} 
+                disabled={isCommitting} 
+                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-emerald-500 focus:outline-none" 
+              />
               
               <div className="grid grid-cols-3 gap-2">
-                <input type="number" name="price" placeholder="Price (KES)..." value={formData.price} onChange={handleInputChange} disabled={isCommitting} className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-emerald-500 focus:outline-none" />
-                <input type="number" name="affiliateCommission" placeholder="Earn Cut (KES)..." value={formData.affiliateCommission} onChange={handleInputChange} disabled={isCommitting} className="w-full rounded-xl border border-emerald-200 bg-emerald-50/20 px-3 py-3 text-sm text-emerald-800 font-medium focus:border-emerald-500 focus:outline-none" />
-                <input type="number" name="quantity" placeholder="Stock count..." value={formData.quantity} onChange={handleInputChange} disabled={isCommitting} className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-emerald-500 focus:outline-none" />
+                <input 
+                  type="number" 
+                  name="price" 
+                  placeholder="Price (KES)..." 
+                  value={formData.price} 
+                  onChange={handleInputChange} 
+                  disabled={isCommitting} 
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-emerald-500 focus:outline-none" 
+                />
+                <input 
+                  type="number" 
+                  name="affiliateCommission" 
+                  placeholder="Earn Cut (KES)..." 
+                  value={formData.affiliateCommission} 
+                  onChange={handleInputChange} 
+                  disabled={isCommitting} 
+                  className="w-full rounded-xl border border-emerald-200 bg-emerald-50/20 px-3 py-3 text-sm text-emerald-800 font-medium focus:border-emerald-500 focus:outline-none" 
+                />
+                <input 
+                  type="number" 
+                  name="quantity" 
+                  placeholder="Stock count..." 
+                  value={formData.quantity} 
+                  onChange={handleInputChange} 
+                  disabled={isCommitting} 
+                  className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-emerald-500 focus:outline-none" 
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <input type="text" name="category" placeholder="Category (shoes, tech)..." value={formData.category} onChange={handleInputChange} disabled={isCommitting} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs focus:border-emerald-500 focus:outline-none" />
-                <input type="text" name="brandName" placeholder="Display Brand Shop Name..." value={formData.brandName} onChange={handleInputChange} disabled={isCommitting} className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs focus:border-emerald-500 focus:outline-none" />
+                <input 
+                  type="text" 
+                  name="category" 
+                  placeholder="Category (shoes, tech)..." 
+                  value={formData.category} 
+                  onChange={handleInputChange} 
+                  disabled={isCommitting} 
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs focus:border-emerald-500 focus:outline-none" 
+                />
+                <input 
+                  type="text" 
+                  name="brandName" 
+                  placeholder="Display Brand Shop Name..." 
+                  value={formData.brandName} 
+                  onChange={handleInputChange} 
+                  disabled={isCommitting} 
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs focus:border-emerald-500 focus:outline-none" 
+                />
               </div>
             </div>
 
+            {/* ACTION TRIGGERS CONTAINER */}
             <div className="flex justify-end gap-2">
-              <button type="button" disabled={isCommitting} onClick={() => { setIsModalOpen(false); setPreviewUrl(null); setSelectedFile(null); }} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold hover:bg-slate-200 transition">Dismiss</button>
-{isCommitting ? "Uploading Asset..." : "Commit Stream"})});}
+              <button 
+                type="button" 
+                disabled={isCommitting} 
+                onClick={() => { 
+                  setIsModalOpen(false); 
+                  setPreviewUrl(null); 
+                  setSelectedFile(null); 
+                }} 
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-bold hover:bg-slate-200 transition"
+              >
+                Dismiss
+              </button>
+              
+              <button
+                type="button"
+                onClick={handleCommitProductStream}
+                disabled={isCommitting}
+                className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition disabled:opacity-40"
+              >
+                {isCommitting ? "Uploading Asset..." : "Commit Stream"}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
