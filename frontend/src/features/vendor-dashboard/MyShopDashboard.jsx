@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import useAuth from "../../features/auth/hooks/useAuth";
+import useAuth from "../../auth/hooks/useAuth";
 import { uploadImageToCloudinary } from "../../utils/cloudinaryUploader"; 
 import styles from "./MyShopDashboard.module.css"; 
 
@@ -33,6 +33,48 @@ export default function MyShopDashboard() {
   });
 
   const fileInputRef = useRef(null);
+
+  // Fetch inventory on auth change or component mount
+  useEffect(() => {
+    const fetchShopInventory = async () => {
+      try {
+        setIsLoading(true);
+        const token = await auth?.currentUser?.getIdToken();
+        const response = await fetch(`${API_URL}/api/products?sellerId=${auth?.profile?.id || auth?.user?._id}&status=all`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setAllProducts(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error("Inventory synchronization lookup failure:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (auth?.currentUser) fetchShopInventory();
+  }, [auth]);
+
+  // Toggle shelf placement
+  const handleToggleShelfPlacement = async (productId) => {
+    try {
+      const token = await auth?.currentUser?.getIdToken();
+      const response = await fetch(`${API_URL}/api/products/${productId}/toggle-shelf`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const responseData = await response.json();
+        setAllProducts((prevProducts) =>
+          prevProducts.map((p) => (p._id === productId ? responseData.product : p))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to alter shelf state layout:", err);
+    }
+  };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -132,18 +174,84 @@ export default function MyShopDashboard() {
       <main className="flex-1 p-6 bg-slate-50/50 min-h-screen">
         {activeTab === "inventory" && (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-base font-bold text-slate-800 mb-4">Store Inventory Catalog</h2>
-            {/* Table or list of products mapping goes here */}
+            {/* Your Inventory Management Dashboard Layout */}
+            <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-bold text-slate-800">Warehouse Inventory Vault</h2>
+                <p className="text-xs text-slate-400">Manage stock quantities and deploy items to public consumer shelves.</p>
+              </div>
+            </div>
+
+            {allProducts.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      <th className="py-3 px-4">Item Details</th>
+                      <th className="py-3 px-4">Wholesale/Retail Price</th>
+                      <th className="py-3 px-4">Stock Level</th>
+                      <th className="py-3 px-4">Shelf Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 text-sm text-slate-700">
+                    {allProducts.map((item) => (
+                      <tr key={item._id} className="hover:bg-slate-50/50 transition">
+                        <td className="py-4 px-4 flex items-center gap-3">
+                          <img src={item.imageUrl} alt={item.name} className="h-10 w-10 rounded-lg object-cover border border-slate-100" crossOrigin="anonymous" />
+                          <div>
+                            <span className="font-bold text-slate-800 block">{item.name}</span>
+                            <span className="font-mono text-[10px] text-slate-400 uppercase">{item.productCode}</span>
+                          </div>
+                        </td>
+                        <td className="py-4 px-4 font-medium">
+                          <span className="block text-slate-400 text-xs">Wholesale: KES {item.wholesalePrice}</span>
+                          <span className="block text-slate-800 font-bold">Retail: KES {item.price}</span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${item.quantity > 5 ? "bg-slate-50 text-slate-700" : "bg-red-50 text-red-700"}`}>
+                            {item.quantity} units
+                          </span>
+                        </td>
+                        <td className="py-4 px-4">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide ${
+                            item.status === "LISTED" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-slate-100 text-slate-500"
+                          }`}>
+                            {item.status === "LISTED" ? "🛒 On Shelves" : "📦 In Vault"}
+                          </span>
+                        </td>
+                        <td className="py-4 px-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleShelfPlacement(item._id)}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+                              item.status === "LISTED"
+                                ? "bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200"
+                                : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                            }`}
+                          >
+                            {item.status === "LISTED" ? "Take Down" : "Put on Shelves"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-12 text-slate-400 text-xs">
+                Your warehouse vault storage is currently empty. Click "Add New Product" to stock items!
+              </div>
+            )}
           </div>
         )}
       </main>
 
-      {/* Modal for Product Listing Form */}
+      {/* Modal for Product Listing form */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fadeIn">
           <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-xl p-6 relative">
             <h2 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">📦 List New Marketplace Product</h2>
-
             {/* Image Upload Preview Canvas */}
             <div className="flex items-center gap-4 mb-4 p-3 bg-emerald-50/50 rounded-2xl border border-emerald-100/50">
               <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-xs">
@@ -155,7 +263,7 @@ export default function MyShopDashboard() {
               </div>
             </div>
 
-                     {/* INPUT PARAMETER FORM SHEETS */}
+            {/* INPUT PARAMETER FORM SHEETS */}
             <div className="space-y-3 mb-6">
               <input 
                 type="text" 
@@ -243,7 +351,6 @@ export default function MyShopDashboard() {
                 {isCommitting ? "Uploading Asset..." : "Commit Stream"}
               </button>
             </div>
-
           </div>
         </div>
       )}
