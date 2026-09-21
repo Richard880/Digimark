@@ -18,14 +18,14 @@ export default function ProductDetails() {
   const [errorMsg, setErrorMsg] = useState(null);
   const [isPinning, setIsPinning] = useState(false);
 
-  useEffect(() => {
+   useEffect(() => {
     if (!id) return;
 
     const fetchDetails = async () => {
       try {
         setIsLoading(true);
         
-        // 🎯 FIXED PATH: Using your dynamic environment base URL path configuration
+        // 🎯 THE FIX: Query the main product routes layout tree matching your Express setup
         const response = await fetch(`${API_URL}/api/products/${id}`);
         
         if (!response.ok) {
