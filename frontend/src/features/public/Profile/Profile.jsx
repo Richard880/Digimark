@@ -199,16 +199,15 @@ export default function Profile() {
               loggedInProfile?.description ||
               "",
 // 🎯 UPDATE THIS SPECIFIC PROPERTY BLOCK INSIDE YOUR PROFILE.JSX LOADPROFILE HOOK:
-photoURL: (() => {
-  const rawUrl = 
-    loggedInProfile?.profilePhoto || // 🎯 PRIORITIZE THE DICTATED AUTHORITATIVE DATABASE FIELD FIRST
-    loggedInProfile?.photoURL ||
-    loggedInProfile?.profilePic ||
-    loggedInUser?.photoURL ||
-    "";
-  
-  return rawUrl;
-})(),
+ photoURL: (() => {
+    return (
+      loggedInProfile?.profilePhoto || 
+      loggedInProfile?.photoURL || 
+      loggedInProfile?.profilePic || 
+      loggedInUser?.photoURL || 
+      ""
+    );
+  })(),
 
             profilePic:
               loggedInProfile?.profilePic ||
