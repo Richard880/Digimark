@@ -217,6 +217,54 @@ export default function Navbar({
                 </div>
               </Link>
 
+
+{/* 🎯 UPDATE THIS DRAWER CONTAINER INSIDE YOUR NAVBAR.JSX: */}
+{user ? (
+  <div className={styles["profile-avatar-wrapper"]}>
+    <Link
+      to={profileUserId ? `/profile/${profileUserId}` : "/profile"}
+      onClick={closeMenu}
+      className={styles["avatar-profile-link"]}
+      title="View My Profile Storefront"
+      style={{ display: "block", textDecoration: "none" }}
+    >
+      <div className={styles["avatar-circle"]} style={{ cursor: "pointer" }}>
+        {avatarUrl ? (
+          <img src={avatarUrl} alt={`${displayName} profile`} className={styles["avatar-img-element"]} crossOrigin="anonymous" />
+        ) : (
+          <svg className={styles["avatar-fallback-icon"]} viewBox="0 0 24 24" fill="currentColor" width="1em" height="1em"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" /></svg>
+        )}
+      </div>
+    </Link>
+
+    {/* 🎯 NEW: Short-cut Wallet Button text link inside your top navbar header block */}
+    <Link 
+      to="/wallet" 
+      onClick={closeMenu}
+      className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition px-2 py-1 bg-emerald-50 rounded-lg"
+    >
+      💳 Wallet
+    </Link>
+
+    <button
+      type="button"
+      className={styles["logout-btn"]}
+      onClick={() => {
+        onLogout?.();
+        closeMenu();
+      }}
+    >
+      Logout
+    </button>
+  </div>
+) : (
+  <button type="button" className={styles["login-cta-button"]} onClick={() => { onAuthClick?.(); closeMenu(); }}>
+    Get Started
+  </button>
+)}
+
+
+              
               <button
                 type="button"
                 className={styles["logout-btn"]}
