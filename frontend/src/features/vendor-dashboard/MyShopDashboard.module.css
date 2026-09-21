@@ -240,7 +240,6 @@
   padding: 1.5rem;
   text-align: left;
   box-shadow: 0 4px 10px rgba(45, 58, 46, 0.01);
-  box-sizing: border-box;
 }
 
 .metric-card h3 {
@@ -394,9 +393,60 @@
     grid-template-columns: 1fr;
     gap: 1rem;
   }
-  
+
   .pro-table th:nth-child(3),
   .pro-table td:nth-child(3) {
     display: none; /* Hide category filters gracefully on tiny viewports */
   }
 }
+
+/* ==========================================================================
+   NEW: Modal form inputs styles
+   ========================================================================== */
+.modal-card input[type="text"],
+.modal-card input[type="number"],
+.modal-card textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e2e8df;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  outline: none;
+  transition: all 0.2s ease;
+  margin-bottom: 0.75rem;
+  background-color: #fff;
+  color: #1c261d;
+}
+
+/* Focus styles for inputs inside modal */
+.modal-card input[type="text"]:focus,
+.modal-card input[type="number"]:focus,
+.modal-card textarea:focus {
+  border-color: #2e7d32;
+  box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.08);
+}
+
+/* Labels inside modal */
+.modal-card label {
+  font-weight: 600;
+  font-size: 0.75rem;
+  display: block;
+  margin-bottom: 0.25rem;
+  color: #2e7d32;
+}
+
+/* Style for the image preview container inside modal */
+.modal-card .w-16 {
+  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #f9fafb;
+}
+
+/* Buttons inside modal (commit/dismiss) - optional, override existing if needed */
+.modal-card button {
+  min-width: 100px;
+  font-weight: 600;
+}
+
+/* Optional: hover effects for modal buttons if you prefer custom classes */
