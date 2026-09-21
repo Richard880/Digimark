@@ -97,13 +97,13 @@ async function getMatrixMetrics(rootUserId) {
     // 1. Single database pass using graph traversal matching only network node boundaries
     const downlineTree = await User.aggregate([
       { 
-        \$match: { 
+        $match: { 
           _id: anchorId, 
           accountCategory: "network" 
         } 
       },
       {
-        \$graphLookup: {
+        $graphLookup: {
           from: "users",
           startWith: "\$referrals",
           connectFromField: "referrals",
@@ -115,19 +115,19 @@ async function getMatrixMetrics(rootUserId) {
       },
       {
         // 🎯 THE COMPATIBILITY CURE: Standard filtering block supported across all old and new Mongo servers
-        \$addFields: {
+        $addFields: {
           matrixDownline: {
-            \$filter: {
-              input: "\$rawMatrixDownline",
+            $filter: {
+              input: "$rawMatrixDownline",
               as: "node",
-              cond: { \(eq: ["\)\$node.accountCategory", "network"] }
+              cond: { (eq: ["\)$node.accountCategory", "network"] }
             }
           }
         }
       },
       {
         // Flush temporary arrays out of the response payload memory map
-        \$project: { rawMatrixDownline: 0 }
+        $project: { rawMatrixDownline: 0 }
       }
     ]);
 
