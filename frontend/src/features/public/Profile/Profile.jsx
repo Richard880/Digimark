@@ -736,8 +736,8 @@ export default function Profile() {
                 )}
               </button>
 
-              // 🎯 Add this button into your Profile.jsx Tab Bar buttons row:
-{brandProfile?.accountCategory === "network" && (
+      
+
   <button
     type="button"
     onClick={() => setActiveTab("shared")}
@@ -750,7 +750,7 @@ export default function Profile() {
       <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-emerald-600" />
     )}
   </button>
-)}
+
 
 
               <button
@@ -891,6 +891,45 @@ export default function Profile() {
             )}
           </section>
         )}
+
+   
+{activeTab === "shared" && (
+  <section className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    {sharedProducts.length > 0 ? (
+      sharedProducts.map((item) => (
+        <div key={item._id} className="overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          {/* Note: item.productId nested properties are populated directly by Mongoose! */}
+          <img 
+            src={item.productId?.imageUrl} 
+            alt={item.productId?.name} 
+            className="h-40 w-full rounded-lg object-cover" 
+            crossOrigin="anonymous"
+          />
+          <h3 className="mt-2 text-sm font-bold text-slate-800">{item.productId?.name}</h3>
+          <p className="text-xs text-slate-400 font-medium">By {item.productId?.brandName || "Partner Shop"}</p>
+          
+          <div className="mt-3 flex items-center justify-between border-t border-slate-50 pt-2">
+            <span className="text-sm font-black text-slate-900">KES {item.productId?.price?.toLocaleString()}</span>
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-extrabold text-amber-700 uppercase">
+              Affiliate Pick
+            </span>
+          </div>
+          
+          {item.customNotes && (
+            <p className="mt-2 bg-slate-50 p-2 rounded text-[11px] italic text-slate-500">
+              💡 "{item.customNotes}"
+            </p>
+          )}
+        </div>
+      ))
+    ) : (
+      <div className="col-span-full text-center py-12 text-slate-400 text-xs">
+        No re-pinned catalog products listed on this storefront yet.
+      </div>
+    )}
+  </section>
+)}
+
 
         {activeTab === "about" && (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
