@@ -182,12 +182,18 @@ useEffect(() => {
         <div className={styles["brand-row"]}>
           <h1 className={styles["brand-title"]}>myShop <span className={styles["brand-accent"]}>Pro</span></h1>
         </div>
-        <nav className={styles["nav-menu"]}>
-          <button type="button" onClick={() => setActiveTab("inventory")} className={`${styles["sidebar-link"]} ${activeTab === "inventory" ? styles["sidebar-link-active"] : ""}`}>📦 Inventory Portal</button>
-          <button type="button" onClick={() => navigate("/marketplace")} className={styles["sidebar-link"]}>🛒 Browse MarketHub</button>
-          <button type="button" onClick={() => navigate("/")} className={styles["sidebar-link"]}>🏠 Home Landing Page</button>
-          <button type="button" onClick={() => setIsModalOpen(true)} className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 text-xs font-bold transition">➕ Add New Product</button>
-        </nav>
+
+<nav className={styles["nav-menu"]}>
+  <button type="button" onClick={() => setActiveTab("inventory")} className={`${styles["sidebar-link"]} ${activeTab === "inventory" ? styles["sidebar-link-active"] : ""}`}>📦 Inventory Portal</button>
+  
+  {/* 🎯 NEW: Direct Wallet Ledger balance monitoring shortcut link inside your shop portal */}
+  <button type="button" onClick={() => navigate("/wallet")} className={styles["sidebar-link"]}>💳 Shop Revenue Wallet</button>
+  
+  <button type="button" onClick={() => navigate("/marketplace")} className={styles["sidebar-link"]}>🛒 Browse MarketHub</button>
+  <button type="button" onClick={() => navigate("/")} className={styles["sidebar-link"]}>🏠 Home Landing Page</button>
+  <button type="button" onClick={() => setIsModalOpen(true)} className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 text-xs font-bold transition">➕ Add New Product</button>
+</nav>
+
       </aside>
 
       {/* Main Workspace Frame */}
