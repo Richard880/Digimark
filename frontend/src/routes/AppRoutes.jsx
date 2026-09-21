@@ -8,6 +8,7 @@ import ProductDetails from "../features/public/ProductDetails/ProductDetails";
 import MyShopDashboard from "../features/vendor-dashboard/MyShopDashboard"; 
 import MyTeamDirectory from "../features/vendor-dashboard/MyTeamDirectory";
 import Profile from "../features/public/Profile/Profile"; 
+import Wallet from "../features/public/wallet/Wallet";
 
 // Import your unified authentication state hook
 import useAuth from "../features/auth/hooks/useAuth";
@@ -73,6 +74,8 @@ export default function AppRoutes() {
       </ProtectedVendorRoute>
     } 
   />
+
+          <Route path="/wallet" element={<ProtectedVendorRoute><Wallet /></ProtectedVendorRoute>} />
         </Route>
 
         {/* ==========================================================================
