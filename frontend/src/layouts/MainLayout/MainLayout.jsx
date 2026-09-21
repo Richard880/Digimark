@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Outlet } from "react-router-dom"; 
 import useAuth from "../../features/auth/hooks/useAuth"; 
 import Navbar from "../Navbar/Navbar"; 
@@ -8,7 +8,18 @@ import styles from "./MainLayout.module.css";
 
 export default function MainLayout() { 
   const { auth, logout } = useAuth(); 
-  const user = auth?.currentUser;
+  
+  // 🎯 THE FINAL FIX: Combine Firebase Authentication and your MongoDB Profile data records 
+  // into a single unified data payload wrapper so the Navbar gets the true profilePhoto property!
+  const unifiedUser = useMemo(() => {
+    if (!auth?.currentUser) return null;
+    
+    return {
+      ...auth.currentUser,
+      ...auth.profile, // Injects your clean database "profilePhoto" field directly onto the root object level!
+      profile: auth.profile
+    };
+  }, [auth?.currentUser, auth?.profile]);
 
   // UI Modal Controls
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -70,15 +81,16 @@ export default function MainLayout() {
 
   return ( 
     <div className={styles["sokodigi-app"]}> 
+      {/* 🎯 THE FIX: Pass down the dynamic unifiedUser object carrying your profile data fields */}
       <Navbar 
-        user={user} 
+        user={unifiedUser} 
         onLogout={logout} 
         onAuthClick={() => setIsAuthModalOpen(true)} 
         onSearchUpdate={handleSearchUpdate}
       />
 
       <AuthModal 
-        isOpen={isAuthModalOpen && !user}
+        isOpen={isAuthModalOpen && !auth?.currentUser}
         onClose={() => setIsAuthModalOpen(false)}
       />
 
