@@ -6,6 +6,7 @@ import HomePage from "../features/public/home/HomePage";
 import MarketHub from "../features/public/market/MarketHub"; 
 import ProductDetails from "../features/public/ProductDetails/ProductDetails";
 import MyShopDashboard from "../features/vendor-dashboard/MyShopDashboard"; 
+import MyTeamDirectory from "../features/vendor-dashboard/MyTeamDirectory";
 import Profile from "../features/public/Profile/Profile"; 
 
 // Import your unified authentication state hook
@@ -64,6 +65,14 @@ export default function AppRoutes() {
           <Route path={ROUTES.MARKETPLACE} element={<MarketHub />} />
           <Route path={ROUTES.PRODUCT_DETAILS} element={<ProductDetails />} />
           <Route path={ROUTES.PUBLIC_PROFILE} element={<Profile />} />
+           <Route 
+    path="/my-team" 
+    element={
+      <ProtectedVendorRoute>
+        <MyTeamDirectory />
+      </ProtectedVendorRoute>
+    } 
+  />
         </Route>
 
         {/* ==========================================================================
