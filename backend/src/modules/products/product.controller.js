@@ -6,23 +6,38 @@ function productCode() {
   return `SDK-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
+// 🎯 UPDATE THIS SPECIFIC FUNCTION IN PRODUCT.CONTROLLER.JS:
 async function listProducts(req, res) {
   try {
     const { sellerId, shopId, status, q } = req.query;
     const filter = {};
-    const requestedSeller = sellerId || shopId;
-
-    if (requestedSeller) filter.sellerId = requestedSeller;
-    if (status) filter.status = status;
-    else filter.status = "LISTED";
     
+    // Support either route query parameter seamlessly
+    const requestedSeller = sellerId || shopId;
+    if (requestedSeller) {
+      filter.sellerId = requestedSeller;
+    } else if (req.user?._id) {
+      // Emergency backup: if a logged-in user views their own dashboard, isolate it to their items
+      filter.sellerId = req.user._id;
+    }
+
+    // 🎯 THE STATUS ALL FIX: Only filter by status if it's explicitly passed and NOT set to "all"
+    if (status && status !== "all" && status !== "") {
+      filter.status = status;
+    } else if (!requestedSeller) {
+      // If it's a public guest user browsing MarketHub without an explicit merchant ID, default to listed shelves
+      filter.status = "LISTED";
+    }
+
     if (q) {
       filter.$or = [
-        { name: { regex: q, options: "i" } },
-        { brandName: { regex: q, options: "i" } },
-        { category: { regex: q, options: "i" } },
+        { name: { $regex: q, $options: "i" } },
+        { brandName: { $regex: q, $options: "i" } },
+        { category: { $regex: q, $options: "i" } },
       ];
     }
+
+    console.log("⚓ Active inventory vault query filter footprint:", filter);
 
     const products = await Product.find(filter).sort({ createdAt: -1 }).lean();
     return res.json(products);
