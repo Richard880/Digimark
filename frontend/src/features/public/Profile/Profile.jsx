@@ -571,6 +571,18 @@ export default function Profile() {
 
                   {isOwnProfile ? (
                     <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
+
+                       <button
+      type="button"
+      onClick={() => navigate("/wallet")}
+      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 shadow-xs"
+    >
+      <svg className="h-3.5 w-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+      </svg>
+      My Wallet
+    </button>
+                      
                       {(brandProfile?.accountCategory === "network" ||
                         auth?.profile?.accountCategory === "network") && (
                         <button
