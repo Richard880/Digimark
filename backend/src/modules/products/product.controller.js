@@ -147,4 +147,48 @@ async function deleteProduct(req, res) {
   }
 }
 
-module.exports = { listProducts, createProduct, updateProduct, deleteProduct };
+/**
+ * 🔒 Layer 4b Inventory Shelf State Toggle
+ * Moves products between the private Warehouse Vault ("READY") and Public Shelves ("LISTED")
+ */
+async function toggleProductShelfStatus(req, res) {
+  try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    }
+
+    const { id } = req.params;
+
+    // Locate the target item while verifying the caller is the true owner
+    const product = await Product.findOne({ _id: id, sellerId: req.user._id });
+    if (!product) {
+      return res.status(404).json({ error: "INVENTORY_ITEM_NOT_FOUND" });
+    }
+
+    // 🎯 THE TOGGLE LOGIC: Flip status smoothly across validation boundaries
+    const nextStatus = product.status === "LISTED" ? "READY" : "LISTED";
+    product.status = nextStatus;
+
+    await product.save();
+
+    return res.json({
+      ok: true,
+      message: `Product successfully moved to ${nextStatus === "LISTED" ? "Public Shelves" : "Warehouse Storage"}.`,
+      product
+    });
+
+  } catch (error) {
+    console.error("❌ Shelf state toggle operation failure:", error.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", reason: error.message });
+  }
+}
+
+// 🎯 DON'T FORGET TO EXPORT IT AT THE BOTTOM OF THE FILE:
+module.exports = { 
+  listProducts, 
+  createProduct, 
+  updateProduct, 
+  deleteProduct,
+  toggleProductShelfStatus // ➕ Export added here
+};
+
