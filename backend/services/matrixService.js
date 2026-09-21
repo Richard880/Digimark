@@ -120,7 +120,8 @@ async function getMatrixMetrics(rootUserId) {
             $filter: {
               input: "$rawMatrixDownline",
               as: "node",
-              cond: { (eq: ["\)$node.accountCategory", "network"] }
+            cond: { $eq: ["$$node.accountCategory", "network"] }
+
             }
           }
         }
