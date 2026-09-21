@@ -40,42 +40,40 @@ export default function Navbar({
     user?._id ||
     user?.profile?.id ||
     user?.profile?._id ||
-    user?.profile?.userId || // 🎯 Added fallback identifier path
+    user?.profile?.userId || 
     "";
 
-  // 🎯 THE FIX: Exhaustive object extraction covering both your context models and sync payloads
-// 🎯 UPDATE THIS INSIDE YOUR NAVBAR.JSX TO ENSURE SURVIVAL ON GENERAL TAB LEAVE/RETURN ROUTINGS:
-// 🎯 UPDATE THIS INSIDE YOUR NAVBAR.JSX TO ENSURE RE-LOGIN IMAGE SURVIVAL:
-const resolvedAvatarUrl = useMemo(() => {
-  return (
-    // Check root and nested auth provider layouts for the authoritative Mongo field first
-    user?.profilePhoto || 
-    user?.profile?.profilePhoto || 
-    user?.profilePic ||
-    user?.photoURL ||
-    user?.profile?.profilePic ||
-    user?.profile?.photoURL ||
-    ""
-  );
-}, [user]);
+  // 🎯 THE DATABASE FIELD ALIGNMENT FIX:
+  // Prioritise the true Mongoose database tracking key ("profilePhoto") at all layers
+  const resolvedAvatarUrl = useMemo(() => {
+    return (
+      user?.profilePhoto || 
+      user?.profile?.profilePhoto || 
+      user?.profilePic ||
+      user?.photoURL ||
+      user?.profile?.profilePic ||
+      user?.profile?.photoURL ||
+      ""
+    );
+  }, [user]);
 
-
-
-  // Sync avatarUrl state when the root authenticated user state changes
+  // 🎯 THE RE-RENDER CACHE RECOVERY FIX:
+  // Removed the tracking condition wrapper block completely. 
+  // This guarantees that your states synchronize instantly during page mounts or hard refreshes.
   useEffect(() => {
-    if (resolvedAvatarUrl) {
-      setAvatarUrl(resolvedAvatarUrl);
-    }
+    setAvatarUrl(resolvedAvatarUrl || "");
   }, [resolvedAvatarUrl]);
 
-  // 🎯 THE FIX: Robustly catch your custom image update broadcast events
+  // 🎯 THE BROADCAST HANDLER EVENT FIX:
+  // Intercept layout updates and map straight onto your new profilePhoto field
   useEffect(() => {
     const handleProfileAvatarUpdated = (event) => {
       console.log("Navbar intercepted custom update event:", event.detail);
       const newAvatarUrl =
+        event?.detail?.profilePhoto ||
         event?.detail?.profilePic ||
         event?.detail?.photoURL ||
-        event?.detail?.url || // Common event wrapper backup properties
+        event?.detail?.url || 
         "";
 
       if (newAvatarUrl) {
@@ -154,7 +152,7 @@ const resolvedAvatarUrl = useMemo(() => {
               aria-label="Toggle search container"
             >
               <svg
-                xmlns="http://www.w3.org/2000/svg"
+                xmlns="http://w3.org"
                 width="16"
                 height="16"
                 fill="none"
@@ -166,7 +164,7 @@ const resolvedAvatarUrl = useMemo(() => {
                 aria-hidden="true"
               >
                 <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <line x1="21" y1="21" x2="16.65" x2="16.65" />
               </svg>
             </button>
 
@@ -199,12 +197,11 @@ const resolvedAvatarUrl = useMemo(() => {
                     <img
                       src={avatarUrl}
                       alt={`${displayName} profile`}
-                      className={styles["avatar-img-element"]} // Clean styling hook reference
-                      crossOrigin="anonymous" // Ensure your newly uploaded Cloudinary image maps securely here too!
+                      className={styles["avatar-img-element"]}
+                      crossOrigin="anonymous" // 🌟 FORCE BROWSER TO PASS CORS DELIVERY HEADERS
                       onError={(event) => {
                         console.error("Navbar failed to render avatar source:", avatarUrl);
                         event.currentTarget.style.display = "none";
-                        // If it fails with an invalid link layout, fallback safely to the SVG icon
                         setAvatarUrl(""); 
                       }}
                     />
