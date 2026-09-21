@@ -1,13 +1,12 @@
 const express = require("express");
 const authenticate = require("../../middleware/authenticate");
 
-// 🎯 REVERT TO THIS: Two levels back is the correct location relative to src/
+// REVERT TO THIS: Two levels back is the correct location relative to src/
 const UserProfile = require("../../models/UserProfile.js");
 const User = require("../../models/User");
 
-const matrixService = require("../../../services/matrixService"); 
+const matrixService = require("../../services/matrixService"); 
 const { syncCurrentUser } = require("./auth.controller");
-
 
 const router = express.Router();
 
@@ -17,7 +16,7 @@ const router = express.Router();
  */
 router.get("/me", authenticate, async (req, res) => {
   try {
-    // 🎯 THE CRASH SAFEGUARD: If middleware returned a null user doc, locate them via their verified Firebase Uid
+    // THE CRASH SAFEGUARD: If middleware returned a null user doc, locate them via their verified Firebase Uid
     let dbUserId = req.user?._id;
     let currentCategory = req.userCategory || "retail";
     let activeUserDoc = req.user;
@@ -41,7 +40,8 @@ router.get("/me", authenticate, async (req, res) => {
           firstName: "",
           lastName: "",
           displayName: req.firebaseUser?.name || "",
-          profilePhoto: req.firebaseUser?.photoURL || ""
+          profilePhoto: req.firebaseUser?.photoURL || "",
+          accountCategory: "retail"
         },
         matrixMetrics: null
       });
@@ -49,19 +49,24 @@ router.get("/me", authenticate, async (req, res) => {
 
     const profile = await UserProfile.findOne({ userId: dbUserId }).lean();
     
+    // 🎯 THE FIX: Stitch the true account category directly into your profile data structure payload package
+    const stitchedProfile = profile 
+      ? { ...profile, accountCategory: currentCategory } 
+      : {
+          firstName: "",
+          lastName: "",
+          displayName: req.firebaseUser?.name || "",
+          brandName: "",
+          phoneNumber: "",
+          profilePhoto: "",
+          accountCategory: currentCategory
+        };
+
     // Initialise response structure package
     const responsePayload = {
       ok: true,
       user: activeUserDoc,
-      // 🎯 FORCE SAFE PALOAD BLUEPRINT SO MISSING PROPERTIES NEVER TRIP UP FRONTEND MAP LOOPS
-      profile: profile || {
-        firstName: "",
-        lastName: "",
-        displayName: req.firebaseUser?.name || "",
-        brandName: "",
-        phoneNumber: "",
-        profilePhoto: ""
-      },
+      profile: stitchedProfile, // 🎯 Passes the combined dataset carrying your true network/retail track flags
       matrixMetrics: null
     };
 
