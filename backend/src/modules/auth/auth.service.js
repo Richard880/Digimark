@@ -1,5 +1,5 @@
 const User = require("../../models/User");
-const UserProfile = require("../../models/UserProfile");
+const UserProfile = require("../../models/UserProfile.js");
 const matrixService = require("../../../services/matrixService");
 const generateMembershipNumber = require("../../utils/membershipNumber");
 
