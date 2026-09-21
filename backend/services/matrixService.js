@@ -78,11 +78,7 @@ async function calculateUplineSuggestions(userObjectId, maxSuggestions = 12) {
 /**
  * 🎯 High-Performance Matrix Metrics Engine
  * Aggregates downline metrics up to MAX_DEPTH inside a single database pass
- * @param {mongoose.Types.ObjectId|string} rootUserId - Target node to build performance metrics for
- */
-/**
- * 🎯 High-Performance Matrix Metrics Engine
- * Aggregates downline metrics up to MAX_DEPTH inside a single database pass
+ * Backward-compatible wrapper dropping version-locked restrictExpression features
  * @param {mongoose.Types.ObjectId|string} rootUserId - Target node to build performance metrics for
  */
 async function getMatrixMetrics(rootUserId) {
@@ -99,25 +95,39 @@ async function getMatrixMetrics(rootUserId) {
     const anchorId = new mongoose.Types.ObjectId(rootUserId.toString());
 
     // 1. Single database pass using graph traversal matching only network node boundaries
-    // 🎯 REMOVED ALL ACCIDENTAL BACKSLASHES FROM MONGODB KEY STRINGS:
     const downlineTree = await User.aggregate([
       { 
-        $match: { 
+        \$match: { 
           _id: anchorId, 
           accountCategory: "network" 
         } 
       },
       {
-        $graphLookup: {
+        \$graphLookup: {
           from: "users",
-          startWith: "$referrals",
+          startWith: "\$referrals",
           connectFromField: "referrals",
           connectToField: "_id",
-          as: "matrixDownline",
+          as: "rawMatrixDownline",
           maxDepth: MAX_DEPTH - 1, // 0-indexed boundary mapping
-          depthField: "generationDepth",
-          restrictExpression: { $eq: ["$$referred.accountCategory", "network"] }  // Double dollar sign is correct here for aggregation reference
+          depthField: "generationDepth"
         }
+      },
+      {
+        // 🎯 THE COMPATIBILITY CURE: Standard filtering block supported across all old and new Mongo servers
+        \$addFields: {
+          matrixDownline: {
+            \$filter: {
+              input: "\$rawMatrixDownline",
+              as: "node",
+              cond: { \(eq: ["\)\$node.accountCategory", "network"] }
+            }
+          }
+        }
+      },
+      {
+        // Flush temporary arrays out of the response payload memory map
+        \$project: { rawMatrixDownline: 0 }
       }
     ]);
 
@@ -207,7 +217,6 @@ async function getMatrixMetrics(rootUserId) {
     return { ok: false, error: "METRICS_COMPUTATION_CRASHED", reason: error.message };
   }
 }
-
 
 module.exports = {
   findMlmPlacement,
