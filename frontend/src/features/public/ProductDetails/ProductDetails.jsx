@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import useAuth from "../../features/auth/hooks/useAuth"; // 🎯 Injected to read user categories safely
+import useAuth from "../../auth/hooks/useAuth"; // 🎯 Injected to read user categories safely
 import styles from "./ProductDetails.module.css";
 
 // Force production builds to use clean relative roots, falling back to localhost only in development
