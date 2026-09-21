@@ -45,10 +45,12 @@ export default function Navbar({
 
   // 🎯 THE FIX: Exhaustive object extraction covering both your context models and sync payloads
 // 🎯 UPDATE THIS INSIDE YOUR NAVBAR.JSX TO ENSURE SURVIVAL ON GENERAL TAB LEAVE/RETURN ROUTINGS:
+// 🎯 UPDATE THIS INSIDE YOUR NAVBAR.JSX TO ENSURE RE-LOGIN IMAGE SURVIVAL:
 const resolvedAvatarUrl = useMemo(() => {
   return (
-    user?.profilePhoto || // 🎯 PRIORITIZE THE MONGO KEY AT ROOT
-    user?.profile?.profilePhoto || // PRIORITIZE THE MONGO KEY INSIDE THE NESTED DATA BLOCKS
+    // Check root and nested auth provider layouts for the authoritative Mongo field first
+    user?.profilePhoto || 
+    user?.profile?.profilePhoto || 
     user?.profilePic ||
     user?.photoURL ||
     user?.profile?.profilePic ||
@@ -56,6 +58,7 @@ const resolvedAvatarUrl = useMemo(() => {
     ""
   );
 }, [user]);
+
 
 
   // Sync avatarUrl state when the root authenticated user state changes
