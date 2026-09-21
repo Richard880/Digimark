@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import useAuth from "../../auth/hooks/useAuth";
+import useAuth from "../auth/hooks/useAuth";
 import { uploadImageToCloudinary } from "../../utils/cloudinaryUploader"; 
 import styles from "./MyShopDashboard.module.css"; 
 
