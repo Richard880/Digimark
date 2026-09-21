@@ -110,7 +110,7 @@ async function synchronizeFirebaseUser({
     // ==========================================================
     if (parentId) {
       await User.findByIdAndUpdate(parentId, {
-        \$push: { referrals: user._id },
+        $push: { referrals: user._id },
       });
     }
   } else {
