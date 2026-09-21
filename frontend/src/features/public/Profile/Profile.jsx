@@ -736,6 +736,23 @@ export default function Profile() {
                 )}
               </button>
 
+              // 🎯 Add this button into your Profile.jsx Tab Bar buttons row:
+{brandProfile?.accountCategory === "network" && (
+  <button
+    type="button"
+    onClick={() => setActiveTab("shared")}
+    className={`relative py-4 text-[11px] font-bold uppercase tracking-wider transition ${
+      activeTab === "shared" ? "text-emerald-700" : "text-slate-400 hover:text-slate-600"
+    }`}
+  >
+    Shared Store
+    {activeTab === "shared" && (
+      <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-emerald-600" />
+    )}
+  </button>
+)}
+
+
               <button
                 type="button"
                 onClick={() => setActiveTab("about")}
