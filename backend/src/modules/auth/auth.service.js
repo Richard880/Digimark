@@ -41,13 +41,10 @@ async function synchronizeFirebaseUser({
     // NETWORK AFFILIATE MATRIX INTEGRATION
     // ==========================================================
     if (accountCategory === "network") {
-      // Find corporate matrix zero-node root anchor
       let companyRoot = await User.findOne({
         email: "admin@sokodigi.com",
       });
 
-      // If root doesn't exist and this is the designated
-      // corporate administrator, allow initialization.
       if (!companyRoot && email?.toLowerCase() === "admin@sokodigi.com") {
         // accountType is already determined above.
       } else if (!companyRoot) {
@@ -59,36 +56,24 @@ async function synchronizeFirebaseUser({
       if (companyRoot) {
         let chosenSponsorId = companyRoot._id;
 
-        // Verify custom sponsor
         if (userData.sponsorUserId) {
-          const customSponsor = await User.findById(
-            userData.sponsorUserId
-          );
-
-          if (
-            customSponsor &&
-            customSponsor.accountCategory === "network"
-          ) {
+          const customSponsor = await User.findById(userData.sponsorUserId);
+          if (customSponsor && customSponsor.accountCategory === "network") {
             chosenSponsorId = customSponsor._id;
           }
         }
 
         sponsorId = chosenSponsorId;
 
-        // Find next structural vacancy
         const placement = await matrixService.findMlmPlacement(sponsorId);
-
         if (!placement.ok) {
           throw new Error(
-            `FORCED_MATRIX_REJECTED: ${
-              placement.reason || "COMMUNITY_FULL"
-            }`
+            `FORCED_MATRIX_REJECTED: ${placement.reason || "COMMUNITY_FULL"}`
           );
         }
 
         parentId = placement.parentId;
 
-        // Build lineage path
         const parentUser = await User.findById(parentId)
           .select("pathFromRoot")
           .lean();
@@ -125,9 +110,7 @@ async function synchronizeFirebaseUser({
     // ==========================================================
     if (parentId) {
       await User.findByIdAndUpdate(parentId, {
-        $push: {
-          referrals: user._id,
-        },
+        \$push: { referrals: user._id },
       });
     }
   } else {
@@ -137,52 +120,43 @@ async function synchronizeFirebaseUser({
     user = await User.findOneAndUpdate(
       { firebaseUid },
       {
-        $set: {
+        \$set: {
           email,
           emailVerified,
           lastLoginAt: new Date(),
         },
       },
-      {
-        new: true,
-      }
+      { new: true }
     );
   }
 
   // ============================================================
   // 3. PREPARE PROFILE DATA
   // ============================================================
+  const firstName = userData.firstName || displayName?.split(" ")[0] || "";
+  const lastName = userData.lastName || displayName?.split(" ").slice(1).join(" ") || "";
 
-  const firstName =
-    userData.firstName ||
-    displayName?.split(" ")[0] ||
+  const resolvedDisplayName = displayName || `${firstName} ${lastName}`.trim();
+  const resolvedBrandName = userData.brandName || `${firstName} ${lastName}`.trim();
+
+  // ============================================================
+  // 4. NORMALIZE PROFILE IMAGE FIELD
+  // ============================================================
+  // 🎯 THE FIX: Extract all payload property names cleanly to match your UserProfile model
+  const resolvedProfilePhoto =
+    userData.profilePhoto ||
+    userData.photoURL ||
+    userData.profilePic ||
     "";
 
-  const lastName =
-    userData.lastName ||
-    displayName?.split(" ").slice(1).join(" ") ||
-    "";
-
-  const resolvedDisplayName =
-    displayName ||
-    `${firstName} ${lastName}`.trim();
-
-  const resolvedBrandName =
-    userData.brandName ||
-    `${firstName} ${lastName}`.trim();
+  // ============================================================
+  // 5. FIND EXISTING USER PROFILE
+  // ============================================================
+  let profile = await UserProfile.findOne({ userId: user._id });
 
   // ============================================================
-  // 4. FIND EXISTING USER PROFILE
+  // 6. CREATE PROFILE IF IT DOESN'T EXIST
   // ============================================================
-
-  let profile = await UserProfile.findOne({
-    userId: user._id,
-  });
-
-  // ============================================================
-  // 5. CREATE PROFILE IF IT DOESN'T EXIST
-  // ============================================================
-
   if (!profile) {
     const membershipNumber =
       user.accountCategory === "network"
@@ -192,121 +166,49 @@ async function synchronizeFirebaseUser({
     profile = await UserProfile.create({
       userId: user._id,
       membershipNumber,
-
       username: userData.username,
       firstName,
       lastName,
-
       displayName: resolvedDisplayName,
       brandName: resolvedBrandName,
-
       phoneNumber: userData.phoneNumber || "",
-
-      // --------------------------------------------------------
-      // PERSIST PROFILE IMAGE
-      // --------------------------------------------------------
-      photoURL:
-        userData.photoURL ||
-        userData.profilePic ||
-        "",
-
-      profilePic:
-        userData.profilePic ||
-        userData.photoURL ||
-        "",
+      // 🎯 THE FIX: Store explicitly inside your schema's profilePhoto field key
+      profilePhoto: resolvedProfilePhoto,
     });
   } else {
     // ==========================================================
-    // 6. UPDATE EXISTING PROFILE
+    // 7. UPDATE EXISTING PROFILE
     // ==========================================================
-    //
-    // Only update values that were actually supplied.
-    // This prevents a normal login/sync request from accidentally
-    // erasing existing profile information.
-    //
     const profileUpdates = {};
 
-    if (userData.firstName) {
-      profileUpdates.firstName = userData.firstName;
+    if (userData.firstName) profileUpdates.firstName = userData.firstName;
+    if (userData.lastName) profileUpdates.lastName = userData.lastName;
+    if (userData.username) profileUpdates.username = userData.username;
+    if (userData.phoneNumber) profileUpdates.phoneNumber = userData.phoneNumber;
+    if (userData.brandName) profileUpdates.brandName = userData.brandName;
+    if (displayName) profileUpdates.displayName = displayName;
+
+    // 🎯 THE FIX: Write image payload links straight to profilePhoto row field on profile changes
+    if (resolvedProfilePhoto) {
+      profileUpdates.profilePhoto = resolvedProfilePhoto;
     }
 
-    if (userData.lastName) {
-      profileUpdates.lastName = userData.lastName;
-    }
-
-    if (userData.username) {
-      profileUpdates.username = userData.username;
-    }
-
-    if (userData.phoneNumber) {
-      profileUpdates.phoneNumber = userData.phoneNumber;
-    }
-
-    if (userData.brandName) {
-      profileUpdates.brandName = userData.brandName;
-    }
-
-    if (displayName) {
-      profileUpdates.displayName = displayName;
-    }
-
-    // ----------------------------------------------------------
-    // PERSIST PROFILE IMAGE
-    // ----------------------------------------------------------
-    //
-    // Accept either field name so the frontend can transition
-    // safely between profilePic and photoURL.
-    //
-    const resolvedPhotoURL =
-      userData.photoURL ||
-      userData.profilePic ||
-      "";
-
-    if (resolvedPhotoURL) {
-      profileUpdates.photoURL = resolvedPhotoURL;
-      profileUpdates.profilePic = resolvedPhotoURL;
-    }
-
-    // Only perform MongoDB update when there is something
-    // meaningful to update.
     if (Object.keys(profileUpdates).length > 0) {
       profile = await UserProfile.findOneAndUpdate(
         { userId: user._id },
-        {
-          $set: profileUpdates,
-        },
-        {
-          new: true,
-          runValidators: true,
-        }
+        { \$set: profileUpdates },
+        { new: true, runValidators: true }
       );
     }
   }
 
   // ============================================================
-  // 7. RETURN FRESH DATABASE RECORDS
+  // 8. RETURN FRESH DATABASE RECORDS
   // ============================================================
-  //
-  // Fetch the records again so the controller receives exactly
-  // what is currently persisted in MongoDB.
-  //
-
   const freshUser = await User.findById(user._id);
+  const freshProfile = await UserProfile.findOne({ userId: user._id });
 
-  const freshProfile = await UserProfile.findOne({
-    userId: user._id,
-  });
-
-  return {
-    user: freshUser,
-    profile: freshProfile,
-  };
+  return { user: freshUser, profile: freshProfile };
 }
 
-// ================================================================
-// EXPORT
-// ================================================================
-
-module.exports = {
-  synchronizeFirebaseUser,
-};
+module.exports = { synchronizeFirebaseUser };
