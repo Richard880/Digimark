@@ -3,7 +3,8 @@ const authenticate = require("../../middleware/authenticate"); // Parses token d
 const authorize = require("../../middleware/authorize");       // 🎯 NEW: Verifies category rights
 
 const { 
-  listProducts, 
+  listProducts,
+  getProductById,
   createProduct, 
   updateProduct, 
   deleteProduct 
@@ -13,6 +14,7 @@ const router = express.Router();
 
 // 🛒 PUBLIC ROUTE: Anyone (Guests, Retailers, Networkers) can read the market feed catalog
 router.get("/", listProducts);
+router.get("/:id", getProductById);
 
 // 🔒 EXCLUSIVE VENDOR ROUTES: Restricted strictly to validated "network" affiliate accounts
 router.post("/", authenticate, authorize("network"), createProduct);
