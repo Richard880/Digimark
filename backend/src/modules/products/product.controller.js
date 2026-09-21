@@ -69,22 +69,26 @@ async function createProduct(req, res) {
     const profile = await UserProfile.findOne({ userId: req.user._id }).lean();
     
     // Commit the data parameters straight into your MongoDB collection matching your schema fields
-    const product = await Product.create({
-      productCode: productCode(),
-      sellerId: req.user._id,
-      name: name.trim(),
-      brandName: profile?.brandName || profile?.displayName || "SokoDigi Merchant",
-      category: (category || "general").toLowerCase().trim(),
-      price: Number(price),
-      // 🎯 MAP THE COMMISSIONS AND WHOLESALE ARRAYS ACCURATELY FOR UPSTREAM WALLETS
-      affiliateCommission: processedCommission,
-      wholesalePrice: Number(price) - processedCommission,
-      quantity: Number(quantity || 0),
-      deliveryFee: Number(deliveryFee || 0),
-      description: (description || "").trim(),
-      status: status || "LISTED", // Push directly to public active feeds so it shows on MarketHub instantly
-      imageUrl: imageUrl || "",
-    });
+   // 🎯 UPDATE THIS INSIDE YOUR BACKEND PRODUCT.CONTROLLER.JS (createProduct method):
+const product = await Product.create({
+  productCode: productCode(),
+  sellerId: req.user._id,
+  name: name.trim(),
+  brandName: profile?.brandName || profile?.displayName || "SokoDigi Merchant",
+  category: (category || "general").toLowerCase().trim(),
+  price: Number(price),
+  affiliateCommission: processedCommission,
+  wholesalePrice: Number(price) - processedCommission,
+  quantity: Number(quantity || 0),
+  deliveryFee: Number(deliveryFee || 0),
+  description: (description || "").trim(),
+  
+  // 🎯 THE FIX: New items default to "READY" (Warehouse Vault) instead of hitting public storefronts automatically
+  status: status || "READY", 
+  
+  imageUrl: imageUrl || "",
+});
+
 
     return res.status(201).json({ ok: true, product });
 
