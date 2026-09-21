@@ -47,6 +47,35 @@ async function listProducts(req, res) {
   }
 }
 
+
+/**
+ * 🛒 Layer 4b Single Item Inspection Lookup
+ * Fetches a single product record from MongoDB by its unique ObjectId identifier string
+ */
+async function getProductById(req, res) {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ error: "INVALID_PRODUCT_ID_FORMAT" });
+    }
+
+    const product = await Product.findById(id).lean();
+
+    if (!product) {
+      return res.status(404).json({ error: "PRODUCT_NOT_FOUND" });
+    }
+
+    return res.status(200).json(product);
+  } catch (error) {
+    console.error("❌ Exception inside getProductById:", error.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+}
+
+
+
+
 async function createProduct(req, res) {
   try {
     const { 
@@ -201,6 +230,7 @@ async function toggleProductShelfStatus(req, res) {
 // 🎯 DON'T FORGET TO EXPORT IT AT THE BOTTOM OF THE FILE:
 module.exports = { 
   listProducts, 
+   getProductById, 
   createProduct, 
   updateProduct, 
   deleteProduct,
