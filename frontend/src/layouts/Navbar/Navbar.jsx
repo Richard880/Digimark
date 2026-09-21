@@ -43,7 +43,6 @@ export default function Navbar({
     user?.profile?.userId || 
     "";
 
-  // 🎯 THE DATABASE FIELD ALIGNMENT FIX:
   // Prioritise the true Mongoose database tracking key ("profilePhoto") at all layers
   const resolvedAvatarUrl = useMemo(() => {
     return (
@@ -57,14 +56,11 @@ export default function Navbar({
     );
   }, [user]);
 
-  // 🎯 THE RE-RENDER CACHE RECOVERY FIX:
-  // Removed the tracking condition wrapper block completely. 
-  // This guarantees that your states synchronize instantly during page mounts or hard refreshes.
+  // Synchronize instantly during page mounts or hard refreshes
   useEffect(() => {
     setAvatarUrl(resolvedAvatarUrl || "");
   }, [resolvedAvatarUrl]);
 
-  // 🎯 THE BROADCAST HANDLER EVENT FIX:
   // Intercept layout updates and map straight onto your new profilePhoto field
   useEffect(() => {
     const handleProfileAvatarUpdated = (event) => {
@@ -164,7 +160,8 @@ export default function Navbar({
                 aria-hidden="true"
               >
                 <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" x2="16.65" />
+                {/* 🎯 SYNTAX TYPO RESOLVED BELOW (x2 and y2 coordinates mapped accurately) */}
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </button>
 
@@ -198,7 +195,7 @@ export default function Navbar({
                       src={avatarUrl}
                       alt={`${displayName} profile`}
                       className={styles["avatar-img-element"]}
-                      crossOrigin="anonymous" // 🌟 FORCE BROWSER TO PASS CORS DELIVERY HEADERS
+                      crossOrigin="anonymous" 
                       onError={(event) => {
                         console.error("Navbar failed to render avatar source:", avatarUrl);
                         event.currentTarget.style.display = "none";
