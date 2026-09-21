@@ -120,7 +120,7 @@ async function synchronizeFirebaseUser({
     user = await User.findOneAndUpdate(
       { firebaseUid },
       {
-        \$set: {
+        $set: {
           email,
           emailVerified,
           lastLoginAt: new Date(),
@@ -196,7 +196,7 @@ async function synchronizeFirebaseUser({
     if (Object.keys(profileUpdates).length > 0) {
       profile = await UserProfile.findOneAndUpdate(
         { userId: user._id },
-        { \$set: profileUpdates },
+        { $set: profileUpdates },
         { new: true, runValidators: true }
       );
     }
