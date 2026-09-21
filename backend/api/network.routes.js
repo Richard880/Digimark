@@ -62,7 +62,7 @@ router.get("/team-directory", authenticate, async (req, res) => {
 
     // Map profile photos and bios into the output array by querying UserProfiles collection
     const userIds = downlineUsers.map(u => u._id);
-    const profiles = await UserProfile.find({ userId: { \$in: userIds } }).lean();
+    const profiles = await UserProfile.find({ userId: { $in: userIds } }).lean();
     const profileMap = new Map(profiles.map(p => [p.userId.toString(), p]));
 
     const generations = { level_1: [], level_2: [], level_3: [], level_4: [] };
