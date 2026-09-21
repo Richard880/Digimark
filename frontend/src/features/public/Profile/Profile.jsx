@@ -813,9 +813,7 @@ return (
                   <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-emerald-600" />
                 )}
               </button>
-            </div>
-          </div>
-        </section>
+           
 
 {activeTab === "products" && (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
