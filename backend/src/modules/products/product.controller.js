@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const mongoose = require("mongoose"); // 🎯 THE FIX: Imported the missing core module dependency
 const Product = require("../../models/Product");
 const UserProfile = require("../../models/UserProfile");
 
@@ -6,38 +7,33 @@ function productCode() {
   return `SDK-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
-// 🎯 UPDATE THIS SPECIFIC FUNCTION IN PRODUCT.CONTROLLER.JS:
 async function listProducts(req, res) {
   try {
     const { sellerId, shopId, status, q } = req.query;
     const filter = {};
-    
-    // Support either route query parameter seamlessly
     const requestedSeller = sellerId || shopId;
+
     if (requestedSeller) {
       filter.sellerId = requestedSeller;
     } else if (req.user?._id) {
-      // Emergency backup: if a logged-in user views their own dashboard, isolate it to their items
       filter.sellerId = req.user._id;
     }
 
-    // 🎯 THE STATUS ALL FIX: Only filter by status if it's explicitly passed and NOT set to "all"
+    // Only filter by status if it's explicitly passed and NOT set to "all"
     if (status && status !== "all" && status !== "") {
       filter.status = status;
     } else if (!requestedSeller) {
-      // If it's a public guest user browsing MarketHub without an explicit merchant ID, default to listed shelves
+      // If it's a public guest browsing MarketHub without an explicit merchant ID, default to listed shelves
       filter.status = "LISTED";
     }
 
     if (q) {
-      filter.$or = [
-        { name: { $regex: q, $options: "i" } },
-        { brandName: { $regex: q, $options: "i" } },
-        { category: { $regex: q, $options: "i" } },
+      filter.\$or = [
+        { name: { regex: q, options: "i" } },
+        { brandName: { regex: q, options: "i" } },
+        { category: { regex: q, options: "i" } },
       ];
     }
-
-    console.log("⚓ Active inventory vault query filter footprint:", filter);
 
     const products = await Product.find(filter).sort({ createdAt: -1 }).lean();
     return res.json(products);
@@ -47,7 +43,6 @@ async function listProducts(req, res) {
   }
 }
 
-
 /**
  * 🛒 Layer 4b Single Item Inspection Lookup
  * Fetches a single product record from MongoDB by its unique ObjectId identifier string
@@ -56,6 +51,7 @@ async function getProductById(req, res) {
   try {
     const { id } = req.params;
 
+    // This validation step is now safe because mongoose is defined!
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ error: "INVALID_PRODUCT_ID_FORMAT" });
     }
@@ -68,13 +64,10 @@ async function getProductById(req, res) {
 
     return res.status(200).json(product);
   } catch (error) {
-    console.error("❌ Exception inside getProductById:", error.message);
-    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+    console.error("❌ Exception inside getProductById:", error.stack || error.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
   }
 }
-
-
-
 
 async function createProduct(req, res) {
   try {
@@ -87,15 +80,13 @@ async function createProduct(req, res) {
       description, 
       status, 
       imageUrl,
-      // 🎯 EXTRACT THE COMMISSION REWARD VALUE SENT FROM THE FRONTEND FORM PAYLOAD
       affiliateCommission 
     } = req.body;
 
-    // 🛡️ THE SESSION SAFEGUARD: Bounce unauthorized or broken middleware token streams instantly
     if (!req.user || !req.user._id) {
       return res.status(401).json({ 
         error: "AUTHENTICATION_REQUIRED", 
-        reason: "Active user session session token data is missing or un-hydrated." 
+        reason: "Active user session data is missing or un-hydrated." 
       });
     }
 
@@ -103,36 +94,28 @@ async function createProduct(req, res) {
       return res.status(400).json({ error: "NAME_AND_PRICE_REQUIRED" });
     }
 
-    // Double-check split margins on server-side to block security manipulation attempts
     const processedCommission = Number(affiliateCommission || 0);
     if (processedCommission >= Number(price)) {
       return res.status(400).json({ error: "COMMISSION_CANNOT_EXCEED_RETAIL_PRICE" });
     }
 
-    // Safely perform lookups now that req.user is guaranteed to be valid
     const profile = await UserProfile.findOne({ userId: req.user._id }).lean();
     
-    // Commit the data parameters straight into your MongoDB collection matching your schema fields
-   // 🎯 UPDATE THIS INSIDE YOUR BACKEND PRODUCT.CONTROLLER.JS (createProduct method):
-const product = await Product.create({
-  productCode: productCode(),
-  sellerId: req.user._id,
-  name: name.trim(),
-  brandName: profile?.brandName || profile?.displayName || "SokoDigi Merchant",
-  category: (category || "general").toLowerCase().trim(),
-  price: Number(price),
-  affiliateCommission: processedCommission,
-  wholesalePrice: Number(price) - processedCommission,
-  quantity: Number(quantity || 0),
-  deliveryFee: Number(deliveryFee || 0),
-  description: (description || "").trim(),
-  
-  // 🎯 THE FIX: New items default to "READY" (Warehouse Vault) instead of hitting public storefronts automatically
-  status: status || "READY", 
-  
-  imageUrl: imageUrl || "",
-});
-
+    const product = await Product.create({
+      productCode: productCode(),
+      sellerId: req.user._id,
+      name: name.trim(),
+      brandName: profile?.brandName || profile?.displayName || "SokoDigi Merchant",
+      category: (category || "general").toLowerCase().trim(),
+      price: Number(price),
+      affiliateCommission: processedCommission,
+      wholesalePrice: Number(price) - processedCommission,
+      quantity: Number(quantity || 0),
+      deliveryFee: Number(deliveryFee || 0),
+      description: (description || "").trim(),
+      status: status || "LISTED", 
+      imageUrl: imageUrl || "",
+    });
 
     return res.status(201).json({ ok: true, product });
 
@@ -163,7 +146,6 @@ async function updateProduct(req, res) {
       if (req.body[field] !== undefined) product[field] = Number(req.body[field]);
     });
 
-    // Re-evaluate wholesale gap dynamically on product parameter update changes
     if (req.body.price !== undefined || req.body.affiliateCommission !== undefined) {
       product.wholesalePrice = product.price - product.affiliateCommission;
     }
@@ -191,49 +173,4 @@ async function deleteProduct(req, res) {
   }
 }
 
-/**
- * 🔒 Layer 4b Inventory Shelf State Toggle
- * Moves products between the private Warehouse Vault ("READY") and Public Shelves ("LISTED")
- */
-async function toggleProductShelfStatus(req, res) {
-  try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
-    }
-
-    const { id } = req.params;
-
-    // Locate the target item while verifying the caller is the true owner
-    const product = await Product.findOne({ _id: id, sellerId: req.user._id });
-    if (!product) {
-      return res.status(404).json({ error: "INVENTORY_ITEM_NOT_FOUND" });
-    }
-
-    // 🎯 THE TOGGLE LOGIC: Flip status smoothly across validation boundaries
-    const nextStatus = product.status === "LISTED" ? "READY" : "LISTED";
-    product.status = nextStatus;
-
-    await product.save();
-
-    return res.json({
-      ok: true,
-      message: `Product successfully moved to ${nextStatus === "LISTED" ? "Public Shelves" : "Warehouse Storage"}.`,
-      product
-    });
-
-  } catch (error) {
-    console.error("❌ Shelf state toggle operation failure:", error.message);
-    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", reason: error.message });
-  }
-}
-
-// 🎯 DON'T FORGET TO EXPORT IT AT THE BOTTOM OF THE FILE:
-module.exports = { 
-  listProducts, 
-   getProductById, 
-  createProduct, 
-  updateProduct, 
-  deleteProduct,
-  toggleProductShelfStatus // ➕ Export added here
-};
-
+module.exports = { listProducts, getProductById, createProduct, updateProduct, deleteProduct };
