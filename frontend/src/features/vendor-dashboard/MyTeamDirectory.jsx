@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import useAuth from "../../auth/hooks/useAuth";
+import useAuth from "../auth/hooks/useAuth";
 
 const API_URL = import.meta.env.PROD 
   ? "" 
