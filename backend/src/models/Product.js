@@ -62,7 +62,7 @@ productSchema.pre("save", function (next) {
   if (this.wholesalePrice === 0 && this.price > 0) {
     this.wholesalePrice = this.price - this.affiliateCommission;
   }
-  next();
+  
 });
 
 module.exports = mongoose.model("Product", productSchema);
