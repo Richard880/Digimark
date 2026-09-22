@@ -78,7 +78,7 @@ export default function Profile() {
     }
   }, [activeTab]);
 
-  // 3. Load profile and related data (Unified Hook Architecture)
+  // Load profile and related data
   useEffect(() => {
     let isMounted = true;
 
@@ -95,9 +95,6 @@ export default function Profile() {
       setProducts([]);
       return undefined;
     }
-
-     // Load profile and related data
-
 
     const loadProfile = async () => {
       try {
@@ -132,8 +129,7 @@ export default function Profile() {
             subscribers: loggedInProfile?.subscriberCount || 0,
             subscriptions: loggedInProfile?.subscriptionCount || 0,
           };
-          
-          // Fetch matrix metrics if it's a network user
+
           if (accountCategory === "network") {
             try {
               const token = await loggedInUser.getIdToken();
@@ -146,75 +142,47 @@ export default function Profile() {
 
               if (metricsResponse.ok) {
                 resolvedMatrixMetrics = await metricsResponse.json();
-                if (isMounted) {
-                  setMatrixMetrics(resolvedMatrixMetrics);
-                }
               }
             } catch (metricsError) {
               console.error("Delayed matrix aggregation lookup error:", metricsError);
+              resolvedMatrixMetrics = null;
             }
           }
-
-          if (isMounted) {
-            setBrandProfile(resolvedProfile);
-          }
-
         } else {
-          // If viewing an external user profile, try to load it from the API
-          const response = await fetch(`${API_URL}/api/profiles/${activeTargetId}`);
-          
-          if (response.ok) {
-            const data = await response.json();
-            if (isMounted) setBrandProfile(data);
-          } else {
-            // Fallback: If profile route 404s, try lookup from the public market products catalog
-            const marketResponse = await fetch(`${API_URL}/api/products/market`);
+          const profileResponse = await fetch(`${API_URL}/api/products/market`);
 
-            if (marketResponse.ok) {
-              const feedData = await marketResponse.json();
-              const feedList = Array.isArray(feedData) ? feedData : feedData?.products || [];
+          if (profileResponse.ok) {
+            const feedData = await profileResponse.json();
+            const feedList = Array.isArray(feedData)
+              ? feedData
+              : feedData?.products || [];
 
-              const matchedItem = feedList.find(
-                (product) => product?.shopId === activeTargetId || product?.userId === activeTargetId
-              );
+            const matchedItem = feedList.find(
+              (product) =>
+                product?.shopId === activeTargetId || product?.userId === activeTargetId
+            );
 
-              if (matchedItem && isMounted) {
-                setBrandProfile({
-                  id: activeTargetId,
-                  name: matchedItem?.displayName || matchedItem?.sellerName || "SokoDigi Merchant",
-                  username: matchedItem?.username || "merchant",
-                  accountCategory: matchedItem?.accountCategory || "retail",
-                  membershipNumber: matchedItem?.membershipNumber || "N/A",
-                  brandName: matchedItem?.brandName || "",
-                  phoneNumber: matchedItem?.phoneNumber || "",
-                  bio: matchedItem?.bio || "",
-                  profilePic: matchedItem?.photoURL || matchedItem?.profilePhoto || matchedItem?.profilePic || "",
-                  profilePhoto: matchedItem?.profilePhoto || matchedItem?.photoURL || matchedItem?.profilePic || "",
-                  networkLevel: matchedItem?.networkLevel || null,
-                  subscribers: matchedItem?.subscriberCount || 0,
-                  subscriptions: matchedItem?.subscriptionCount || 0,
-                });
-              }
+            if (matchedItem) {
+              resolvedProfile = {
+                id: activeTargetId,
+                name: matchedItem?.displayName || matchedItem?.sellerName || "SokoDigi Merchant",
+                username: matchedItem?.username || "merchant",
+                accountCategory: matchedItem?.accountCategory || "retail",
+                membershipNumber: matchedItem?.membershipNumber || "N/A",
+                brandName: matchedItem?.brandName || "",
+                phoneNumber: matchedItem?.phoneNumber || "",
+                bio: matchedItem?.bio || "",
+                profilePic: matchedItem?.photoURL || matchedItem?.profilePhoto || matchedItem?.profilePic || "",
+                profilePhoto: matchedItem?.profilePhoto || matchedItem?.photoURL || matchedItem?.profilePic || "",
+                networkLevel: matchedItem?.networkLevel || null,
+                subscribers: matchedItem?.subscriberCount || 0,
+                subscriptions: matchedItem?.subscriptionCount || 0,
+              };
             }
           }
         }
-      } catch (error) {
-        console.error("Critical error building profile view datasets:", error);
-      } finally {
-        if (isMounted) {
-          setIsLoading(false); // 🟢 Safely unfreezes the UI state
-        }
-      }
-    };
 
-    loadProfile();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [userId, isOwnProfile, loggedInUser, loggedInProfile, auth]);
-
-
+        // 🟢 Fetching products now occurs SAFELY inside the asynchronous context loop
         const productsResponse = await fetch(
           `${API_URL}/api/products?shopId=${encodeURIComponent(activeTargetId)}`
         );
@@ -236,9 +204,9 @@ export default function Profile() {
         setBrandProfile(resolvedProfile);
         setMatrixMetrics(resolvedMatrixMetrics);
         setProducts(resolvedProducts);
+
       } catch (error) {
         console.error("SokoDigi profile loading error:", error);
-
         if (isMounted) {
           setProducts([]);
         }
@@ -255,6 +223,7 @@ export default function Profile() {
       isMounted = false;
     };
   }, [userId, isOwnProfile, loggedInUser, loggedInProfile, auth?.user]);
+
 
   const networkLevel = useMemo(() => {
     const possibleLevels = [
