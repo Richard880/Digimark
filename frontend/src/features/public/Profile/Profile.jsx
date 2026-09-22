@@ -292,7 +292,9 @@ export default function Profile() {
       isMounted = false;
     };
 
-  }, [userId, isOwnProfile, loggedInUser, loggedInProfile, auth?.user]);
+   // 🟢 By using exact primitive string values (like IDs), the hook will only fire ONCE when the user loads.
+  }, [userId, isOwnProfile, loggedInUser?.uid, loggedInProfile?.id]);
+
 
 
   const networkLevel = useMemo(() => {
