@@ -11,7 +11,7 @@ import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 // Use relative API routes in production, with localhost fallback in development.
 const API_URL = import.meta.env.PROD
   ? ""
-  : (import.meta.env.VITE_API_URL || "[localhost](http://localhost:5000)").replace(/\/$/, "");
+  : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
 const MEMBER_SETTINGS_ROUTE = "/settings";
 const NETWORK_DASHBOARD_ROUTE = "/dashboard/network";
@@ -38,6 +38,9 @@ export default function Profile() {
   const [matrixMetrics, setMatrixMetrics] = useState(null);
   const [products, setProducts] = useState([]);
 
+  // Declare state for orders list
+  const [myOrdersList, setMyOrdersList] = useState([]);
+
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("products");
@@ -45,6 +48,29 @@ export default function Profile() {
 
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+
+  // Fetch orders when activeTab is 'orders'
+  useEffect(() => {
+    if (activeTab === "orders") {
+      fetchOrders();
+    }
+  }, [activeTab]);
+
+  const fetchOrders = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/orders`);
+      if (response.ok) {
+        const data = await response.json();
+        setMyOrdersList(data);
+      } else {
+        setMyOrdersList([]);
+        console.error("Failed to fetch orders:", response.status);
+      }
+    } catch (err) {
+      console.error("Error fetching orders:", err);
+      setMyOrdersList([]);
+    }
+  };
 
   const handleAvatarFileChange = async (event) => {
     const selectedFile = event.target.files?.[0];
@@ -130,16 +156,18 @@ export default function Profile() {
     }
   };
 
+  // Load profile and related data
   useEffect(() => {
     let isMounted = true;
 
-    const activeTargetId = isOwnProfile
-      ? loggedInProfile?.id ||
-        loggedInProfile?._id ||
-        auth?.user?.id ||
-        auth?.user?._id ||
-        loggedInUser?.uid
-      : userId;
+    const activeTargetId =
+      isOwnProfile
+        ? loggedInProfile?.id ||
+          loggedInProfile?._id ||
+          auth?.user?.id ||
+          auth?.user?._id ||
+          loggedInUser?.uid
+        : userId;
 
     if (!activeTargetId) {
       setIsLoading(false);
@@ -479,7 +507,9 @@ export default function Profile() {
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="px-5 py-8 sm:px-8 md:px-10 md:py-10">
+            {/* Profile header and avatar */}
             <div className="flex flex-col gap-7 md:flex-row md:items-start md:gap-10">
+              {/* Avatar and manage photo */}
               <div className="flex shrink-0 justify-center md:justify-start">
                 <div className="relative">
                   <button
@@ -524,7 +554,7 @@ export default function Profile() {
                         {isOwnProfile && !isUpdatingAvatar && (
                           <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/20 text-white opacity-0 transition duration-200 group-hover:opacity-100">
                             <svg
-                              xmlns="[w3.org](http://www.w3.org/2000/svg)"
+                              xmlns="http://www.w3.org/2000/svg"
                               width="20"
                               height="24"
                               fill="currentColor"
@@ -540,6 +570,7 @@ export default function Profile() {
                     </div>
                   </button>
 
+                  {/* Badge for level */}
                   <div
                     className={`absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-3 py-1 text-[9px] font-extrabold tracking-wider shadow-sm ${levelInfo.badge}`}
                   >
@@ -551,7 +582,9 @@ export default function Profile() {
                 </div>
               </div>
 
+              {/* Profile info and buttons */}
               <div className="min-w-0 flex-1">
+                {/* Profile header */}
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
@@ -565,24 +598,33 @@ export default function Profile() {
                         </span>
                       )}
                     </div>
-
                     <p className="mt-1 text-sm text-slate-400">SokoDigi member profile</p>
                   </div>
 
+                  {/* Buttons for own profile */}
                   {isOwnProfile ? (
                     <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => navigate("/wallet")}
+                        className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 shadow-xs"
+                      >
+                        <svg
+                          className="h-3.5 w-3.5 text-slate-500"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                          />
+                        </svg>
+                        My Wallet
+                      </button>
 
-                       <button
-      type="button"
-      onClick={() => navigate("/wallet")}
-      className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 shadow-xs"
-    >
-      <svg className="h-3.5 w-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-      </svg>
-      My Wallet
-    </button>
-                      
                       {(brandProfile?.accountCategory === "network" ||
                         auth?.profile?.accountCategory === "network") && (
                         <button
@@ -618,12 +660,13 @@ export default function Profile() {
                       <button
                         type="button"
                         onClick={handleShareProfile}
-                        className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
+                        className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold transition hover:bg-slate-100"
                       >
                         Share
                       </button>
                     </div>
                   ) : (
+                    // Buttons for other profiles
                     <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
                       <button
                         type="button"
@@ -640,7 +683,7 @@ export default function Profile() {
                       <button
                         type="button"
                         onClick={handleShareProfile}
-                        className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+                        className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold transition hover:bg-slate-50"
                       >
                         Share
                       </button>
@@ -648,6 +691,7 @@ export default function Profile() {
                   )}
                 </div>
 
+                {/* Profile about info */}
                 <div className="mt-5 text-center sm:text-left">
                   <h2 className="text-lg font-bold text-slate-900">
                     {brandProfile?.name || "SokoDigi Member"}
@@ -668,6 +712,7 @@ export default function Profile() {
                   </div>
                 </div>
 
+                {/* Bio */}
                 <p className="mx-auto mt-4 max-w-2xl text-center text-sm leading-6 text-slate-500 sm:mx-0 sm:text-left">
                   {brandProfile?.bio ||
                     (brandProfile?.accountCategory === "network"
@@ -675,6 +720,7 @@ export default function Profile() {
                       : "SokoDigi marketplace merchant.")}
                 </p>
 
+                {/* Membership Number */}
                 <div className="mt-3 text-center sm:text-left">
                   {brandProfile?.membershipNumber && (
                     <span className="font-mono text-[10px] text-slate-400">
@@ -683,6 +729,7 @@ export default function Profile() {
                   )}
                 </div>
 
+                {/* Stats */}
                 <div className="mt-7 grid grid-cols-3 divide-x divide-slate-100 border-y border-slate-100 py-5">
                   <div className="text-center">
                     <p className="text-xl font-bold text-slate-900">{products.length}</p>
@@ -710,6 +757,7 @@ export default function Profile() {
                   </div>
                 </div>
 
+                {/* Network Dashboard Button */}
                 {isOwnProfile && brandProfile?.accountCategory === "network" && (
                   <div className="mt-5 flex justify-center sm:justify-start">
                     <button
@@ -722,6 +770,7 @@ export default function Profile() {
                   </div>
                 )}
 
+                {/* Share message */}
                 {shareMessage && (
                   <p className="mt-3 text-center text-xs font-semibold text-emerald-600 sm:text-left">
                     ✓ {shareMessage}
@@ -731,6 +780,7 @@ export default function Profile() {
             </div>
           </div>
 
+          {/* Tabs */}
           <div className="border-t border-slate-100 px-5 sm:px-8">
             <div className="flex items-center justify-center gap-8 sm:justify-start">
               <button
@@ -748,36 +798,31 @@ export default function Profile() {
                 )}
               </button>
 
-      
+              <button
+                type="button"
+                onClick={() => setActiveTab("shared")}
+                className={`relative py-4 text-[11px] font-bold uppercase tracking-wider transition ${
+                  activeTab === "shared" ? "text-emerald-700" : "text-slate-400 hover:text-slate-600"
+                }`}
+              >
+                Shared Store
+                {activeTab === "shared" && (
+                  <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-emerald-600" />
+                )}
+              </button>
 
-  <button
-    type="button"
-    onClick={() => setActiveTab("shared")}
-    className={`relative py-4 text-[11px] font-bold uppercase tracking-wider transition ${
-      activeTab === "shared" ? "text-emerald-700" : "text-slate-400 hover:text-slate-600"
-    }`}
-  >
-    Shared Store
-    {activeTab === "shared" && (
-      <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-emerald-600" />
-    )}
-  </button>
-
-
-               <button
-    type="button"
-    onClick={() => setActiveTab("orders")}
-    className={`relative py-4 text-[11px] font-bold uppercase tracking-wider transition ${
-      activeTab === "orders" ? "text-emerald-700" : "text-slate-400 hover:text-slate-600"
-    }`}
-  >
-    📦 My Orders
-    {activeTab === "orders" && (
-      <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-emerald-600" />
-    )}
-  </button>
-
-
+              <button
+                type="button"
+                onClick={() => setActiveTab("orders")}
+                className={`relative py-4 text-[11px] font-bold uppercase tracking-wider transition ${
+                  activeTab === "orders" ? "text-emerald-700" : "text-slate-400 hover:text-slate-600"
+                }`}
+              >
+                📦 My Orders
+                {activeTab === "orders" && (
+                  <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-emerald-600" />
+                )}
+              </button>
 
               <button
                 type="button"
@@ -797,6 +842,7 @@ export default function Profile() {
           </div>
         </section>
 
+        {/* Products Tab */}
         {activeTab === "products" && (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-6 flex items-center justify-between border-b border-slate-100 pb-4">
@@ -918,125 +964,114 @@ export default function Profile() {
           </section>
         )}
 
-   
-{activeTab === "shared" && (
-  <section className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-    {sharedProducts.length > 0 ? (
-      sharedProducts.map((item) => (
-        <div key={item._id} className="overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          {/* Note: item.productId nested properties are populated directly by Mongoose! */}
-          <img 
-            src={item.productId?.imageUrl} 
-            alt={item.productId?.name} 
-            className="h-40 w-full rounded-lg object-cover" 
-            crossOrigin="anonymous"
-          />
-          <h3 className="mt-2 text-sm font-bold text-slate-800">{item.productId?.name}</h3>
-          <p className="text-xs text-slate-400 font-medium">By {item.productId?.brandName || "Partner Shop"}</p>
-          
-          <div className="mt-3 flex items-center justify-between border-t border-slate-50 pt-2">
-            <span className="text-sm font-black text-slate-900">KES {item.productId?.price?.toLocaleString()}</span>
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-extrabold text-amber-700 uppercase">
-              Affiliate Pick
-            </span>
-          </div>
-          
-          {item.customNotes && (
-            <p className="mt-2 bg-slate-50 p-2 rounded text-[11px] italic text-slate-500">
-              💡 "{item.customNotes}"
+        {/* Shared Store Tab */}
+        {activeTab === "shared" && (
+          <section className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {sharedProducts.length > 0 ? (
+              sharedProducts.map((item) => (
+                <div
+                  key={item._id}
+                  className="overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  {/* Note: item.productId nested properties are populated directly by Mongoose! */}
+                  <img
+                    src={item.productId?.imageUrl}
+                    alt={item.productId?.name}
+                    className="h-40 w-full rounded-lg object-cover"
+                    crossOrigin="anonymous"
+                  />
+                  <h3 className="mt-2 text-sm font-bold text-slate-800">{item.productId?.name}</h3>
+                  <p className="text-xs text-slate-400 font-medium">By {item.productId?.brandName || "Partner Shop"}</p>
+
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-50 pt-2">
+                    <span className="text-sm font-black text-slate-900">KES {item.productId?.price?.toLocaleString()}</span>
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-extrabold text-amber-700 uppercase">
+                      Affiliate Pick
+                    </span>
+                  </div>
+
+                  {item.customNotes && (
+                    <p className="mt-2 bg-slate-50 p-2 rounded text-[11px] italic text-slate-500">
+                      💡 "{item.customNotes}"
+                    </p>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-12 text-slate-400 text-xs">
+                No re-pinned catalog products listed on this storefront yet.
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Orders Tab */}
+        {activeTab === "orders" && (
+          <section className="mt-6 space-y-4">
+            <h3 className="text-base font-bold text-slate-800">My Purchase Receipts</h3>
+            <p className="text-xs text-slate-400 -mt-2 mb-4">
+              View your product delivery slips, active packages, and secure escrow verification codes.
             </p>
-          )}
-        </div>
-      ))
-    ) : (
-      <div className="col-span-full text-center py-12 text-slate-400 text-xs">
-        No re-pinned catalog products listed on this storefront yet.
-      </div>
-    )}
-  </section>
-)}
 
+            {/* This references the OrderCardDetails component we built earlier */}
+            <div className="grid gap-6 md:grid-cols-2">
+              {myOrdersList.length > 0 ? (
+                myOrdersList.map((order) => (
+                  <OrderCardDetails key={order._id} order={order} />
+                ))
+              ) : (
+                <div className="col-span-full text-center py-12 text-slate-400 text-xs bg-white rounded-2xl border border-slate-100">
+                  You haven't purchased any items from the MarketHub yet.
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
-      
-{activeTab === "orders" && (
-  <section className="mt-6 space-y-4">
-    <h3 className="text-base font-bold text-slate-800">My Purchase Receipts</h3>
-    <p className="text-xs text-slate-400 -mt-2 mb-4">View your product delivery slips, active packages, and secure escrow verification codes.</p>
-    
-    {/* This references the OrderCardDetails component we built earlier */}
-    <div className="grid gap-6 md:grid-cols-2">
-      {myOrdersList.length > 0 ? (
-        myOrdersList.map((order) => (
-          <OrderCardDetails key={order._id} order={order} />
-        ))
-      ) : (
-        <div className="col-span-full text-center py-12 text-slate-400 text-xs bg-white rounded-2xl border border-slate-100">
-          You haven't purchased any items from the MarketHub yet.
-        </div>
-      )}
-    </div>
-  </section>
-)}
-
-
-
+        {/* About Tab */}
         {activeTab === "about" && (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-6 border-b border-slate-100 pb-4">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">
-                About
-              </h2>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-900">About</h2>
               <p className="mt-1 text-xs text-slate-400">Member information</p>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                  Account Type
-                </p>
+                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Account Type</p>
                 <p className="mt-2 text-sm font-semibold capitalize text-slate-800">
                   {brandProfile?.accountCategory || "Member"}
                 </p>
               </div>
 
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                  Network Level
-                </p>
+                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Network Level</p>
                 <p className="mt-2 text-sm font-semibold text-slate-800">{levelInfo.name}</p>
               </div>
 
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                  Membership Number
-                </p>
+                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Membership Number</p>
                 <p className="mt-2 font-mono text-sm font-semibold text-slate-800">
                   {brandProfile?.membershipNumber || "N/A"}
                 </p>
               </div>
 
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                  Network Members
-                </p>
+                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Network Members</p>
                 <p className="mt-2 text-sm font-semibold text-slate-800">
                   {Number(networkMembers).toLocaleString()}
                 </p>
               </div>
 
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                  Subscribers
-                </p>
+                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Subscribers</p>
                 <p className="mt-2 text-sm font-semibold text-slate-800">
                   {Number(subscribers).toLocaleString()}
                 </p>
               </div>
 
               <div className="rounded-xl bg-slate-50 p-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                  Store / Brand
-                </p>
+                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Store / Brand</p>
                 <p className="mt-2 text-sm font-semibold text-slate-800">
                   {brandProfile?.brandName || "SokoDigi Merchant"}
                 </p>
@@ -1045,6 +1080,7 @@ export default function Profile() {
           </section>
         )}
 
+        {/* Network Overview for own profile */}
         {isOwnProfile && matrixMetrics?.ok && (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-6 flex flex-col gap-2 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
@@ -1054,7 +1090,6 @@ export default function Profile() {
                 </h2>
                 <p className="mt-1 text-xs text-slate-400">Your private network analytics</p>
               </div>
-
               <button
                 type="button"
                 onClick={() => navigate(NETWORK_DASHBOARD_ROUTE)}
@@ -1063,12 +1098,10 @@ export default function Profile() {
                 Full Dashboard →
               </button>
             </div>
-
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               <div className="lg:col-span-1">
                 <MatrixTreeChart generations={matrixMetrics.generations} />
               </div>
-
               <div className="lg:col-span-2">
                 <LegDistributionCards
                   legBalanceMatrix={matrixMetrics.legBalanceMatrix}
@@ -1082,3 +1115,20 @@ export default function Profile() {
     </main>
   );
 }
+
+// Helper function for product image URL
+const getProductImageUrl = (product) => {
+  const imageUrl = product?.imageUrl || product?.image || product?.thumbnail || "";
+
+  if (
+    !imageUrl ||
+    imageUrl.startsWith("http://") ||
+    imageUrl.startsWith("https://") ||
+    imageUrl.startsWith("data:")
+  ) {
+    return imageUrl;
+  }
+
+  const fileName = imageUrl.split("/").pop();
+  return `${API_URL}/images/${fileName}`;
+};
