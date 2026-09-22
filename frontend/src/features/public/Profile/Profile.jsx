@@ -50,30 +50,7 @@ export default function Profile() {
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
 
-  // Fetch orders when activeTab is 'orders'
-  useEffect(() => {
-    if (activeTab === "orders") {
-      fetchOrders();
-    }
-  }, [activeTab]);
-
-  const fetchOrders = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/orders`);
-      if (response.ok) {
-        const data = await response.json();
-        setMyOrdersList(data);
-      } else {
-        setMyOrdersList([]);
-        console.error("Failed to fetch orders:", response.status);
-      }
-    } catch (err) {
-      console.error("Error fetching orders:", err);
-      setMyOrdersList([]);
-    }
-  };
-
-  // Fetch shared products when 'shared' tab is active
+  // 1. Fetch shared products when 'shared' tab is active
   const fetchSharedProducts = async () => {
     try {
       const response = await fetch(`${API_URL}/api/shared-products`, {
@@ -86,7 +63,6 @@ export default function Profile() {
         setSharedProducts(data);
       } else if (response.status === 401) {
         console.error("Unauthorized: Please log in again.");
-        // Handle logout or re-authentication if necessary
       } else {
         console.error("Failed to load shared products:", response.status);
       }
@@ -95,137 +71,24 @@ export default function Profile() {
     }
   };
 
-  // Call fetchSharedProducts when 'shared' tab is active
-useEffect(() => {
-  let isMounted = true;
-
-  const fetchProfileData = async () => {
-    try {
-      setIsLoading(true); // Start loading state indicator
-      
-      const response = await fetch(`${API_URL}/api/profiles/${activeTargetId}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (isMounted) setBrandProfile(data);
-      } else {
-        console.warn("Profile structure not found on server:", response.status);
-      }
-    } catch (error) {
-      console.error("Failed to load user profile dataset:", error);
-    } finally {
-      // 🟢 CRITICAL: This MUST run no matter what to unfreeze the blank screen
-      if (isMounted) {
-        setIsLoading(false); 
-      }
+  // 2. Clear out the broken duplicate hook and bind the active tab listener correctly
+  useEffect(() => {
+    if (activeTab === "shared") {
+      fetchSharedProducts();
     }
-  };
+  }, [activeTab]);
 
-  if (activeTargetId) {
-    fetchProfileData();
-  }
-
-  return () => {
-    isMounted = false;
-  };
-}, [activeTargetId]);
-
-
-  const handleAvatarFileChange = async (event) => {
-    const selectedFile = event.target.files?.[0];
-
-    if (!selectedFile) return;
-
-    if (!selectedFile.type.startsWith("image/")) {
-      alert("Please select a valid image file.");
-      event.target.value = "";
-      return;
-    }
-
-    if (selectedFile.size > 2 * 1024 * 1024) {
-      alert("Profile picture files are restricted to a maximum size of 2MB.");
-      event.target.value = "";
-      return;
-    }
-
-    setIsUpdatingAvatar(true);
-
-    try {
-      const currentUser = auth?.currentUser;
-
-      if (!currentUser) {
-        throw new Error("Your session has expired. Please sign in again.");
-      }
-
-      console.log("Starting profile image upload to Cloudinary...");
-
-      const uploadedUrl = await uploadImageToCloudinary(selectedFile, "profiles");
-
-      if (typeof uploadedUrl !== "string" || uploadedUrl.trim() === "") {
-        throw new Error("Upload pipeline failed to resolve an image URL.");
-      }
-
-      setBrandProfile((previousProfile) => ({
-        ...previousProfile,
-        photoURL: uploadedUrl,
-        profilePic: uploadedUrl,
-        profilePhoto: uploadedUrl,
-      }));
-
-      const token = await currentUser.getIdToken();
-
-      const profileResponse = await fetch(`${API_URL}/api/auth/sync`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          profilePic: uploadedUrl,
-          photoURL: uploadedUrl,
-          userData: {
-            profilePic: uploadedUrl,
-            photoURL: uploadedUrl,
-          },
-        }),
-      });
-
-      if (!profileResponse.ok) {
-        const responseText = await profileResponse.text();
-        throw new Error(`Profile sync failed: ${profileResponse.status} ${responseText}`);
-      }
-
-      console.log("Profile avatar changes synced successfully.");
-      setIsAvatarModalOpen(false);
-
-      window.dispatchEvent(
-        new CustomEvent("profile-avatar-updated", {
-          detail: {
-            profilePic: uploadedUrl,
-            photoURL: uploadedUrl,
-          },
-        })
-      );
-    } catch (error) {
-      console.error("Avatar synchronization error:", error);
-      alert(error?.message || "Unable to update the profile picture.");
-    } finally {
-      setIsUpdatingAvatar(false);
-      event.target.value = "";
-    }
-  };
-
-  // Load profile and related data
+  // 3. Load profile and related data (Unified Hook Architecture)
   useEffect(() => {
     let isMounted = true;
 
-    const activeTargetId =
-      isOwnProfile
-        ? loggedInProfile?.id ||
-          loggedInProfile?._id ||
-          auth?.user?.id ||
-          auth?.user?._id ||
-          loggedInUser?.uid
-        : userId;
+    const activeTargetId = isOwnProfile
+      ? loggedInProfile?.id ||
+        loggedInProfile?._id ||
+        auth?.user?.id ||
+        auth?.user?._id ||
+        loggedInUser?.uid
+      : userId;
 
     if (!activeTargetId) {
       setIsLoading(false);
@@ -247,58 +110,54 @@ useEffect(() => {
             "retail";
 
           resolvedProfile = {
-            id:
-              loggedInProfile?.id ||
-              loggedInProfile?._id ||
-              auth?.user?.id ||
-              auth?.user?._id ||
-              loggedInUser?.uid,
-            name:
-              `${loggedInProfile?.firstName || ""} ${loggedInProfile?.lastName || ""}`.trim() ||
+            id: activeTargetId,
+            name: `${loggedInProfile?.firstName || ""} ${loggedInProfile?.lastName || ""}`.trim() ||
               loggedInProfile?.name ||
               loggedInUser?.displayName ||
               loggedInUser?.email ||
               "SokoDigi Member",
-            username:
-              loggedInProfile?.username ||
-              loggedInUser?.email?.split("@")[0] ||
-              "member",
+            username: loggedInProfile?.username || loggedInUser?.email?.split("@")[0] || "member",
             accountCategory,
-            membershipNumber:
-              loggedInProfile?.membershipNumber ||
-              auth?.user?.membershipNumber ||
-              "PENDING",
+            membershipNumber: loggedInProfile?.membershipNumber || auth?.user?.membershipNumber || "PENDING",
             brandName: loggedInProfile?.brandName || "SokoDigi Merchant",
-            phoneNumber:
-              loggedInProfile?.phoneNumber ||
-              loggedInUser?.phoneNumber ||
-              "",
+            phoneNumber: loggedInProfile?.phoneNumber || loggedInUser?.phoneNumber || "",
             bio: loggedInProfile?.bio || loggedInProfile?.description || "",
-            photoURL:
-              loggedInProfile?.profilePhoto ||
-              loggedInProfile?.photoURL ||
-              loggedInProfile?.profilePic ||
-              loggedInUser?.photoURL ||
-              "",
-            profilePic:
-              loggedInProfile?.profilePic ||
-              loggedInProfile?.photoURL ||
-              loggedInProfile?.profilePhoto ||
-              loggedInUser?.photoURL ||
-              "",
-            profilePhoto:
-              loggedInProfile?.profilePhoto ||
-              loggedInProfile?.photoURL ||
-              loggedInProfile?.profilePic ||
-              loggedInUser?.photoURL ||
-              "",
-            networkLevel:
-              loggedInProfile?.networkLevel ||
-              loggedInProfile?.marketerLevel ||
-              null,
+            photoURL: loggedInProfile?.profilePhoto || loggedInProfile?.photoURL || loggedInProfile?.profilePic || loggedInUser?.photoURL || "",
+            profilePic: loggedInProfile?.profilePic || loggedInProfile?.photoURL || loggedInProfile?.profilePhoto || loggedInUser?.photoURL || "",
+            profilePhoto: loggedInProfile?.profilePhoto || loggedInProfile?.photoURL || loggedInProfile?.profilePic || loggedInUser?.photoURL || "",
+            networkLevel: loggedInProfile?.networkLevel || loggedInProfile?.marketerLevel || null,
             subscribers: loggedInProfile?.subscriberCount || 0,
             subscriptions: loggedInProfile?.subscriptionCount || 0,
           };
+          
+          if (isMounted) {
+            setBrandProfile(resolvedProfile);
+          }
+        } else {
+          // If viewing an external user profile, download their data segment
+          const response = await fetch(`${API_URL}/api/profiles/${activeTargetId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (isMounted) setBrandProfile(data);
+          } else {
+            console.warn("Profile structure not found on server:", response.status);
+          }
+        }
+      } catch (error) {
+        console.error("Critical error building profile view datasets:", error);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false); // Unfreezes the UI state
+        }
+      }
+    };
+
+    loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userId, isOwnProfile, loggedInUser, loggedInProfile, auth]);
 
           if (accountCategory === "network") {
             try {
