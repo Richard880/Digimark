@@ -2,14 +2,24 @@ const mongoose = require("mongoose");
 
 const orderSchema = new mongoose.Schema(
   {
-    orderNumber: {
-      type: String,
-      required: true,
-      unique: true,
-      uppercase: true,
-      index: true,
-      default: () => `SDO-${Math.random().toString(36).substr(2, 7).toUpperCase()}`
-    },
+orderNumber: {
+  type: String,
+  required: true,
+  unique: true,
+  uppercase: true,
+  index: true,
+  default: () => `SDO-${Math.random().toString(36).substr(2, 7).toUpperCase()}`
+},
+
+// 🎯 NEW: 6-Digit Alpha-Numeric or Numeric Secure Unlock Pin for Desktop Fallbacks
+escrowReleasePin: {
+  type: String,
+  required: true,
+  index: true,
+  // Auto-generates a crisp, unguessable 6-digit uppercase code string
+  default: () => Math.floor(100000 + Math.random() * 900000).toString()
+},
+
     buyerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -53,24 +63,6 @@ const orderSchema = new mongoose.Schema(
       deliveryNotes: { type: String, trim: true, default: "" } // Pick-up station details or physical addresses
     },
 
-    // 🎯 ADD THIS BLOCK TO YOUR ORDER.JS SCHEMA PROPERTIES:
-orderNumber: {
-  type: String,
-  required: true,
-  unique: true,
-  uppercase: true,
-  index: true,
-  default: () => `SDO-${Math.random().toString(36).substr(2, 7).toUpperCase()}`
-},
-
-// 🎯 NEW: 6-Digit Alpha-Numeric or Numeric Secure Unlock Pin for Desktop Fallbacks
-escrowReleasePin: {
-  type: String,
-  required: true,
-  index: true,
-  // Auto-generates a crisp, unguessable 6-digit uppercase code string
-  default: () => Math.floor(100000 + Math.random() * 900000).toString()
-},
 
     // =========================================================================
     // 💰 FINANCIAL MATRIX METRICS
