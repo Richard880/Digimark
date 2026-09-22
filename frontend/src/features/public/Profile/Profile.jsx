@@ -957,6 +957,29 @@ export default function Profile() {
 )}
 
 
+      
+{activeTab === "orders" && (
+  <section className="mt-6 space-y-4">
+    <h3 className="text-base font-bold text-slate-800">My Purchase Receipts</h3>
+    <p className="text-xs text-slate-400 -mt-2 mb-4">View your product delivery slips, active packages, and secure escrow verification codes.</p>
+    
+    {/* This references the OrderCardDetails component we built earlier */}
+    <div className="grid gap-6 md:grid-cols-2">
+      {myOrdersList.length > 0 ? (
+        myOrdersList.map((order) => (
+          <OrderCardDetails key={order._id} order={order} />
+        ))
+      ) : (
+        <div className="col-span-full text-center py-12 text-slate-400 text-xs bg-white rounded-2xl border border-slate-100">
+          You haven't purchased any items from the MarketHub yet.
+        </div>
+      )}
+    </div>
+  </section>
+)}
+
+
+
         {activeTab === "about" && (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
             <div className="mb-6 border-b border-slate-100 pb-4">
