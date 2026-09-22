@@ -596,12 +596,13 @@ export default function Profile() {
     return () => {
       isMounted = false;
     };
-  }, [
+   }, [
     userId,
     isOwnProfile,
-    loggedInUser,
-    loggedInProfile,
-    auth?.user,
+    activeTargetId,
+    loggedInUser?.uid,
+    loggedInProfile?.id,
+    loggedInProfile?._id,
   ]);
 
   // ==========================================================================
