@@ -326,7 +326,7 @@ export default function Profile() {
       try {
         setIsLoading(true);
 
-        let resolvedProfile = null;
+        let brandProfile = null;
         let resolvedMatrixMetrics = null;
 
   
@@ -340,7 +340,7 @@ export default function Profile() {
             auth?.user?.accountCategory ||
             "retail";
 
-          resolvedProfile = {
+          brandProfile = {
             id: activeTargetId,
 
             name:
@@ -480,7 +480,7 @@ if (accountCategory === "network") {
               );
 
               if (matchedItem) {
-                resolvedProfile = {
+                brandProfile = {
                   id: activeTargetId,
 
                   name:
@@ -572,7 +572,7 @@ if (accountCategory === "network") {
           return;
         }
 
-        setBrandProfile(resolvedProfile);
+        setBrandProfile(brandProfile);
         setMatrixMetrics(resolvedMatrixMetrics);
         setProducts(resolvedProducts);
       } catch (error) {
