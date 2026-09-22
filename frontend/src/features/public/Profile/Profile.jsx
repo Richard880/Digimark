@@ -52,14 +52,7 @@ export default function Profile() {
     userId === auth?.user?._id;
 
 
-  if (!resolvedProfile) {
-  resolvedProfile = {
-    id: activeTargetId || "guest",
-    name: loggedInUser?.displayName || loggedInUser?.email || "SokoDigi Member",
-    username: loggedInUser?.email?.split("@")[0] || "member",
-    accountCategory: "retail"
-  };
-}
+ 
 
   // ==========================================================================
   // STATE
@@ -327,6 +320,15 @@ export default function Profile() {
 
   useEffect(() => {
     let isMounted = true;
+
+     if (!resolvedProfile) {
+  resolvedProfile = {
+    id: activeTargetId || "guest",
+    name: loggedInUser?.displayName || loggedInUser?.email || "SokoDigi Member",
+    username: loggedInUser?.email?.split("@")[0] || "member",
+    accountCategory: "retail"
+  };
+}
 
     if (!activeTargetId) {
       setIsLoading(false);
