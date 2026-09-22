@@ -188,7 +188,9 @@ useEffect(() => {
   
   {/* 🎯 NEW: Direct Wallet Ledger balance monitoring shortcut link inside your shop portal */}
   <button type="button" onClick={() => navigate("/wallet")} className={styles["sidebar-link"]}>💳 Shop Revenue Wallet</button>
-  
+  <button type="button" onClick={() => setActiveTab("sales_orders")} className={`${styles["sidebar-link"]} ${activeTab === "sales_orders" ? styles["sidebar-link-active"] : ""}`}>
+    📋 Customer Incoming Orders
+  </button>
   <button type="button" onClick={() => navigate("/marketplace")} className={styles["sidebar-link"]}>🛒 Browse MarketHub</button>
   <button type="button" onClick={() => navigate("/")} className={styles["sidebar-link"]}>🏠 Home Landing Page</button>
   <button type="button" onClick={() => setIsModalOpen(true)} className="mt-4 w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl py-2.5 text-xs font-bold transition">➕ Add New Product</button>
