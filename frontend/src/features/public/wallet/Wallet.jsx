@@ -1,32 +1,39 @@
 import { useEffect, useState } from "react";
-import styles from "./Wallet.module.css"; // Optional: Use standard style maps or Tailwind utilities
+import styles from "./Wallet.module.css";
+import useAuth from "../../auth/hooks/useAuth";
 
-// Dynamic URL router parsing
 const API_URL = import.meta.env.PROD 
   ? "" 
   : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/\$/, "");
 
 export default function Wallet() {
+  const { auth } = useAuth();
+  const loggedInUser = auth?.currentUser;
+
   const [walletDetails, setWalletDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Load balances and transaction notifications list on mount
   useEffect(() => {
-    fetchWalletDetails();
-  }, []);
+    if (loggedInUser) {
+      fetchWalletDetails();
+    } else {
+      setIsLoading(false); 
+    }
+  }, [loggedInUser]);
 
   const fetchWalletDetails = async () => {
     try {
       setIsLoading(true);
-      // Replace with your global storage token fetch logic from AuthContext or localStorage
-      const token = localStorage.getItem("authToken"); 
+      const token = loggedInUser?.getIdToken ? await loggedInUser.getIdToken() : null;
+      if (!token) return;
+
       const response = await fetch(`${API_URL}/api/wallet/my-balance`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
-      if (data.ok) {
+      if (response.ok) {
         setWalletDetails(data);
       }
     } catch (err) {
@@ -43,7 +50,9 @@ export default function Wallet() {
 
     setIsProcessing(true);
     try {
-      const token = localStorage.getItem("authToken");
+      const token = loggedInUser?.getIdToken ? await loggedInUser.getIdToken() : null;
+      if (!token) throw new Error("Your authentication session has expired.");
+
       const response = await fetch(`${API_URL}/api/wallet/withdraw`, {
         method: "POST",
         headers: {
@@ -57,12 +66,13 @@ export default function Wallet() {
       if (response.ok) {
         alert("💸 Withdrawal request successfully initialized to your personal M-PESA line!");
         setWithdrawAmount("");
-        fetchWalletDetails(); // Refresh balances list
+        fetchWalletDetails();
       } else {
         alert(data.reason || "Withdrawal failed due to insufficient funds.");
       }
     } catch (err) {
       console.error("Withdrawal network connection fault:", err);
+      alert(err.message || "Something went wrong processing your request.");
     } finally {
       setIsProcessing(false);
     }
@@ -75,6 +85,8 @@ export default function Wallet() {
       </div>
     );
   }
+
+ 
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
