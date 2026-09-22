@@ -42,15 +42,15 @@ export default function Profile() {
 
   const loggedInUser = auth?.currentUser;
   const loggedInProfile = auth?.profile || {};
-
-  const isOwnProfile =
-    !userId ||
-    userId === loggedInUser?.uid ||
-    userId === loggedInProfile?.id ||
-    userId === loggedInProfile?._id ||
-    userId === auth?.user?.id ||
-    userId === auth?.user?._id;
-
+  
+    if (!resolvedProfile) {
+  resolvedProfile = {
+    id: activeTargetId || "guest",
+    name: loggedInUser?.displayName || loggedInUser?.email || "SokoDigi Member",
+    username: loggedInUser?.email?.split("@")[0] || "member",
+    accountCategory: "retail"
+  };
+}
 
  
 
@@ -321,14 +321,7 @@ export default function Profile() {
   useEffect(() => {
     let isMounted = true;
 
-     if (!resolvedProfile) {
-  resolvedProfile = {
-    id: activeTargetId || "guest",
-    name: loggedInUser?.displayName || loggedInUser?.email || "SokoDigi Member",
-    username: loggedInUser?.email?.split("@")[0] || "member",
-    accountCategory: "retail"
-  };
-}
+ 
 
     if (!activeTargetId) {
       setIsLoading(false);
