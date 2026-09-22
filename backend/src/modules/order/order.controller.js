@@ -72,9 +72,9 @@ async function releaseEscrowViaQrScan(req, res) {
     const wholesaleAmount = order.financials.totalWholesaleToShop;
 
     const updatedSellerWallet = await Wallet.findOneAndUpdate(
-      { userId: order.sellerId, escrowBalance: { \$gte: wholesaleAmount } },
+      { userId: order.sellerId, escrowBalance: { $gte: wholesaleAmount } },
       {
-        \(inc: { escrowBalance: -wholesaleAmount, balance: wholesaleAmount },\)push: {
+        (inc: { escrowBalance: -wholesaleAmount, balance: wholesaleAmount },)push: {
           transactions: {
             amount: wholesaleAmount,
             type: "receive_payments",
@@ -150,9 +150,9 @@ async function releaseEscrowViaPinVerification(req, res) {
     const wholesaleAmount = order.financials.totalWholesaleToShop;
 
     const updatedWallet = await Wallet.findOneAndUpdate(
-      { userId: order.sellerId, escrowBalance: { \$gte: wholesaleAmount } },
+      { userId: order.sellerId, escrowBalance: { $gte: wholesaleAmount } },
       {
-        \(inc: { escrowBalance: -wholesaleAmount, balance: wholesaleAmount },\)push: {
+        (inc: { escrowBalance: -wholesaleAmount, balance: wholesaleAmount },)push: {
           transactions: {
             amount: wholesaleAmount,
             type: "receive_payments",
