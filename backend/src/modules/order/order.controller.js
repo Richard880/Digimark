@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-const Order = require("../models/Order");
-const Wallet = require("../models/Wallet");
+const Order = require("../../models/Order");
+const Wallet = require("../../models/Wallet");
 
 /**
  * 🛒 GET /api/orders
