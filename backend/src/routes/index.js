@@ -4,8 +4,13 @@ const router = express.Router();
 router.use("/auth", require("../modules/auth/auth.routes"));
 router.use("/profiles", require("../modules/profiles/profile.routes"));
 router.use("/products", require("../modules/products/product.routes"));
-router.use("/upload",require("./upload.routes"));
-router.use("/network",require("../../api/network.routes")); // Adjust path to network.routes.js
+router.use("/upload", require("./upload.routes"));
+router.use("/network", require("../../api/network.routes")); // Adjust path to network.routes.js
+
+// 🟢 Register the Orders Route to fix your empty orders list
 router.use("/orders", require("../modules/order/order.routes")); 
+
+// 🟢 Register the Wallet Route to fix the wallet/my-balance 404 error
+router.use("/wallet", require("../modules/wallet/wallet.routes")); // Ensure this module path matches your directory setup
 
 module.exports = router;
