@@ -34,23 +34,49 @@ export default function Profile() {
     userId === auth?.user?.id ||
     userId === auth?.user?._id;
 
+  // ==========================================
+  // 1. STATE INITIALIZATION
+  // ==========================================
   const [brandProfile, setBrandProfile] = useState(null);
   const [matrixMetrics, setMatrixMetrics] = useState(null);
   const [products, setProducts] = useState([]);
-  
-  // Declare sharedProducts state
   const [sharedProducts, setSharedProducts] = useState([]);
-
   const [myOrdersList, setMyOrdersList] = useState([]);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("products");
   const [shareMessage, setShareMessage] = useState("");
-
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
 
-  // 1. Fetch shared products when 'shared' tab is active
+  // Determine active identifier
+  const activeTargetId = isOwnProfile
+    ? loggedInProfile?.id ||
+      loggedInProfile?._id ||
+      auth?.user?.id ||
+      auth?.user?._id ||
+      loggedInUser?.uid
+    : userId;
+
+  // ==========================================
+  // 2. HELPER & HANDLER FUNCTIONS
+  // ==========================================
+  const fetchOrders = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/orders`);
+      if (response.ok) {
+        const data = await response.json();
+        setMyOrdersList(data);
+      } else {
+        setMyOrdersList([]);
+        console.error("Failed to fetch orders:", response.status);
+      }
+    } catch (err) {
+      console.error("Error fetching orders:", err);
+      setMyOrdersList([]);
+    }
+  };
+
   const fetchSharedProducts = async () => {
     try {
       const response = await fetch(`${API_URL}/api/shared-products`, {
@@ -61,8 +87,6 @@ export default function Profile() {
       if (response.ok) {
         const data = await response.json();
         setSharedProducts(data);
-      } else if (response.status === 401) {
-        console.error("Unauthorized: Please log in again.");
       } else {
         console.error("Failed to load shared products:", response.status);
       }
@@ -71,24 +95,91 @@ export default function Profile() {
     }
   };
 
-  // 2. Clear out the broken duplicate hook and bind the active tab listener correctly
-  useEffect(() => {
-    if (activeTab === "shared") {
-      fetchSharedProducts();
+  // 🟢 Fixed: Declared explicitly at top component level to eliminate ReferenceError
+  const handleAvatarFileChange = async (event) => {
+    const selectedFile = event.target.files?.[0];
+    if (!selectedFile) return;
+
+    if (!selectedFile.type.startsWith("image/")) {
+      alert("Please select a valid image file.");
+      event.target.value = "";
+      return;
     }
+
+    if (selectedFile.size > 2 * 1024 * 1024) {
+      alert("Profile picture files are restricted to a maximum size of 2MB.");
+      event.target.value = "";
+      return;
+    }
+
+    setIsUpdatingAvatar(true);
+    try {
+      const currentUser = auth?.currentUser;
+      if (!currentUser) throw new Error("Your session has expired. Please sign in again.");
+
+      console.log("Starting profile image upload to Cloudinary...");
+      const uploadedUrl = await uploadImageToCloudinary(selectedFile, "profiles");
+
+      if (typeof uploadedUrl !== "string" || uploadedUrl.trim() === "") {
+        throw new Error("Upload pipeline failed to resolve an image URL.");
+      }
+
+      setBrandProfile((previousProfile) => ({
+        ...previousProfile,
+        photoURL: uploadedUrl,
+        profilePic: uploadedUrl,
+        profilePhoto: uploadedUrl,
+      }));
+
+      const token = await currentUser.getIdToken();
+      const profileResponse = await fetch(`${API_URL}/api/auth/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          profilePic: uploadedUrl,
+          photoURL: uploadedUrl,
+          userData: { profilePic: uploadedUrl, photoURL: uploadedUrl },
+        }),
+      });
+
+      if (!profileResponse.ok) {
+        const responseText = await profileResponse.text();
+        throw new Error(`Profile sync failed: ${profileResponse.status} ${responseText}`);
+      }
+
+      console.log("Profile avatar changes synced successfully.");
+      setIsAvatarModalOpen(false);
+
+      window.dispatchEvent(
+        new CustomEvent("profile-avatar-updated", {
+          detail: { profilePic: uploadedUrl, photoURL: uploadedUrl },
+        })
+      );
+    } catch (error) {
+      console.error("Avatar synchronization error:", error);
+      alert(error?.message || "Unable to update the profile picture.");
+    } finally {
+      setIsUpdatingAvatar(false);
+      event.target.value = "";
+    }
+  };
+
+  // ==========================================
+  // 3. LIFECYCLE SIDE-EFFECTS (useEffect)
+  // ==========================================
+  useEffect(() => {
+    if (activeTab === "orders") fetchOrders();
   }, [activeTab]);
 
-  // Load profile and related data
+  useEffect(() => {
+    if (activeTab === "shared") fetchSharedProducts();
+  }, [activeTab]);
+
   useEffect(() => {
     let isMounted = true;
-
-    const activeTargetId = isOwnProfile
-      ? loggedInProfile?.id ||
-        loggedInProfile?._id ||
-        auth?.user?.id ||
-        auth?.user?._id ||
-        loggedInUser?.uid
-      : userId;
 
     if (!activeTargetId) {
       setIsLoading(false);
@@ -99,23 +190,16 @@ export default function Profile() {
     const loadProfile = async () => {
       try {
         setIsLoading(true);
-
         let resolvedProfile = null;
         let resolvedMatrixMetrics = null;
 
         if (isOwnProfile && loggedInUser) {
-          const accountCategory =
-            loggedInProfile?.accountCategory ||
-            auth?.user?.accountCategory ||
-            "retail";
+          const accountCategory = loggedInProfile?.accountCategory || auth?.user?.accountCategory || "retail";
 
           resolvedProfile = {
             id: activeTargetId,
             name: `${loggedInProfile?.firstName || ""} ${loggedInProfile?.lastName || ""}`.trim() ||
-              loggedInProfile?.name ||
-              loggedInUser?.displayName ||
-              loggedInUser?.email ||
-              "SokoDigi Member",
+              loggedInProfile?.name || loggedInUser?.displayName || loggedInUser?.email || "SokoDigi Member",
             username: loggedInProfile?.username || loggedInUser?.email?.split("@")[0] || "member",
             accountCategory,
             membershipNumber: loggedInProfile?.membershipNumber || auth?.user?.membershipNumber || "PENDING",
@@ -133,65 +217,55 @@ export default function Profile() {
           if (accountCategory === "network") {
             try {
               const token = await loggedInUser.getIdToken();
-
               const metricsResponse = await fetch(`${API_URL}/api/network/matrix-metrics`, {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
+                headers: { Authorization: `Bearer ${token}` },
               });
-
               if (metricsResponse.ok) {
                 resolvedMatrixMetrics = await metricsResponse.json();
               }
             } catch (metricsError) {
               console.error("Delayed matrix aggregation lookup error:", metricsError);
-              resolvedMatrixMetrics = null;
             }
           }
         } else {
-          const profileResponse = await fetch(`${API_URL}/api/products/market`);
+          const response = await fetch(`${API_URL}/api/profiles/${activeTargetId}`);
+          if (response.ok) {
+            resolvedProfile = await response.json();
+          } else {
+            const marketResponse = await fetch(`${API_URL}/api/products/market`);
+            if (marketResponse.ok) {
+              const feedData = await marketResponse.json();
+              const feedList = Array.isArray(feedData) ? feedData : feedData?.products || [];
+              const matchedItem = feedList.find(p => p?.shopId === activeTargetId || p?.userId === activeTargetId);
 
-          if (profileResponse.ok) {
-            const feedData = await profileResponse.json();
-            const feedList = Array.isArray(feedData)
-              ? feedData
-              : feedData?.products || [];
-
-            const matchedItem = feedList.find(
-              (product) =>
-                product?.shopId === activeTargetId || product?.userId === activeTargetId
-            );
-
-            if (matchedItem) {
-              resolvedProfile = {
-                id: activeTargetId,
-                name: matchedItem?.displayName || matchedItem?.sellerName || "SokoDigi Merchant",
-                username: matchedItem?.username || "merchant",
-                accountCategory: matchedItem?.accountCategory || "retail",
-                membershipNumber: matchedItem?.membershipNumber || "N/A",
-                brandName: matchedItem?.brandName || "",
-                phoneNumber: matchedItem?.phoneNumber || "",
-                bio: matchedItem?.bio || "",
-                profilePic: matchedItem?.photoURL || matchedItem?.profilePhoto || matchedItem?.profilePic || "",
-                profilePhoto: matchedItem?.profilePhoto || matchedItem?.photoURL || matchedItem?.profilePic || "",
-                networkLevel: matchedItem?.networkLevel || null,
-                subscribers: matchedItem?.subscriberCount || 0,
-                subscriptions: matchedItem?.subscriptionCount || 0,
-              };
+              if (matchedItem) {
+                resolvedProfile = {
+                  id: activeTargetId,
+                  name: matchedItem?.displayName || matchedItem?.sellerName || "SokoDigi Merchant",
+                  username: matchedItem?.username || "merchant",
+                  accountCategory: matchedItem?.accountCategory || "retail",
+                  membershipNumber: matchedItem?.membershipNumber || "N/A",
+                  brandName: matchedItem?.brandName || "",
+                  phoneNumber: matchedItem?.phoneNumber || "",
+                  bio: matchedItem?.bio || "",
+                  profilePic: matchedItem?.photoURL || matchedItem?.profilePhoto || matchedItem?.profilePic || "",
+                  profilePhoto: matchedItem?.profilePhoto || matchedItem?.photoURL || matchedItem?.profilePic || "",
+                  networkLevel: matchedItem?.networkLevel || null,
+                  subscribers: matchedItem?.subscriberCount || 0,
+                  subscriptions: matchedItem?.subscriptionCount || 0,
+                };
+              }
             }
           }
         }
 
-        // 🟢 Fetching products now occurs SAFELY inside the asynchronous context loop
+        // Fetch user's storefront products catalog matching activeTargetId
         const productsResponse = await fetch(
           `${API_URL}/api/products?shopId=${encodeURIComponent(activeTargetId)}`
         );
-
         let resolvedProducts = [];
-
         if (productsResponse.ok) {
           const productsData = await productsResponse.json();
-
           resolvedProducts = Array.isArray(productsData)
             ? productsData
             : Array.isArray(productsData?.products)
@@ -204,16 +278,11 @@ export default function Profile() {
         setBrandProfile(resolvedProfile);
         setMatrixMetrics(resolvedMatrixMetrics);
         setProducts(resolvedProducts);
-
       } catch (error) {
         console.error("SokoDigi profile loading error:", error);
-        if (isMounted) {
-          setProducts([]);
-        }
+        if (isMounted) setProducts([]);
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        if (isMounted) setIsLoading(false);
       }
     };
 
@@ -222,6 +291,7 @@ export default function Profile() {
     return () => {
       isMounted = false;
     };
+
   }, [userId, isOwnProfile, loggedInUser, loggedInProfile, auth?.user]);
 
 
