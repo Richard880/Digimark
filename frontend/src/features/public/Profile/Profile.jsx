@@ -43,6 +43,13 @@ export default function Profile() {
   const loggedInUser = auth?.currentUser;
   const loggedInProfile = auth?.profile || {};
 
+ const isOwnProfile =
+    !userId ||
+    userId === loggedInUser?.uid ||
+    userId === loggedInProfile?.id ||
+    userId === loggedInProfile?._id ||
+    userId === auth?.user?.id ||
+    userId === auth?.user?._id;
 
   // ==========================================================================
   // STATE
