@@ -71,21 +71,25 @@ async function releaseEscrowViaQrScan(req, res) {
 
     const wholesaleAmount = order.financials.totalWholesaleToShop;
 
-    const updatedSellerWallet = await Wallet.findOneAndUpdate(
-      { userId: order.sellerId, escrowBalance: { $gte: wholesaleAmount } },
-      {
-        (inc: { escrowBalance: -wholesaleAmount, balance: wholesaleAmount },)push: {
-          transactions: {
-            amount: wholesaleAmount,
-            type: "receive_payments",
-            status: "COMPLETED",
-            referenceId: orderNumber,
-            description: `Escrow released via consumer QR handshake for Order #${orderNumber}`
-          }
-        }
-      },
-      { session, new: true }
-    );
+   const updatedSellerWallet = await Wallet.findOneAndUpdate(
+  { userId: order.sellerId, escrowBalance: { $gte: wholesaleAmount } },
+  {
+    $inc: {
+      escrowBalance: -wholesaleAmount,
+      balance: wholesaleAmount
+    },
+    $push: {
+      transactions: {
+        amount: wholesaleAmount,
+        type: "receive_payments",
+        status: "COMPLETED",
+        referenceId: orderNumber,
+        description: `Escrow released via consumer QR handshake for Order #${orderNumber}`
+      }
+    }
+  },
+  { session, new: true }
+);
 
     if (!updatedSellerWallet) {
       throw new Error("ESCROW_RELEASE_FAILED: Unable to verify held ledger balances.");
@@ -149,22 +153,25 @@ async function releaseEscrowViaPinVerification(req, res) {
 
     const wholesaleAmount = order.financials.totalWholesaleToShop;
 
-    const updatedWallet = await Wallet.findOneAndUpdate(
-      { userId: order.sellerId, escrowBalance: { $gte: wholesaleAmount } },
-      {
-        (inc: { escrowBalance: -wholesaleAmount, balance: wholesaleAmount },)push: {
-          transactions: {
-            amount: wholesaleAmount,
-            type: "receive_payments",
-            status: "COMPLETED",
-            referenceId: orderNumber,
-            description: `Escrow released via verbal PIN verification for Order #${orderNumber}`
-          }
-        }
-      },
-      { session, new: true }
-    );
-
+  const updatedWallet = await Wallet.findOneAndUpdate(
+  { userId: order.sellerId, escrowBalance: { $gte: wholesaleAmount } },
+  {
+    $inc: {
+      escrowBalance: -wholesaleAmount,
+      // Optional: include other fields if needed
+    },
+    $push: {
+      transactions: {
+        amount: wholesaleAmount,
+        type: "receive_payments",
+        status: "COMPLETED",
+        referenceId: orderNumber,
+        description: `Escrow released via verbal PIN verification for Order #${orderNumber}`
+      }
+    }
+  },
+  { session, new: true }
+);
     if (!updatedWallet) {
       throw new Error("LEDGER_UPGRADE_FAULT");
     }
