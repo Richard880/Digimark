@@ -764,6 +764,20 @@ export default function Profile() {
   </button>
 
 
+               <button
+    type="button"
+    onClick={() => setActiveTab("orders")}
+    className={`relative py-4 text-[11px] font-bold uppercase tracking-wider transition ${
+      activeTab === "orders" ? "text-emerald-700" : "text-slate-400 hover:text-slate-600"
+    }`}
+  >
+    📦 My Orders
+    {activeTab === "orders" && (
+      <span className="absolute bottom-0 left-0 h-0.5 w-full rounded-full bg-emerald-600" />
+    )}
+  </button>
+
+
 
               <button
                 type="button"
