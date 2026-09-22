@@ -42,9 +42,7 @@ export default function Profile() {
 
   const loggedInUser = auth?.currentUser;
   const loggedInProfile = auth?.profile || {};
-  
-  
- 
+
 
   // ==========================================================================
   // STATE
@@ -313,8 +311,6 @@ export default function Profile() {
   useEffect(() => {
     let isMounted = true;
 
- 
-
     if (!activeTargetId) {
       setIsLoading(false);
       setProducts([]);
@@ -326,10 +322,9 @@ export default function Profile() {
       try {
         setIsLoading(true);
 
-        let brandProfile = null;
+        let resolvedProfile = null;
         let resolvedMatrixMetrics = null;
 
-  
         // ====================================================================
         // OWN PROFILE
         // ====================================================================
@@ -340,7 +335,7 @@ export default function Profile() {
             auth?.user?.accountCategory ||
             "retail";
 
-          brandProfile = {
+          resolvedProfile = {
             id: activeTargetId,
 
             name:
@@ -480,7 +475,7 @@ if (accountCategory === "network") {
               );
 
               if (matchedItem) {
-                brandProfile = {
+                resolvedProfile = {
                   id: activeTargetId,
 
                   name:
@@ -572,7 +567,7 @@ if (accountCategory === "network") {
           return;
         }
 
-        setBrandProfile(brandProfile);
+        setBrandProfile(resolvedProfile);
         setMatrixMetrics(resolvedMatrixMetrics);
         setProducts(resolvedProducts);
       } catch (error) {
@@ -1676,4 +1671,3 @@ function OrderCardDetails({ order }) {
     </article>
   );
 }
-
