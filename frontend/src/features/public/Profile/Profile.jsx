@@ -51,6 +51,16 @@ export default function Profile() {
     userId === auth?.user?.id ||
     userId === auth?.user?._id;
 
+
+  if (!resolvedProfile) {
+  resolvedProfile = {
+    id: activeTargetId || "guest",
+    name: loggedInUser?.displayName || loggedInUser?.email || "SokoDigi Member",
+    username: loggedInUser?.email?.split("@")[0] || "member",
+    accountCategory: "retail"
+  };
+}
+
   // ==========================================================================
   // STATE
   // ==========================================================================
@@ -416,33 +426,35 @@ export default function Profile() {
           // ================================================================
           // MATRIX METRICS
           // ================================================================
+if (accountCategory === "network") {
+  try {
+    const token = loggedInUser?.getIdToken 
+      ? await loggedInUser.getIdToken() 
+      : (auth?.token || auth?.accessToken || null);
 
-          if (accountCategory === "network") {
-            try {
-              const token =
-                await loggedInUser.getIdToken();
+    if (token) {
+      const metricsResponse = await fetch(
+        `${API_URL}/api/network/matrix-metrics`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-              const metricsResponse = await fetch(
-                `${API_URL}/api/network/matrix-metrics`,
-                {
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                  },
-                }
-              );
-
-              if (metricsResponse.ok) {
-                resolvedMatrixMetrics =
-                  await metricsResponse.json();
-              }
-            } catch (metricsError) {
-              console.error(
-                "Delayed matrix aggregation lookup error:",
-                metricsError
-              );
-            }
-          }
-        } else {
+      if (metricsResponse.ok) {
+        resolvedMatrixMetrics = await metricsResponse.json();
+      }
+    } else {
+      console.warn("Skipping matrix metrics fetch: No auth token could be resolved.");
+    }
+  } catch (metricsError) {
+    console.error(
+      "Delayed matrix aggregation lookup error:",
+      metricsError
+    );
+  }
+}    } else {
           // ==================================================================
           // PUBLIC PROFILE
           // ==================================================================
