@@ -293,7 +293,7 @@ export default function Profile() {
     };
 
    // 🟢 By using exact primitive string values (like IDs), the hook will only fire ONCE when the user loads.
-  }, [userId, isOwnProfile, loggedInUser?.uid, loggedInProfile?.id]);
+  }, [userId, isOwnProfile, loggedInUser, loggedInProfile, auth?.user]);
 
 
 
