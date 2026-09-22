@@ -492,14 +492,14 @@ export default function Profile() {
     return () => {
       isMounted = false;
     };
+   // Change your dependency array block to exactly this:
   }, [
     userId,
     isOwnProfile,
     activeTargetId,
-    loggedInUser?.uid,
-    loggedInProfile?.id,
-    loggedInProfile?._id,
+    loggedInUser?.uid
   ]);
+
 
   // ==========================================================================
   // NETWORK LEVEL
