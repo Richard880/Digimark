@@ -43,15 +43,7 @@ export default function Profile() {
   const loggedInUser = auth?.currentUser;
   const loggedInProfile = auth?.profile || {};
   
-    if (!resolvedProfile) {
-  resolvedProfile = {
-    id: activeTargetId || "guest",
-    name: loggedInUser?.displayName || loggedInUser?.email || "SokoDigi Member",
-    username: loggedInUser?.email?.split("@")[0] || "member",
-    accountCategory: "retail"
-  };
-}
-
+  
  
 
   // ==========================================================================
@@ -337,6 +329,14 @@ export default function Profile() {
         let resolvedProfile = null;
         let resolvedMatrixMetrics = null;
 
+            if (!resolvedProfile) {
+  resolvedProfile = {
+    id: activeTargetId || "guest",
+    name: loggedInUser?.displayName || loggedInUser?.email || "SokoDigi Member",
+    username: loggedInUser?.email?.split("@")[0] || "member",
+    accountCategory: "retail"
+  };
+}
         // ====================================================================
         // OWN PROFILE
         // ====================================================================
