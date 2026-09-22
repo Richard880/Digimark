@@ -6,7 +6,7 @@ const {
   listOrders, 
   releaseEscrowViaQrScan, 
   releaseEscrowViaPinVerification 
-} = require("../controllers/order.controller");
+} = require("./order.controller");
 
 const router = express.Router();
 
