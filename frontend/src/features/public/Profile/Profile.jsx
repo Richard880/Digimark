@@ -307,7 +307,6 @@ export default function Profile() {
   // ==========================================================================
   // LOAD PROFILE
   // ==========================================================================
-
   useEffect(() => {
     let isMounted = true;
 
@@ -328,7 +327,6 @@ export default function Profile() {
         // ====================================================================
         // OWN PROFILE
         // ====================================================================
-
         if (isOwnProfile && loggedInUser) {
           const accountCategory =
             loggedInProfile?.accountCategory ||
@@ -337,199 +335,96 @@ export default function Profile() {
 
           resolvedProfile = {
             id: activeTargetId,
-
-            name:
-              `${loggedInProfile?.firstName || ""} ${
-                loggedInProfile?.lastName || ""
-              }`.trim() ||
+            name: `${loggedInProfile?.firstName || ""} ${loggedInProfile?.lastName || ""}`.trim() ||
               loggedInProfile?.name ||
               loggedInUser?.displayName ||
               loggedInUser?.email ||
               "SokoDigi Member",
-
-            username:
-              loggedInProfile?.username ||
-              loggedInUser?.email?.split("@")[0] ||
-              "member",
-
+            username: loggedInProfile?.username || loggedInUser?.email?.split("@")[0] || "member",
             accountCategory,
-
-            membershipNumber:
-              loggedInProfile?.membershipNumber ||
-              auth?.user?.membershipNumber ||
-              "PENDING",
-
-            brandName:
-              loggedInProfile?.brandName ||
-              "SokoDigi Merchant",
-
-            phoneNumber:
-              loggedInProfile?.phoneNumber ||
-              loggedInUser?.phoneNumber ||
-              "",
-
-            bio:
-              loggedInProfile?.bio ||
-              loggedInProfile?.description ||
-              "",
-
-            photoURL:
-              loggedInProfile?.profilePhoto ||
-              loggedInProfile?.photoURL ||
-              loggedInProfile?.profilePic ||
-              loggedInUser?.photoURL ||
-              "",
-
-            profilePic:
-              loggedInProfile?.profilePic ||
-              loggedInProfile?.photoURL ||
-              loggedInProfile?.profilePhoto ||
-              loggedInUser?.photoURL ||
-              "",
-
-            profilePhoto:
-              loggedInProfile?.profilePhoto ||
-              loggedInProfile?.photoURL ||
-              loggedInProfile?.profilePic ||
-              loggedInUser?.photoURL ||
-              "",
-
-            networkLevel:
-              loggedInProfile?.networkLevel ||
-              loggedInProfile?.marketerLevel ||
-              null,
-
-            subscribers:
-              loggedInProfile?.subscriberCount || 0,
-
-            subscriptions:
-              loggedInProfile?.subscriptionCount || 0,
+            membershipNumber: loggedInProfile?.membershipNumber || auth?.user?.membershipNumber || "PENDING",
+            brandName: loggedInProfile?.brandName || "SokoDigi Merchant",
+            phoneNumber: loggedInProfile?.phoneNumber || loggedInUser?.phoneNumber || "",
+            bio: loggedInProfile?.bio || loggedInProfile?.description || "",
+            photoURL: loggedInProfile?.profilePhoto || loggedInProfile?.photoURL || loggedInProfile?.profilePic || loggedInUser?.photoURL || "",
+            profilePic: loggedInProfile?.profilePic || loggedInProfile?.photoURL || loggedInProfile?.profilePhoto || loggedInUser?.photoURL || "",
+            profilePhoto: loggedInProfile?.profilePhoto || loggedInProfile?.photoURL || loggedInProfile?.profilePic || loggedInUser?.photoURL || "",
+            networkLevel: loggedInProfile?.networkLevel || loggedInProfile?.marketerLevel || null,
+            subscribers: loggedInProfile?.subscriberCount || 0,
+            subscriptions: loggedInProfile?.subscriptionCount || 0,
           };
 
           // ================================================================
           // MATRIX METRICS
           // ================================================================
-if (accountCategory === "network") {
-  try {
-    const token = loggedInUser?.getIdToken 
-      ? await loggedInUser.getIdToken() 
-      : (auth?.token || auth?.accessToken || null);
+          if (accountCategory === "network") {
+            try {
+              const token = loggedInUser?.getIdToken 
+                ? await loggedInUser.getIdToken() 
+                : (auth?.token || auth?.accessToken || null);
 
-    if (token) {
-      const metricsResponse = await fetch(
-        `${API_URL}/api/network/matrix-metrics`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+              if (token) {
+                const metricsResponse = await fetch(
+                  `${API_URL}/api/network/matrix-metrics`,
+                  {
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                    },
+                  }
+                );
 
-      if (metricsResponse.ok) {
-        resolvedMatrixMetrics = await metricsResponse.json();
-      }
-    } else {
-      console.warn("Skipping matrix metrics fetch: No auth token could be resolved.");
-    }
-  } catch (metricsError) {
-    console.error(
-      "Delayed matrix aggregation lookup error:",
-      metricsError
-    );
-  }
-}    } else {
+                if (metricsResponse.ok) {
+                  resolvedMatrixMetrics = await metricsResponse.json();
+                }
+              } else {
+                console.warn("Skipping matrix metrics fetch: No auth token could be resolved.");
+              }
+            } catch (metricsError) {
+              console.error("Delayed matrix aggregation lookup error:", metricsError);
+            }
+          }
+        } else {
           // ==================================================================
           // PUBLIC PROFILE
           // ==================================================================
-
           const response = await fetch(
-            `${API_URL}/api/profiles/${encodeURIComponent(
-              activeTargetId
-            )}`
+            `${API_URL}/api/profiles/${encodeURIComponent(activeTargetId)}`
           );
 
           if (response.ok) {
-            resolvedProfile =
-              await response.json();
+            resolvedProfile = await response.json();
           } else {
             // ================================================================
             // LEGACY MARKET FALLBACK
             // ================================================================
-
-            const marketResponse = await fetch(
-              `${API_URL}/api/products/market`
-            );
+            const marketResponse = await fetch(`${API_URL}/api/products/market`);
 
             if (marketResponse.ok) {
-              const feedData =
-                await marketResponse.json();
-
+              const feedData = await marketResponse.json();
               const feedList = Array.isArray(feedData)
                 ? feedData
                 : feedData?.products || [];
 
               const matchedItem = feedList.find(
-                (p) =>
-                  p?.shopId === activeTargetId ||
-                  p?.userId === activeTargetId
+                (p) => p?.shopId === activeTargetId || p?.userId === activeTargetId
               );
 
               if (matchedItem) {
                 resolvedProfile = {
                   id: activeTargetId,
-
-                  name:
-                    matchedItem?.displayName ||
-                    matchedItem?.sellerName ||
-                    "SokoDigi Merchant",
-
-                  username:
-                    matchedItem?.username ||
-                    "merchant",
-
-                  accountCategory:
-                    matchedItem?.accountCategory ||
-                    "retail",
-
-                  membershipNumber:
-                    matchedItem?.membershipNumber ||
-                    "N/A",
-
-                  brandName:
-                    matchedItem?.brandName || "",
-
-                  phoneNumber:
-                    matchedItem?.phoneNumber || "",
-
-                  bio:
-                    matchedItem?.bio || "",
-
-                  profilePic:
-                    matchedItem?.photoURL ||
-                    matchedItem?.profilePhoto ||
-                    matchedItem?.profilePic ||
-                    "",
-
-                  profilePhoto:
-                    matchedItem?.profilePhoto ||
-                    matchedItem?.photoURL ||
-                    matchedItem?.profilePic ||
-                    "",
-
-                  photoURL:
-                    matchedItem?.photoURL ||
-                    matchedItem?.profilePhoto ||
-                    matchedItem?.profilePic ||
-                    "",
-
-                  networkLevel:
-                    matchedItem?.networkLevel || null,
-
-                  subscribers:
-                    matchedItem?.subscriberCount || 0,
-
-                  subscriptions:
-                    matchedItem?.subscriptionCount || 0,
+                  name: matchedItem?.displayName || matchedItem?.sellerName || "SokoDigi Merchant",
+                  username: matchedItem?.username || "merchant",
+                  accountCategory: matchedItem?.accountCategory || "retail",
+                  membershipNumber: matchedItem?.membershipNumber || "N/A",
+                  brandName: matchedItem?.brandName || "",
+                  phoneNumber: matchedItem?.phoneNumber || "",
+                  bio: matchedItem?.bio || "",
+                  profilePic: matchedItem?.photoURL || matchedItem?.profilePhoto || matchedItem?.profilePic || "",
+                  profilePhoto: matchedItem?.profilePhoto || matchedItem?.photoURL || matchedItem?.profilePic || "",
+                  photoURL: matchedItem?.photoURL || matchedItem?.profilePhoto || matchedItem?.profilePic || "",
+                  networkLevel: matchedItem?.networkLevel || null,
+                  subscribers: matchedItem?.subscriberCount || 0,
+                  subscriptions: matchedItem?.subscriptionCount || 0,
                 };
               }
             }
@@ -537,20 +432,16 @@ if (accountCategory === "network") {
         }
 
         // ====================================================================
-        // PRODUCTS
+        // PRODUCTS FETCHING
         // ====================================================================
-
         const productsResponse = await fetch(
-          `${API_URL}/api/products?shopId=${encodeURIComponent(
-            activeTargetId
-          )}`
+          `${API_URL}/api/products?shopId=${encodeURIComponent(activeTargetId)}`
         );
-
+        
         let resolvedProducts = [];
 
         if (productsResponse.ok) {
-          const productsData =
-            await productsResponse.json();
+          const productsData = await productsResponse.json();
 
           resolvedProducts = Array.isArray(productsData)
             ? productsData
@@ -559,23 +450,26 @@ if (accountCategory === "network") {
             : [];
         }
 
-        // ====================================================================
-        // APPLY RESULTS
-        // ====================================================================
-
-        if (!isMounted) {
-          return;
+        // Emergency validation safety net to prevent blank screens
+        if (!resolvedProfile) {
+          resolvedProfile = {
+            id: activeTargetId,
+            name: "SokoDigi Member",
+            username: "member",
+            accountCategory: "retail",
+            membershipNumber: "PENDING",
+          };
         }
 
+        if (!isMounted) return;
+
+        // Apply all resolved states at once
         setBrandProfile(resolvedProfile);
         setMatrixMetrics(resolvedMatrixMetrics);
         setProducts(resolvedProducts);
-      } catch (error) {
-        console.error(
-          "SokoDigi profile loading error:",
-          error
-        );
 
+      } catch (error) {
+        console.error("SokoDigi profile loading error:", error);
         if (isMounted) {
           setProducts([]);
         }
@@ -591,7 +485,7 @@ if (accountCategory === "network") {
     return () => {
       isMounted = false;
     };
-   }, [
+  }, [
     userId,
     isOwnProfile,
     activeTargetId,
