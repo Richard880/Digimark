@@ -96,11 +96,39 @@ export default function Profile() {
   };
 
   // Call fetchSharedProducts when 'shared' tab is active
-  useEffect(() => {
-    if (activeTab === "shared") {
-      fetchSharedProducts();
+useEffect(() => {
+  let isMounted = true;
+
+  const fetchProfileData = async () => {
+    try {
+      setIsLoading(true); // Start loading state indicator
+      
+      const response = await fetch(`${API_URL}/api/profiles/${activeTargetId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (isMounted) setBrandProfile(data);
+      } else {
+        console.warn("Profile structure not found on server:", response.status);
+      }
+    } catch (error) {
+      console.error("Failed to load user profile dataset:", error);
+    } finally {
+      // 🟢 CRITICAL: This MUST run no matter what to unfreeze the blank screen
+      if (isMounted) {
+        setIsLoading(false); 
+      }
     }
-  }, [activeTab]);
+  };
+
+  if (activeTargetId) {
+    fetchProfileData();
+  }
+
+  return () => {
+    isMounted = false;
+  };
+}, [activeTargetId]);
+
 
   const handleAvatarFileChange = async (event) => {
     const selectedFile = event.target.files?.[0];
