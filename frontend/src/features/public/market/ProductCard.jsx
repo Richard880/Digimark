@@ -86,10 +86,10 @@ export default function ProductCard({ product, onClick }) {
           </div>
 
           {/* Box Pillar B: Core Merchant Reseller Cost */}
-          <div className="text-center border-r border-slate-200/60 px-1">
+          {/* <div className="text-center border-r border-slate-200/60 px-1">
             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight block">Reseller Price</span>
             <span className="text-[11px] font-black text-emerald-700 block mt-1 tracking-tight">KSh {resellerCost.toLocaleString()}</span>
-          </div>
+          </div> */}
 
           {/* Box Pillar C: Direct Affiliate Split Cuts */}
           <div className="text-center pl-1">
