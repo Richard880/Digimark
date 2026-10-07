@@ -1,101 +1,146 @@
+/* =========================================================================
+    🎨 SOKODIGI HIGH-FIDELITY COMMERCIAL DESIGN SYSTEM
+   ========================================================================= */
+
 .details-shell {
-  max-width: 1100px;
-  margin: 2rem auto;
+  width: 100%;
+  max-width: 1200px;
+  margin: 2.5rem auto;
   padding: 0 1.5rem;
   box-sizing: border-box;
 }
 
+/* 🧭 Back Navigation Breadcrumb Anchor */
 .back-action-anchor {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   background: transparent;
   border: none;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #2e7d32; /* SokoDigi Theme Green Core Matching Marker */
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #059669; /* Dynamic SokoDigi Theme Emerald */
   cursor: pointer;
-  margin-bottom: 1.5rem;
+  margin-bottom: 2rem;
   padding: 0.25rem 0;
-  transition: transform 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .back-action-anchor:hover {
-  transform: translateX(-3px);
-  color: #1b5e20;
+  color: #047857;
+  transform: translateX(-4px);
 }
 
-/* ==========================================================================
-   Structural Card Mesh Casing
-   ========================================================================== */
+/* 🎚️ Main Grid Workspace Container Card Mesh */
 .details-container {
-  display: flex;
+  display: grid;
+  grid-template-cols: 1fr;
   background-color: #ffffff;
-  border-radius: 28px;
-  border: 1px solid #e5ebe4;
-  box-shadow: 0 15px 35px -10px rgba(45, 58, 46, 0.05);
+  border-radius: 32px;
+  border: 1px solid #f1f5f9;
+  box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.04);
   overflow: hidden;
-  min-height: 480px;
+  min-height: 540px;
+  transition: box-shadow 0.3s ease;
 }
 
-/* Left Canvas Side */
+@media (min-width: 768px) {
+  .details-container {
+    grid-template-cols: 11fr 13fr; /* Perfectly balanced asymmetric spatial visual split */
+  }
+}
+
+/* 🖼️ Left Side Visual Media Frame */
 .image-canvas-side {
-  flex: 1.1;
   position: relative;
-  background-color: #fcfdfc;
+  background-color: #f8fafc;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-right: 1px solid #f1f5f0;
+  padding: 3rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+@media (min-width: 768px) {
+  .image-canvas-side {
+    border-bottom: none;
+    border-right: 1px solid #f1f5f9;
+  }
 }
 
 .image-canvas-side img {
-  width: 100%;
-  height: 100%;
-  max-height: 520px;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 420px;
+  object-fit: contain;
   display: block;
+  filter: drop-shadow(0 10px 20px rgba(15, 23, 42, 0.05));
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Right Content Side */
+.image-canvas-side:hover img {
+  transform: scale(1.04);
+}
+
+/* 📄 Right Side Content Information Spec Panel */
 .meta-content-side {
-  flex: 1;
-  padding: 3rem;
+  padding: 2.5rem;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
   box-sizing: border-box;
 }
 
+@media (min-width: 992px) {
+  .meta-content-side {
+    padding: 4rem;
+  }
+}
+
+/* 🏷️ Commercial Metadata Tags and Badges */
 .category-badge {
   display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.65rem;
+  font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #2e7d32;
-  background-color: #e8f5e9;
-  border: 1px solid #c8e6c9;
-  padding: 0.25rem 0.75rem;
-  border-radius: 20px;
-  margin-bottom: 1rem;
+  letter-spacing: 0.08em;
+  color: #065f46;
+  background-color: #ecfdf5;
+  border: 1px solid #d1fae5;
+  padding: 0.35rem 0.85rem;
+  border-radius: 12px;
+  width: max-content;
 }
 
 .product-headline {
-  font-size: 2.15rem;
-  font-weight: 800;
-  color: #1b261c;
-  margin: 0 0 0.5rem 0;
-  letter-spacing: -0.02em;
+  font-size: 2rem;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0.75rem 0 0.5rem 0;
+  letter-spacing: -0.03em;
   line-height: 1.15;
 }
 
-.vendor-text {
-  font-size: 0.875rem;
-  color: #6c7e6d;
-  margin: 0;
+@media (min-width: 992px) {
+  .product-headline {
+    font-size: 2.5rem;
+  }
 }
 
+.vendor-text {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0;
+  font-weight: 500;
+}
+
+.vendor-text strong {
+  color: #334155;
+  font-weight: 700;
+}
+
+/* 💰 Accounting Rows layout structures */
 .price-tag-row {
   display: flex;
   flex-direction: column;
@@ -103,60 +148,54 @@
 }
 
 .price-readout {
-  font-size: 2rem;
-  font-weight: 800;
-  color: #0f172a;
-  letter-spacing: -0.01em;
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #10b981; /* High-contrast emerald success cost */
+  letter-spacing: -0.03em;
+  line-height: 1;
 }
 
-/* Forest Green Button Core overrides */
+/* ⚡ Interactive Command Control Action Buttons */
 .cart-action-btn {
   width: 100%;
-  background-color: #2e7d32;
+  background-color: #0f172a; /* Sophisticated midnight charcoal core */
   color: #ffffff;
   border: none;
-  padding: 1rem;
-  border-radius: 14px;
-  font-size: 0.95rem;
-  font-weight: 700;
+  padding: 1.15rem;
+  border-radius: 16px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(46, 125, 50, 0.15);
-  transition: background-color 0.15s ease;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.15);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.cart-action-btn:hover {
-  background-color: #1b5e20;
+.cart-action-btn:hover:not(:disabled) {
+  background-color: #1e293b;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 20px rgba(15, 23, 42, 0.2);
 }
 
-/* Fallback/Error state containers */
+.cart-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 🚨 System Fallback and Connection Boundary Interfaces */
 .error-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 4rem 1.5rem;
+  padding: 4rem 2rem;
   background-color: #ffffff;
-  border-radius: 24px;
-  border: 1px solid #e5ebe4;
-  max-width: 400px;
-  margin: 4rem auto;
-}
-
-/* ==========================================================================
-   Responsive Viewport Stack Breakpoints
-   ========================================================================== */
-@media (max-width: 768px) {
-  .details-container {
-    flex-direction: column;
-  }
-  .image-canvas-side img {
-    max-height: 320px;
-  }
-  .meta-content-side {
-    padding: 2rem;
-  }
-  .product-headline {
-    font-size: 1.75rem;
-  }
+  border-radius: 32px;
+  border: 1px solid #f1f5f9;
+  max-width: 440px;
+  margin: 6rem auto;
+  box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.05);
 }
