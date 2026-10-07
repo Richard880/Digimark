@@ -160,10 +160,10 @@ export default function ProductDetails() {
         <span>Back to MarketHub</span>
       </button>
 
-      {/* 🎛️ TWO-COLUMN CORE WORKSPACE PANEL CONTAINER */}
+      {/* 🎛️ CORE CONTAINER CARDS PANEL MESH */}
       <div className={styles["details-container"]}>
         
-        {/* LEFT COLUMN: HERO VISUAL CANVAS */}
+        {/* LEFT COLUMN: VISUAL IMAGE CANVAS PANEL */}
         <div className={styles["image-canvas-side"]}>
           <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
             <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-slate-900 text-white tracking-wider border border-white/10 shadow-sm">
@@ -171,11 +171,10 @@ export default function ProductDetails() {
             </span>
             {product?.fromNetwork && (
               <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-blue-600 text-white tracking-wider shadow-sm">
-                Connected Core Connection
+                Network Connection
               </span>
             )}
           </div>
-          
           <img 
             src={product?.imageUrl || "https://unsplash.com"} 
             crossOrigin="anonymous" 
@@ -184,10 +183,10 @@ export default function ProductDetails() {
           />
         </div>
 
-        {/* RIGHT COLUMN: CORE COMMERCE ACTIONS & DATA SPEC SHEET */}
+        {/* RIGHT COLUMN: CORE METRIC STRIPS & CHECKOUTS */}
         <div className={styles["meta-content-side"]}>
           <div className="space-y-2">
-            <span className={styles["category-tag"]}>
+            <span className={styles["category-badge"]}>
               {product?.category || "General Catalog"}
             </span>
             <h1 className={styles["product-headline"]}>
@@ -198,16 +197,16 @@ export default function ProductDetails() {
             </p>
           </div>
 
-          {/* ⭐⭐⭐⭐⭐ SOCIAL RATINGS COMPONENT REPLICA */}
+          {/* ⭐⭐⭐⭐⭐ REPLICA RATINGS BLOCK */}
           <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-2 rounded-xl w-max mt-4">
             <div className="flex text-amber-400 text-xs tracking-tighter">★★★★★</div>
             <span className="text-[11px] font-black text-slate-700">4.9 Rating</span>
             <span className="text-slate-200 text-xs">|</span>
-            <span className="text-[11px] font-bold text-slate-400">Verified Dispatch</span>
+            <span className="text-[11px] font-bold text-slate-400">Verified Hub Dispatch</span>
           </div>
 
-          {/* 💰 HIGH-DENSITY SPLIT-ACCOUNTING FINANCIAL MATRIX ROW */}
-          <div className="my-6 space-y-4 border-y border-slate-100 py-5">
+          {/* 💰 COMPREHENSIVE FINANCIAL SPLIT MATRIX STRIP */}
+          <div className="my-6 space-y-4 border-y border-slate-100 py-4">
             <div className={styles["price-tag-row"]}>
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Customer Retail Value</span>
               <span className={styles["price-readout"]}>
@@ -215,7 +214,7 @@ export default function ProductDetails() {
               </span>
             </div>
 
-            {/* HIGH-CONTRAST COMMISSION HIGHLIGHT SHEET (FOR MARKETERS ONLY) */}
+            {/* MARGIN INCENTIVES HIGHLIGHT SHEET (VISUALLY LOCKED TO VETTED MARKETERS ONLY) */}
             {isNetworkAffiliate && commission > 0 && (
               <div className="grid grid-cols-2 gap-2 bg-gradient-to-br from-amber-400/10 to-amber-500/5 border border-amber-200/60 p-3.5 rounded-2xl">
                 <div>
@@ -223,16 +222,15 @@ export default function ProductDetails() {
                   <span className="text-base font-black text-slate-800">KSh {resellerCost.toLocaleString()}</span>
                 </div>
                 <div className="text-right border-l border-amber-200/40 pl-2">
-                  <span className="block text-[9px] uppercase font-bold text-amber-700 tracking-wider">Direct Share Reward</span>
+                  <span className="block text-[9px] uppercase font-bold text-amber-700 tracking-wider">Share Profit Cut</span>
                   <span className="text-base font-black text-amber-600">KSh {commission.toLocaleString()}</span>
                 </div>
               </div>
             )}
 
-                    {/* LOWER METADATA SPECIFICATIONS STRIP */}
-                       {/* LOWER METADATA SPECIFICATIONS STRIP */}
+            {/* LOWER METADATA SPECIFICATIONS STRIP */}
             <div className="grid grid-cols-2 gap-4 text-xs text-slate-600 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-              <div>
+                          <div>
                 <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Warehouse Stock</span>
                 <span className={product?.quantity > 0 ? "text-slate-800 font-black" : "text-red-600 font-black"}>
                   {product?.quantity > 0 ? `${product.quantity} units available` : "Out of Stock"}
@@ -246,20 +244,19 @@ export default function ProductDetails() {
               </div>
             </div>
 
-            {/* PRODUCT DESCRIPTION OVERVIEW PANEL */}
-            <div className="space-y-1.5 pt-2">
+            {/* OVERVIEW PANEL DETAILS SUMMARY */}
+            <div className="space-y-1 pt-1">
               <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Product Overview</span>
               <p className="text-xs text-slate-500 leading-relaxed font-medium">
                 {product?.description || "This verified inventory asset meets all SokoDigi quality assurance guidelines. Funds remain secured safely within escrow until delivery handshake confirmation."}
               </p>
             </div>
+          </div>
 
-          </div> {/* CLOSES THE METADATA SPECIFICATION CONTAINER STRIP */}
-
-          {/* 🎯 ACTION TRANSACTION BUTTON ROUTER KEYS */}
-          <div className="space-y-2 mt-4">
-            <button
-              type="button"
+          {/* 🎯 CORE INTERACTION CONTROLLERS ROW */}
+          <div className="space-y-2">
+            <button 
+              type="button" 
               onClick={handleSecureAssetAllocation}
               disabled={isCheckingOut || !product?.quantity}
               className={styles["cart-action-btn"]}
@@ -268,8 +265,8 @@ export default function ProductDetails() {
             </button>
 
             {isNetworkAffiliate && (
-              <button
-                type="button"
+              <button 
+                type="button" 
                 onClick={handlePinProduct}
                 disabled={isPinning}
                 className="w-full rounded-xl border-2 border-dashed border-emerald-200 hover:border-emerald-500 bg-emerald-50/30 text-emerald-800 font-extrabold text-xs py-3.5 text-center transition disabled:opacity-40 uppercase tracking-widest"
@@ -279,6 +276,8 @@ export default function ProductDetails() {
             )}
           </div>
 
-        </div> {/* CLOSES META-CONTENT-SIDE */}
-      </div> {/* CLOSES DETAILS-CONTAINER */}
-    </div> {/* CLOSES DETAILS-SHELL */}
+        </div>
+      </div>
+    </div>
+  );
+}
