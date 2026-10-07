@@ -1,4 +1,4 @@
-import apiClient from "../../services/apiClient";
+import apiClient from "../../../services/apiClient";
 
 /**
  * 📦 Reusable Commercial Product Card Component
