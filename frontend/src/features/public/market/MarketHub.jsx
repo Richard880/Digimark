@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import apiClient from "../../../services/apiClient";
+import ProductCard from "./ProductCard"; // 🎯 IMPORTED NEW MODULE HERE
 
 export default function MarketHub() {
   const navigate = useNavigate();
@@ -48,6 +49,7 @@ export default function MarketHub() {
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8">
+      {/* BANNER BRAND WRAPPER */}
       <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-emerald-800 via-emerald-900 to-slate-900 text-white p-8 md:p-12 shadow-xl">
         <div className="relative z-10 max-w-2xl space-y-4">
           <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
@@ -79,33 +81,16 @@ export default function MarketHub() {
           </div>
         )}
 
+        {/* 🎯 INTEGRATED COMPONENT MAP GRID BLOCK */}
         {!isLoadingFeed && !isSearching && !isFeedEmpty && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {displayedProducts.map((product) => {
-              const productId = product._id || product.id;
-              const imageUrl = product.imageUrl?.startsWith("http")
-                ? product.imageUrl
-                : `${apiClient.defaults.baseURL.replace(/\/api\/?$/, "")}${product.imageUrl || ""}`;
-
-              return (
-                <button
-                  type="button"
-                  key={productId}
-                  onClick={() => handleProductClick(productId)}
-                  className="group bg-white border border-slate-200/70 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-emerald-600/40 transition-all text-left flex flex-col h-full"
-                >
-                  <div className="relative aspect-video w-full bg-slate-50 overflow-hidden border-b border-slate-100">
-                    <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" />
-                  </div>
-                  <div className="p-4 flex flex-col gap-2">
-                    <p className="text-sm font-medium text-slate-600">{product.brandName || "SokoDigi Seller"}</p>
-                    <h3 className="text-lg font-bold text-slate-800">{product.name}</h3>
-                    <p className="text-2xl font-extrabold text-emerald-600">KSh {Number(product.price || 0).toLocaleString()}</p>
-                    <p className="text-sm text-slate-500">Delivery: KSh {Number(product.deliveryFee || 0).toLocaleString()}</p>
-                  </div>
-                </button>
-              );
-            })}
+            {displayedProducts.map((product) => (
+              <ProductCard
+                key={product._id || product.id}
+                product={product}
+                onClick={handleProductClick}
+              />
+            ))}
           </div>
         )}
       </div>
