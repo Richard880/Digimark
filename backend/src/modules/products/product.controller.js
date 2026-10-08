@@ -9,40 +9,54 @@ function productCode() {
 }
 
 
+ */
 async function listProducts(req, res) {
   try {
     const isAuthenticated = !!(req.user && req.user._id);
     const userCategory = req.userCategory || "guest"; // 'network', 'retail', or 'guest'
 
-    // 1. Defensive Base Query Filters
-    const baseMatch = {
-      isShelved: true,
-      // Handle legacy products that don't have a quantity field set yet
-      $or: [
-        { quantity: { $gt: 0 } },
-        { quantity: { $exists: false } }
-      ]
-    };
+    // 1. EXTRACT FRONTEND QUERY PARAMETERS DYNAMICALLY
+    const { sellerId, status } = req.query;
 
-    // Let validated vendors view their own draft inventory entries alongside public listings
-    if (userCategory === "network" && isAuthenticated) {
-      delete baseMatch.isShelved;
+    // 2. BUILD THE BASE MATCH LAYER FOR MONGOOSE AGGREGATION
+    let baseMatch = {};
+
+    if (sellerId) {
+      // 🎯 IF THE DASHBOARD REQUESTS A SPECIFIC VENDOR'S STOCK:
+      baseMatch.sellerId = new mongoose.Types.ObjectId(sellerId);
+      
+      // If status is not explicitly set to "all", filter for active listings only
+      if (status !== "all") {
+        baseMatch.$or = [
+          { isShelved: true },
+          { status: "LISTED" }
+        ];
+      }
+    } else {
+      // 🎯 IF THE REQUEST COMES FROM THE PUBLIC MARKET HUB FEED:
       baseMatch.$or = [
         { isShelved: true },
-        { sellerId: new mongoose.Types.ObjectId(req.user._id) },
-        { merchantId: new mongoose.Types.ObjectId(req.user._id) } // Match whatever legacy key is in your schema
+        { status: "LISTED" }
       ];
+
+      // Exclude completely out of stock items from customer view profiles
+      baseMatch.quantity = { $gt: 0 };
+
+      // Let an authenticated vendor see their own un-shelved/draft inventory in the feed
+      if (userCategory === "network" && isAuthenticated) {
+        baseMatch.$or.push({ 
+          sellerId: new mongoose.Types.ObjectId(req.user._id) 
+        });
+      }
     }
 
-    // 2. Execution Aggregation Pipeline
+    // 3. CONSTRUCT THE PIEPLINE SCHEDULER
     const pipeline = [
       { $match: baseMatch },
 
-      // 🧠 DEFENSIVE METRICS FALLBACK ENGINE LAYER
+      // 🧠 METRICS INTEGRITY SAFELIGHT
       {
         $addFields: {
-          // If the metrics object or individual values are missing entirely from your document records,
-          // this guarantees they default safely to 0 instead of breaking your calculation arrays.
           conversionRateSafe: { $ifNull: ["$metrics.conversionRate", 0] },
           referralCountSafe: { $ifNull: ["$metrics.referralCount", 0] },
           escrowDisputeRateSafe: { $ifNull: ["$metrics.escrowDisputeRate", 0] }
@@ -53,28 +67,21 @@ async function listProducts(req, res) {
         $addFields: {
           rankingScore: {
             $add: [
-              // Dimension A: Premium validation boost
               { $cond: [{ $eq: ["$isPremiumVendor", true] }, 50, 0] },
-
-              // Dimension B: Conversion velocity metric computation
               { $multiply: ["$conversionRateSafe", 10] },
-
-              // Dimension C: Affiliate MLM network promoter volume
               { $multiply: ["$referralCountSafe", 2] },
-
-              // Dimension D: Escrow transaction penalty calculation
               { $multiply: ["$escrowDisputeRateSafe", -30] }
             ]
           }
         }
       },
 
-      // Sort by evaluated scoring metrics descending
       { $sort: { rankingScore: -1, createdAt: -1 } }
     ];
 
-    // 🔒 DATA REDACTION GUARD LAYER
-    if (userCategory !== "network") {
+    // 🔒 PRIVACY REDACTION ENFORCEMENT
+    // Do not leak wholesale metrics or margins on public feeds to guest browsers
+    if (userCategory !== "network" && !sellerId) {
       pipeline.push({
         $project: {
           affiliateCommission: 0,
@@ -103,6 +110,10 @@ async function listProducts(req, res) {
   }
 }
 
+module.exports = {
+  // Keep your other controller exports intact...
+  listProducts
+};
 /**
  * 🛒 Layer 4b Single Item Inspection Lookup
  * Fetches a single product record from MongoDB by its unique ObjectId identifier string
