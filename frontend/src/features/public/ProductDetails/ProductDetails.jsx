@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import useAuth from "../../auth/hooks/useAuth";
-import CheckoutButton from "../../../CheckoutButton/CheckoutButton"; // 🎯 IMPORTED NEW SECURE PIPELINE BUTTON
+import CheckoutButton from "../../../components/CheckoutButton/CheckoutButton"; // 🎯 IMPORTED NEW SECURE PIPELINE BUTTON
 
 const API_URL = import.meta.env.PROD 
   ? "" 
