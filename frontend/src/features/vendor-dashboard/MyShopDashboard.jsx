@@ -260,30 +260,46 @@ export default function MyShopDashboard() {
 
       {/* MAIN WORKSPACE CONTENT CONTAINER */}
       <main className="flex-1 pl-64 min-w-0">
-        {/* WHITE FLOATING ACTION HEADER BAR */}
-        <header className="h-16 bg-white border-b border-slate-200/80 px-8 flex items-center justify-between sticky top-0 z-30 shadow-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Dashboard Workspace
-            </span>
+      
+{/* WHITE FLOATING ACTION HEADER BAR */}
+<header className="h-16 bg-white border-b border-slate-200/80 px-8 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+  <div className="flex items-center gap-4">
+    {/* HOME / BACK BUTTON */}
+    <button
+      type="button"
+      onClick={() => navigate("/")}
+      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all duration-200 text-xs font-bold shadow-sm cursor-pointer"
+      title="Back to Home"
+    >
+      <span className="text-base">⌂</span>
+      <span>Home</span>
+    </button>
 
-            <span className="text-slate-300">/</span>
+    {/* HEADER BREADCRUMB */}
+    <div className="flex items-center gap-2">
+      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+        Dashboard Workspace
+      </span>
 
-            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-              {activeTab === "inventory"
-                ? "Warehouse Stock"
-                : "Escrow Sales Log"}
-            </span>
-          </div>
+      <span className="text-slate-300">/</span>
 
-          <div className="text-xs text-slate-400 font-medium">
-            System Status:{" "}
-            <span className="text-emerald-500 font-bold inline-flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              Operational
-            </span>
-          </div>
-        </header>
+      <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+        {activeTab === "inventory"
+          ? "Warehouse Stock"
+          : "Escrow Sales Log"}
+      </span>
+    </div>
+  </div>
+
+  {/* SYSTEM STATUS */}
+  <div className="text-xs text-slate-400 font-medium">
+    System Status:{" "}
+    <span className="text-emerald-500 font-bold inline-flex items-center gap-1.5">
+      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+      Operational
+    </span>
+  </div>
+</header>
 
         {/* ACTION WORKSPACE WRAPPER */}
         <div className="p-8 max-w-7xl mx-auto">
