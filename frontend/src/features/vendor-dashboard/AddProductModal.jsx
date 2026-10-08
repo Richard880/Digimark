@@ -299,3 +299,4 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, uploadImag
     </div> /* Close fixed inset backdrop wrapper window container panel */
   );
 }
+ 
