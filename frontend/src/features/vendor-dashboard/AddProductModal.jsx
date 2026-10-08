@@ -1,55 +1,86 @@
+
 import { useState, useRef } from "react";
-import apiClient from "../../../services/apiClient";
 import useAuth from "../../auth/hooks/useAuth";
 
-// 🎯 Exposing the structural taxonomy dictionary right where it belongs!
 const SUB_CATEGORY_MAP = {
   "phones-gadgets": [
     { id: "smartphones", label: "📱 Smartphones & Tablets" },
     { id: "charging-power", label: "🔌 Charging & Power Banks" },
-    { id: "audio-sound", label: "🎧 Audio & Sound Accessories" }
+    { id: "audio-sound", label: "🎧 Audio & Sound Accessories" },
   ],
+
   "tech-computing": [
     { id: "laptops-desktops", label: "💻 Laptops & Desktop PCs" },
     { id: "storage-devices", label: "💾 Hard Drives & SSD Storage" },
-    { id: "printers-networking", label: "🖨️ Printers & Router Network Gear" }
+    {
+      id: "printers-networking",
+      label: "🖨️ Printers & Router Network Gear",
+    },
   ],
+
   "apparel-fashion": [
     { id: "footwear", label: "👟 Footwear & Shoes" },
     { id: "casual-wear", label: "👕 Casual Apparel" },
-    { id: "bags-watches", label: "👜 Luxury Bags & Watches" }
+    { id: "bags-watches", label: "👜 Luxury Bags & Watches" },
   ],
+
   "home-appliances": [
     { id: "kitchen-appliances", label: "🍳 Kitchen & Cooking Tools" },
     { id: "living-decor", label: "🏠 Home Decor & Lighting" },
-    { id: "smart-security", label: "🔒 Automation & Handset Security" }
+    {
+      id: "smart-security",
+      label: "🔒 Automation & Handset Security",
+    },
   ],
+
   "beauty-personal-care": [
     { id: "skin-care", label: "🧴 Targeted Skin Care" },
     { id: "hair-wigs", label: "💇 Hair Care, Extensions & Wigs" },
-    { id: "makeup-cosmetics", label: "💄 Cosmetics & Makeup Essentials" }
+    {
+      id: "makeup-cosmetics",
+      label: "💄 Cosmetics & Makeup Essentials",
+    },
   ],
+
   "ankara-art": [
-    { id: "cultural-wear", label: "👗 Ankara Outfits & Fashion Fabric" },
-    { id: "wall-art", label: "🖼️ Handcrafted Decor & Paintings" }
+    {
+      id: "cultural-wear",
+      label: "👗 Ankara Outfits & Fashion Fabric",
+    },
+    {
+      id: "wall-art",
+      label: "🖼️ Handcrafted Decor & Paintings",
+    },
   ],
-  "general": [
-    { id: "miscellaneous", label: "📦 General Retail Goods" }
-  ]
+
+  general: [
+    {
+      id: "miscellaneous",
+      label: "📦 General Retail Goods",
+    },
+  ],
 };
 
-const API_URL = import.meta.env.PROD 
-  ? "" 
-  : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/\$/, "");
+const API_URL = import.meta.env.PROD
+  ? ""
+  : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(
+      /\/$/,
+      ""
+    );
 
-export default function AddProductModal({ isOpen, onClose, onSuccess, uploadImageToCloudinary }) {
+export default function AddProductModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  uploadImageToCloudinary,
+}) {
   const { auth } = useAuth();
   const fileInputRef = useRef(null);
-  
+
   const [isCommitting, setIsCommitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
-  
+
   const [formData, setFormData] = useState({
     name: "",
     price: "",
@@ -58,18 +89,16 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, uploadImag
     category: "phones-gadgets",
     subCategory: "smartphones",
     description: "",
-    brandName: auth?.profile?.brandName || ""
+    brandName: auth?.profile?.brandName || "",
   });
 
-  if (!isOpen) return null;
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, name: value }));
-  };
+  if (!isOpen) {
+    return null;
+  }
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
+
     if (file) {
       setSelectedFile(file);
       setPreviewUrl(URL.createObjectURL(file));
@@ -78,82 +107,181 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, uploadImag
 
   const handleCommitProductStream = async (e) => {
     e.preventDefault();
-    if (!selectedFile) return alert("Please select a product thumbnail graphic to display.");
-    if (!formData.name.trim()) return alert("Product title cannot be empty.");
-    if (Number(formData.price) <= 0) return alert("Please set a valid retail price.");
-    if (Number(formData.affiliateCommission) < 0 || Number(formData.affiliateCommission) >= Number(formData.price)) {
-      return alert("Invalid Commission split value parameters.");
+
+    if (!selectedFile) {
+      alert(
+        "Please select a product thumbnail graphic to display."
+      );
+      return;
     }
-    if (Number(formData.quantity) <= 0) return alert("Stock levels must register at least 1 unit.");
+
+    if (!formData.name.trim()) {
+      alert("Product title cannot be empty.");
+      return;
+    }
+
+    const price = Number(formData.price);
+    const affiliateCommission = Number(
+      formData.affiliateCommission
+    );
+    const quantity = Number(formData.quantity);
+
+    if (price <= 0) {
+      alert("Please set a valid retail price.");
+      return;
+    }
+
+    if (
+      affiliateCommission < 0 ||
+      affiliateCommission >= price
+    ) {
+      alert("Invalid Commission split value parameters.");
+      return;
+    }
+
+    if (quantity <= 0) {
+      alert("Stock levels must register at least 1 unit.");
+      return;
+    }
 
     setIsCommitting(true);
+
     try {
-      // Execute file streaming via Cloudinary or alternative asset storage handlers
-      const uploadedImageUrl = await uploadImageToCloudinary(selectedFile, "products");
-      if (!uploadedImageUrl) throw new Error("Cloudinary asset upload failure.");
+      // Upload product image to Cloudinary
+      const uploadedImageUrl = await uploadImageToCloudinary(
+        selectedFile,
+        "products"
+      );
+
+      if (!uploadedImageUrl) {
+        throw new Error(
+          "Cloudinary asset upload failure."
+        );
+      }
 
       const productPayload = {
         name: formData.name.trim(),
-        price: Number(formData.price),
-        affiliateCommission: Number(formData.affiliateCommission),
-        wholesalePrice: Number(formData.price) - Number(formData.affiliateCommission),
-        quantity: Number(formData.quantity),
+        price,
+        affiliateCommission,
+        wholesalePrice: price - affiliateCommission,
+        quantity,
         category: formData.category.toLowerCase(),
         subCategory: formData.subCategory.toLowerCase(),
         description: formData.description.trim(),
-        brandName: formData.brandName || auth?.profile?.brandName || "SokoDigi Merchant",
+        brandName:
+          formData.brandName ||
+          auth?.profile?.brandName ||
+          "SokoDigi Merchant",
         imageUrl: uploadedImageUrl,
       };
 
-      const token = await auth?.currentUser?.getIdToken();
-      const response = await fetch(`${API_URL}/api/products`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(productPayload),
-      });
+      const token =
+        await auth?.currentUser?.getIdToken();
+
+      const response = await fetch(
+        `${API_URL}/api/products`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(productPayload),
+        }
+      );
+
       const responseData = await response.json();
 
       if (response.ok) {
-        alert("🎉 Inventory Asset listed successfully!");
-        if (onSuccess) onSuccess(responseData.product || responseData);
+        alert(
+          "🎉 Inventory Asset listed successfully!"
+        );
+
+        if (onSuccess) {
+          onSuccess(
+            responseData.product || responseData
+          );
+        }
+
         handleClearForm();
       } else {
-        throw new Error(responseData.reason || responseData.error || "Failed to list product");
+        throw new Error(
+          responseData.reason ||
+            responseData.error ||
+            "Failed to list product"
+        );
       }
     } catch (err) {
-      console.error("Error listing product:", err);
-      alert(`Asset transaction rejected: ${err.message}`);
+      console.error(
+        "Error listing product:",
+        err
+      );
+
+      alert(
+        `Asset transaction rejected: ${
+          err.message || "Unknown error"
+        }`
+      );
     } finally {
       setIsCommitting(false);
     }
   };
 
   const handleClearForm = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
     setPreviewUrl(null);
     setSelectedFile(null);
-    setFormData({ name: "", price: "", affiliateCommission: "", quantity: "", category: "phones-gadgets", subCategory: "smartphones", description: "", brandName: auth?.profile?.brandName || "" });
+
+    setFormData({
+      name: "",
+      price: "",
+      affiliateCommission: "",
+      quantity: "",
+      category: "phones-gadgets",
+      subCategory: "smartphones",
+      description: "",
+      brandName:
+        auth?.profile?.brandName || "",
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fadeIn">
       <div className="w-full max-w-md rounded-2xl bg-white border border-slate-200 shadow-xl p-6 relative">
-        <h2 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">📦 List New Marketplace Product</h2>
-        
+        <h2 className="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+          📦 List New Marketplace Product
+        </h2>
+
         {/* Upload Image Preview Frame */}
         <div className="flex items-center gap-4 mb-4 p-3 bg-emerald-50/50 rounded-2xl border border-emerald-100/50">
           <div className="w-16 h-16 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shadow-xs">
             {previewUrl ? (
-              <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+              <img
+                src={previewUrl}
+                alt="Product Preview"
+                className="w-full h-full object-cover"
+              />
             ) : (
-              <span className="text-xs text-slate-400 font-bold">No Image</span>
+              <span className="text-xs text-slate-400 font-bold">
+                No Image
+              </span>
             )}
           </div>
+
           <div className="flex-1">
-            <label className="block text-[10px] font-bold text-emerald-700 uppercase mb-1">Product Media Graphic</label>
+            <label className="block text-[10px] font-bold text-emerald-700 uppercase mb-1">
+              Product Media Graphic
+            </label>
+
             <input
               ref={fileInputRef}
               type="file"
@@ -167,115 +295,193 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, uploadImag
 
         {/* Dynamic Inputs Form */}
         <div className="space-y-3 mb-6">
+          {/* Product Name */}
           <input
             type="text"
             name="name"
             placeholder="Item descriptive title..."
             value={formData.name}
-            onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                name: e.target.value,
+              }))
+            }
             disabled={isCommitting}
             className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-emerald-500 focus:outline-none"
           />
-          
+
+          {/* Price / Commission / Quantity */}
           <div className="grid grid-cols-3 gap-2">
             <input
               type="number"
               name="price"
+              min="0"
+              step="0.01"
               placeholder="Price (KES)..."
               value={formData.price}
-              onChange={(e) => setFormData(p => ({ ...p, price: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  price: e.target.value,
+                }))
+              }
               disabled={isCommitting}
               className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-emerald-500 focus:outline-none"
             />
+
             <input
               type="number"
               name="affiliateCommission"
+              min="0"
+              step="0.01"
               placeholder="Margin Cut..."
               value={formData.affiliateCommission}
-              onChange={(e) => setFormData(p => ({ ...p, affiliateCommission: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  affiliateCommission:
+                    e.target.value,
+                }))
+              }
               disabled={isCommitting}
               className="w-full rounded-xl border border-emerald-200 bg-emerald-50/20 px-3 py-3 text-sm text-emerald-800 font-medium focus:border-emerald-500 focus:outline-none"
             />
+
             <input
               type="number"
               name="quantity"
+              min="1"
+              step="1"
               placeholder="Stock..."
               value={formData.quantity}
-              onChange={(e) => setFormData(p => ({ ...p, quantity: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  quantity: e.target.value,
+                }))
+              }
               disabled={isCommitting}
               className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-emerald-500 focus:outline-none"
             />
           </div>
 
-                   {/* =========================================================================
-              🏷️ LOCKED TWO-TIER DEPENDENT DROPDOWNS SELECTORS SECTION
-             ========================================================================= */}
+          {/* Two-Tier Category Selectors */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            
-            {/* A. Parent Category Option Select Menu */}
+            {/* Parent Category */}
             <div className="flex flex-col space-y-1">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Category</label>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">
+                Category
+              </label>
+
               <select
                 name="category"
                 value={formData.category}
                 onChange={(e) => {
                   const nextCat = e.target.value;
-                  // Look up default fallback values automatically from your SUB_CATEGORY_MAP object
-                  const defaultSub = SUB_CATEGORY_MAP[nextCat]?.[0]?.id || "miscellaneous";
-                  setFormData(p => ({ ...p, category: nextCat, subCategory: defaultSub }));
+
+                  const defaultSub =
+                    SUB_CATEGORY_MAP[nextCat]?.[0]
+                      ?.id || "miscellaneous";
+
+                  setFormData((prev) => ({
+                    ...prev,
+                    category: nextCat,
+                    subCategory: defaultSub,
+                  }));
                 }}
                 disabled={isCommitting}
                 className="w-full rounded-xl border border-slate-200 p-2 text-xs bg-white text-slate-700 font-bold focus:border-emerald-500 focus:outline-none cursor-pointer"
               >
-                <option value="phones-gadgets">📱 Phones & Gadgets</option>
-                <option value="tech-computing">💻 Tech & Computing</option>
-                <option value="apparel-fashion">👕 Apparel & Fashion</option>
-                <option value="home-appliances">🏠 Home Appliances</option>
-                <option value="beauty-personal-care">💄 Beauty & Care</option>
-                <option value="ankara-art">🎨 Ankara & Art</option>
-                <option value="general">📦 General Goods</option>
+                <option value="phones-gadgets">
+                  📱 Phones & Gadgets
+                </option>
+
+                <option value="tech-computing">
+                  💻 Tech & Computing
+                </option>
+
+                <option value="apparel-fashion">
+                  👕 Apparel & Fashion
+                </option>
+
+                <option value="home-appliances">
+                  🏠 Home Appliances
+                </option>
+
+                <option value="beauty-personal-care">
+                  💄 Beauty & Care
+                </option>
+
+                <option value="ankara-art">
+                  🎨 Ankara & Art
+                </option>
+
+                <option value="general">
+                  📦 General Goods
+                </option>
               </select>
             </div>
 
-            {/* B. FIXED SUB-CATEGORY: Loops perfectly over array elements inside option tags */}
+            {/* Sub Category */}
             <div className="flex flex-col space-y-1 animate-fadeIn">
-              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Intended Use/Need</label>
+              <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">
+                Intended Use/Need
+              </label>
+
               <select
                 name="subCategory"
                 value={formData.subCategory}
-                onChange={(e) => setFormData(p => ({ ...p, subCategory: e.target.value }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    subCategory: e.target.value,
+                  }))
+                }
                 disabled={isCommitting}
                 className="w-full rounded-xl border border-slate-200 p-2 text-xs bg-white text-slate-700 font-bold focus:border-emerald-500 focus:outline-none cursor-pointer"
               >
-                {(SUB_CATEGORY_MAP[formData.category] || SUB_CATEGORY_MAP["general"]).map((sub) => (
-                  <option key={sub.id} value={sub.id}>
+                {(
+                  SUB_CATEGORY_MAP[
+                    formData.category
+                  ] ||
+                  SUB_CATEGORY_MAP.general
+                ).map((sub) => (
+                  <option
+                    key={sub.id}
+                    value={sub.id}
+                  >
                     {sub.label}
                   </option>
                 ))}
               </select>
             </div>
-
           </div>
 
-          {/* Description Textarea Field Area */}
+          {/* Description */}
           <div className="flex flex-col space-y-1">
-            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Product Specification Profile</label>
+            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">
+              Product Specification Profile
+            </label>
+
             <textarea
               name="description"
               placeholder="Detailed description, key features..."
               value={formData.description}
-              onChange={(e) => setFormData(p => ({ ...p, description: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  description: e.target.value,
+                }))
+              }
               disabled={isCommitting}
               rows={2}
               className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-xs focus:border-emerald-500 focus:outline-none resize-none"
             />
           </div>
+        </div>
 
-        </div> {/* Close form inputs space-y-3 box wrapper container grid */}
-
-        {/* =========================================================================
-            🔒 ACTION MODAL CONTROL DISMISS TRIGGERS AND COMMIT STRIPS BUTTONS
-           ========================================================================= */}
+        {/* Action Buttons */}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 mt-4">
           <button
             type="button"
@@ -285,18 +491,19 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, uploadImag
           >
             Dismiss
           </button>
+
           <button
             type="button"
             onClick={handleCommitProductStream}
             disabled={isCommitting}
             className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition duration-150 disabled:opacity-40 cursor-pointer"
           >
-            {isCommitting ? "Uploading..." : "Commit Stream"}
+            {isCommitting
+              ? "Uploading..."
+              : "Commit Stream"}
           </button>
         </div>
-
-      </div> {/* Close max-w-md card background box frame container */}
-    </div> /* Close fixed inset backdrop wrapper window container panel */
+      </div>
+    </div>
   );
 }
- 
