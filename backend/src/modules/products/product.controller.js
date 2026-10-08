@@ -7,42 +7,84 @@ function productCode() {
   return `SDK-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
+
 async function listProducts(req, res) {
   try {
-    const { sellerId, shopId, status, q } = req.query;
-    const filter = {};
-    const requestedSeller = sellerId || shopId;
+    // 1. Identify active user authorization parameters if present (Fallback to guest state)
+    const isAuthenticated = !!(req.user && req.user._id);
+    const userCategory = req.userCategory || "guest"; // 'network', 'retail', or 'guest'
 
-    if (requestedSeller) {
-      filter.sellerId = requestedSeller;
-    } else if (req.user?._id) {
-      filter.sellerId = req.user._id;
-    }
+    // 2. Base Query Filters: Guests and standard retail clients can ONLY see active, shelved catalog items
+    const baseMatch = {
+      isShelved: true,
+      quantity: { $gt: 0 } // Exclude completely out-of-stock variations from the feed
+    };
 
-    // Only filter by status if it's explicitly passed and NOT set to "all"
-    if (status && status !== "all" && status !== "") {
-      filter.status = status;
-    } else if (!requestedSeller) {
-      // If it's a public guest browsing MarketHub without an explicit merchant ID, default to listed shelves
-      filter.status = "LISTED";
-    }
-
-    if (q) {
-      filter.$or = [
-        { name: { regex: q, options: "i" } },
-        { brandName: { regex: q, options: "i" } },
-        { category: { regex: q, options: "i" } },
+    // If an exclusive vendor is reviewing the feed, let them see their own drafted/unshelved inventory items too
+    if (userCategory === "network" && isAuthenticated) {
+      delete baseMatch.isShelved;
+      baseMatch.$or = [
+        { isShelved: true },
+        { sellerId: new mongoose.Types.ObjectId(req.user._id) }
       ];
     }
 
-    const products = await Product.find(filter).sort({ createdAt: -1 }).lean();
-    return res.json(products);
+    // 3. Construct the Algorithmic Hybrid Aggregation Pipeline Layer
+    const pipeline = [
+      { $match: baseMatch },
+
+      // 🧠 HYBRID RANKING ENGINE SCORE EVALUATION LAYER
+      {
+        $addFields: {
+          rankingScore: {
+            $add: [
+              // Dimension A: Boost validated smart-link premium subscription sellers significantly
+              { $cond: [{ $eq: ["$isPremiumVendor", true] }, 50, 0] },
+
+              // Dimension B: Factor in historical conversion velocity metrics cleanly
+              { $multiply: [{ $ifNull: ["$metrics.conversionRate", 0] }, 10] },
+
+              // Dimension C: Reward network popularity (MLM referral volume counts)
+              { $multiply: [{ $ifNull: ["$metrics.referralCount", 0] }, 2] },
+
+              // Dimension D: Demote bad behavior instantly (Heavy penalty score calculation for escrow disputes)
+              { $multiply: [{ $ifNull: ["$metrics.escrowDisputeRate", 0] }, -30] }
+            ]
+          }
+        }
+      },
+
+      // Sort by calculated ranking scores descending so the highest performing items appear first
+      { $sort: { rankingScore: -1, createdAt: -1 } }
+    ];
+
+    // 🔒 DATA REDACTION GUARD LAYER: Clean structural output projection matrices based on context
+    if (userCategory !== "network") {
+      pipeline.push({
+        $project: {
+          // Explicitly hide confidential internal wholesale cuts and commission parameters from buyers/guests
+          affiliateCommission: 0,
+          resellerWholesaleCost: 0,
+          "metrics.escrowDisputeRate": 0,
+          internalNotes: 0
+        }
+      });
+    }
+
+    const products = await Product.aggregate(pipeline);
+
+    return res.status(200).json({
+      ok: true,
+      count: products.length,
+      categoryContext: userCategory,
+      feed: products
+    });
+
   } catch (error) {
-    console.error("❌ Exception inside listProducts:", error.message);
-    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+    console.error("❌ Exception inside MarketHub Feed Engine loop:", error.stack || error.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
   }
 }
-
 /**
  * 🛒 Layer 4b Single Item Inspection Lookup
  * Fetches a single product record from MongoDB by its unique ObjectId identifier string
