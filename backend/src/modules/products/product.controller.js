@@ -173,4 +173,37 @@ async function deleteProduct(req, res) {
   }
 }
 
+
+// Add these functions somewhere inside your product.controller.js
+
+async function shareProduct(req, res) {
+  try {
+    const { productId } = req.body;
+    // Your logic for generating affiliate tracking or social share references
+    return res.status(200).json({ 
+      ok: true, 
+      message: `Product share reference generated for asset ID: ${productId}` 
+    });
+  } catch (error) {
+    console.error("❌ Error in shareProduct:", error.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+}
+
+async function toggleProductShelf(req, res) {
+  try {
+    const { id } = req.params;
+    // Your logic to pin/unpin or toggle visibility on your SokoDigi marketplace storefront
+    return res.status(200).json({ 
+      ok: true, 
+      message: `Storefront shelf state updated successfully for product: ${id}` 
+    });
+  } catch (error) {
+    console.error("❌ Error in toggleProductShelf:", error.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+}
+
+
+
 module.exports = { listProducts, getProductById, createProduct, updateProduct, deleteProduct };
