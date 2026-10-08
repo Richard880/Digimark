@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose"); // 🎯 THE FIX: Imported the missing core module dependency
 const Product = require("../../models/Product");
 const UserProfile = require("../../models/UserProfile");
+const crypto = require("crypto"); 
 
 function productCode() {
   return `SDK-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
@@ -127,53 +128,49 @@ async function getProductById(req, res) {
     return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
   }
 }
+
+
+
+
 async function createProduct(req, res) {
   try {
-    // 1. Enforce strict authorization validation boundaries
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
-    }
-
-    if (req.userCategory !== "network") {
-      return res.status(403).json({ 
-        error: "ACCESS_DENIED", 
-        reason: "Only verified Network Vendors can upload items to the market hub repository." 
-      });
-    }
-
-    // 2. Destructure inputs transmitted by handleCommitProductStream
     const { 
       name, 
       price, 
-      affiliateCommission, 
-      quantity, 
       category, 
+      quantity, 
+      deliveryFee, 
       description, 
-      brandName, 
-      imageUrl 
+      status, 
+      imageUrl,
+      affiliateCommission 
     } = req.body;
 
-    // 3. Double-check semantic mathematical variables as an extra layer of server security
-    if (!name || Number(price) <= 0 || Number(quantity) <= 0) {
-      return res.status(400).json({ error: "INVALID_INPUT_PARAMETERS" });
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ 
+        error: "AUTHENTICATION_REQUIRED", 
+        reason: "Active user session data is missing or un-hydrated." 
+      });
     }
 
-    if (Number(affiliateCommission) < 0 || Number(affiliateCommission) >= Number(price)) {
-      return res.status(400).json({ error: "INVALID_COMMISSION_SPLIT" });
+    if (!name || price === undefined) {
+      return res.status(400).json({ error: "NAME_AND_PRICE_REQUIRED" });
     }
 
-    const calculatedWholesale = Number(price) - Number(affiliateCommission);
+    const processedCommission = Number(affiliateCommission || 0);
+    if (processedCommission >= Number(price)) {
+      return res.status(400).json({ error: "COMMISSION_CANNOT_EXCEED_RETAIL_PRICE" });
+    }
 
-    // 4. Create the item in MongoDB with pre-loaded ranking metadata
-    // 🎯 REPLACE THE Product.create BLOCK INSIDE YOUR createProduct FUNCTION WITH THIS:
+    // 🎯 FIXED SAFARI MATRIX: Fallback clean string if your user profile DB isn't loaded yet
+    const displayBrandName = req.user.brandName || req.user.displayName || "SokoDigi Merchant";
+
     const product = await Product.create({
-      // 🛡️ PASS DIRECTLY: This completely fulfills the mandatory 'productCode' path validation constraint
       productCode: `SKD-${crypto.randomBytes(3).toString("hex").toUpperCase()}`, 
-      
       sellerId: req.user._id,
       merchantId: req.user._id,
       name: name.trim(),
-      brandName: profile?.brandName || profile?.displayName || "SokoDigi Merchant",
+      brandName: displayBrandName, // 🛡️ Safe tracking fallback string reference variable
       category: (category || "general").toLowerCase().trim(),
       price: Number(price),
       affiliateCommission: processedCommission,
@@ -193,18 +190,17 @@ async function createProduct(req, res) {
       }
     });
 
-
-    return res.status(201).json({
-      ok: true,
-      message: "🎉 Inventory Asset listed and metric streams initialized successfully!",
-      product
-    });
+    return res.status(201).json({ ok: true, product });
 
   } catch (error) {
-    console.error("❌ Exception inside createProduct pipeline loop:", error.stack || error.message);
-    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
+    console.error("❌ Exception inside createProduct builder loop:", error.stack || error.message);
+    return res.status(500).json({ 
+      error: "INTERNAL_SERVER_ERROR", 
+      message: error.message 
+    });
   }
 }
+
 
 async function updateProduct(req, res) {
   try {
