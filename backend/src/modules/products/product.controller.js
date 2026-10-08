@@ -205,5 +205,14 @@ async function toggleProductShelf(req, res) {
 }
 
 
+// 🎯 EXPLICITLY INCLUDE BOTH METHODS AT THE BOTTOM OF THE FILE:
+module.exports = {
+  listProducts,
+  getProductById,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  shareProduct,       // 👈 MUST MATCH PRECISELY
+  toggleProductShelf  // 👈 MUST MATCH PRECISELY
+};
 
-module.exports = { listProducts, getProductById, createProduct, updateProduct, deleteProduct };
