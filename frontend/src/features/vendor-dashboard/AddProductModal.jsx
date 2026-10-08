@@ -1,6 +1,6 @@
 
 import { useState, useRef } from "react";
-import useAuth from "../../auth/hooks/useAuth";
+import useAuth from "../auth/hooks/useAuth";
 
 const SUB_CATEGORY_MAP = {
   "phones-gadgets": [
