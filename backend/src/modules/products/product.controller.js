@@ -127,63 +127,78 @@ async function getProductById(req, res) {
     return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
   }
 }
-
 async function createProduct(req, res) {
   try {
-    const { 
-      name, 
-      price, 
-      category, 
-      quantity, 
-      deliveryFee, 
-      description, 
-      status, 
-      imageUrl,
-      affiliateCommission 
-    } = req.body;
-
+    // 1. Enforce strict authorization validation boundaries
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ 
-        error: "AUTHENTICATION_REQUIRED", 
-        reason: "Active user session data is missing or un-hydrated." 
+      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    }
+
+    if (req.userCategory !== "network") {
+      return res.status(403).json({ 
+        error: "ACCESS_DENIED", 
+        reason: "Only verified Network Vendors can upload items to the market hub repository." 
       });
     }
 
-    if (!name || price === undefined) {
-      return res.status(400).json({ error: "NAME_AND_PRICE_REQUIRED" });
+    // 2. Destructure inputs transmitted by handleCommitProductStream
+    const { 
+      name, 
+      price, 
+      affiliateCommission, 
+      quantity, 
+      category, 
+      description, 
+      brandName, 
+      imageUrl 
+    } = req.body;
+
+    // 3. Double-check semantic mathematical variables as an extra layer of server security
+    if (!name || Number(price) <= 0 || Number(quantity) <= 0) {
+      return res.status(400).json({ error: "INVALID_INPUT_PARAMETERS" });
     }
 
-    const processedCommission = Number(affiliateCommission || 0);
-    if (processedCommission >= Number(price)) {
-      return res.status(400).json({ error: "COMMISSION_CANNOT_EXCEED_RETAIL_PRICE" });
+    if (Number(affiliateCommission) < 0 || Number(affiliateCommission) >= Number(price)) {
+      return res.status(400).json({ error: "INVALID_COMMISSION_SPLIT" });
     }
 
-    const profile = await UserProfile.findOne({ userId: req.user._id }).lean();
-    
+    const calculatedWholesale = Number(price) - Number(affiliateCommission);
+
+    // 4. Create the item in MongoDB with pre-loaded ranking metadata
     const product = await Product.create({
-      productCode: productCode(),
-      sellerId: req.user._id,
       name: name.trim(),
-      brandName: profile?.brandName || profile?.displayName || "SokoDigi Merchant",
-      category: (category || "general").toLowerCase().trim(),
       price: Number(price),
-      affiliateCommission: processedCommission,
-      wholesalePrice: Number(price) - processedCommission,
-      quantity: Number(quantity || 0),
-      deliveryFee: Number(deliveryFee || 0),
-      description: (description || "").trim(),
-      status: status || "LISTED", 
-      imageUrl: imageUrl || "",
+      affiliateCommission: Number(affiliateCommission),
+      resellerWholesaleCost: calculatedWholesale, // Aligns precisely with our MarketHub aggregator field
+      quantity: Number(quantity),
+      category: category ? category.toLowerCase() : "general",
+      description: description ? description.trim() : "",
+      brandName: brandName || "SokoDigi Merchant",
+      imageUrl: imageUrl,
+      sellerId: req.user._id,      // Binds ownership safely to the authenticated session user
+      merchantId: req.user._id,    // Fallback alignment for duplicate schema keys
+      isShelved: true,             // Makes it immediately visible on public catalog queries
+      isPremiumVendor: req.user.isPremium || false, // Grants ranking boost if they hold a premium tier subscription
+
+      // 🎯 THE DATABASE INITIALIZATION FIX:
+      // This drops a clean footprint into the document, so it indexes correctly 
+      // and behaves perfectly inside the sorting engine loop from day one!
+      metrics: {
+        conversionRate: 0,
+        referralCount: 0,
+        escrowDisputeRate: 0
+      }
     });
 
-    return res.status(201).json({ ok: true, product });
+    return res.status(201).json({
+      ok: true,
+      message: "🎉 Inventory Asset listed and metric streams initialized successfully!",
+      product
+    });
 
   } catch (error) {
-    console.error("❌ Exception inside createProduct builder loop:", error.stack || error.message);
-    return res.status(500).json({ 
-      error: "INTERNAL_SERVER_ERROR", 
-      message: error.message 
-    });
+    console.error("❌ Exception inside createProduct pipeline loop:", error.stack || error.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
   }
 }
 
