@@ -4,24 +4,56 @@ const productSchema = new mongoose.Schema(
   {
     productCode: { type: String, required: true, unique: true, index: true },
     sellerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    // 🎯 NEW FALLBACK KEY: Linked directly to our updated backend aggregation pipelines
+    merchantId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, 
+    
     name: { type: String, required: true, trim: true, index: true },
     brandName: { type: String, trim: true, default: "" },
-    category: { type: String, trim: true, default: "", index: true },
+    
+    // =========================================================================
+    // 🏷️ LOCKED HIERARCHICAL TAXONOMY STRUCTURE
+    // =========================================================================
+    category: { 
+      type: String, 
+      trim: true, 
+      lowercase: true,
+      enum: [
+        "phones-gadgets",
+        "tech-computing",
+        "apparel-fashion",
+        "home-appliances",
+        "beauty-personal-care",
+        "ankara-art",
+        "general"
+      ],
+      default: "general",
+      index: true 
+    },
+    subCategory: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "general"
+    },
     
     // =========================================================================
     // 💰 REINFORCED PRICE & MULTI-LEVEL SPLIT COMMISSION MATRIX
     // =========================================================================
-    price: { type: Number, required: true, min: 0 }, // The retail price paid by the final buyer
+    price: { type: Number, required: true, min: 0 }, 
     
-    // 🎯 NEW: The base wholesale cost the Supplier expects to keep after a sale
     wholesalePrice: {
       type: Number,
       required: true,
       default: 0,
       min: 0
     },
+    // 🎯 NEW FALLBACK KEY: Maps seamlessly to our MarketHub data redaction guard layers
+    resellerWholesaleCost: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
     
-    // 🎯 NEW: The direct commission cut allocated straight to the promoting network member
     affiliateCommission: {
       type: Number,
       required: true,
@@ -29,8 +61,6 @@ const productSchema = new mongoose.Schema(
       min: 0,
       validate: {
         validator: function (value) {
-          // Commission cannot exceed the markup gap between retail and wholesale costs
-          // If a shop lists an item for 1,000 and expects 800 wholesale, commission maxes at 200
           const availableMargin = this.price - this.wholesalePrice;
           return value <= availableMargin;
         },
@@ -45,8 +75,27 @@ const productSchema = new mongoose.Schema(
     deliveryFee: { type: Number, default: 0, min: 0 },
     description: { type: String, trim: true, default: "" },
     imageUrl: { type: String, default: "" },
-    status: { type: String, enum: ["DRAFT", "READY", "LISTED", "ARCHIVED"], default: "READY", index: true },
+    
+    // 🎯 EXPANDED ENUM: Added 'LISTED' to match the active frontend feed configurations
+    status: { 
+      type: String, 
+      enum: ["DRAFT", "READY", "LISTED", "ARCHIVED"], 
+      default: "READY", 
+      index: true 
+    },
+    // 🎯 NEW VISIBILITY FLAGS: Synchronizes with the dashboard toggle-shelf buttons
+    isShelved: { type: Boolean, default: true, index: true },
+    isPremiumVendor: { type: Boolean, default: false },
     likesCount: { type: Number, default: 0, min: 0 },
+
+    // =========================================================================
+    // 🧠 BEHAVIORAL INTENT-DRIVEN SMART METRICS (For Algorithmic Sorting)
+    // =========================================================================
+    metrics: {
+      conversionRate: { type: Number, default: 0, min: 0, max: 1 },
+      referralCount: { type: Number, default: 0, min: 0 },
+      escrowDisputeRate: { type: Number, default: 0, min: 0, max: 1 }
+    }
   },
   { timestamps: true }
 );
@@ -55,14 +104,20 @@ const productSchema = new mongoose.Schema(
 productSchema.index({ status: 1, createdAt: -1 });
 productSchema.index({ sellerId: 1, createdAt: -1 });
 productSchema.index({ category: 1, price: 1 });
+// 🎯 NEW ALGORITHMIC INDEX: Optimizes MarketHub ranking queries
+productSchema.index({ isShelved: 1, category: 1, "metrics.conversionRate": -1 });
 
 // Atomic calculation pre-save helper
 productSchema.pre("save", function (next) {
-  // If wholesalePrice wasn't supplied, default it safely to 80% of retail price
+  // Synchronize alternative variable names across our pipelines automatically
   if (this.wholesalePrice === 0 && this.price > 0) {
     this.wholesalePrice = this.price - this.affiliateCommission;
   }
   
+  this.resellerWholesaleCost = this.wholesalePrice;
+  if (!this.merchantId) this.merchantId = this.sellerId;
+  
+  next();
 });
 
 module.exports = mongoose.model("Product", productSchema);
