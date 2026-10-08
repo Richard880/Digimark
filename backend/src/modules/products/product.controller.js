@@ -165,30 +165,34 @@ async function createProduct(req, res) {
     const calculatedWholesale = Number(price) - Number(affiliateCommission);
 
     // 4. Create the item in MongoDB with pre-loaded ranking metadata
+    // 🎯 REPLACE THE Product.create BLOCK INSIDE YOUR createProduct FUNCTION WITH THIS:
     const product = await Product.create({
+      // 🛡️ PASS DIRECTLY: This completely fulfills the mandatory 'productCode' path validation constraint
+      productCode: `SKD-${crypto.randomBytes(3).toString("hex").toUpperCase()}`, 
+      
+      sellerId: req.user._id,
+      merchantId: req.user._id,
       name: name.trim(),
+      brandName: profile?.brandName || profile?.displayName || "SokoDigi Merchant",
+      category: (category || "general").toLowerCase().trim(),
       price: Number(price),
-      affiliateCommission: Number(affiliateCommission),
-      resellerWholesaleCost: calculatedWholesale, // Aligns precisely with our MarketHub aggregator field
-      quantity: Number(quantity),
-      category: category ? category.toLowerCase() : "general",
-      description: description ? description.trim() : "",
-      brandName: brandName || "SokoDigi Merchant",
-      imageUrl: imageUrl,
-      sellerId: req.user._id,      // Binds ownership safely to the authenticated session user
-      merchantId: req.user._id,    // Fallback alignment for duplicate schema keys
-      isShelved: true,             // Makes it immediately visible on public catalog queries
-      isPremiumVendor: req.user.isPremium || false, // Grants ranking boost if they hold a premium tier subscription
-
-      // 🎯 THE DATABASE INITIALIZATION FIX:
-      // This drops a clean footprint into the document, so it indexes correctly 
-      // and behaves perfectly inside the sorting engine loop from day one!
+      affiliateCommission: processedCommission,
+      wholesalePrice: Number(price) - processedCommission,
+      resellerWholesaleCost: Number(price) - processedCommission,
+      quantity: Number(quantity || 0),
+      deliveryFee: Number(deliveryFee || 0),
+      description: (description || "").trim(),
+      status: status || "LISTED", 
+      isShelved: true,
+      imageUrl: imageUrl || "",
+      
       metrics: {
         conversionRate: 0,
         referralCount: 0,
         escrowDisputeRate: 0
       }
     });
+
 
     return res.status(201).json({
       ok: true,
