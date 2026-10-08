@@ -1,5 +1,5 @@
 import { useState } from "react";
-import useAuth from "../../auth/hooks/useAuth";
+import useAuth from "../../features/auth/hooks/useAuth";
 
 const API_URL = import.meta.env.PROD 
   ? "" 
