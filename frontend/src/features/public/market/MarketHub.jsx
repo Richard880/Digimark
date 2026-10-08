@@ -1,20 +1,24 @@
 import { useEffect, useState, useMemo } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import apiClient from "../../../services/apiClient";
-import useAuth from "../../auth/hooks/useAuth"; // 🎯 ADDED: Import your custom session context
+import useAuth from "../../auth/hooks/useAuth"; // 🎯 EXTRACTS ACTIVE USER SECTOR PROFILE
 import ProductCard from "./ProductCard";
 import HeroSlider from "./HeroSlider"; 
 
 export default function MarketHub() {
   const navigate = useNavigate();
-  const { auth } = useAuth(); // 🎯 ADDED: Extract active auth engine details
+  const { auth } = useAuth(); 
   const loggedInUser = auth?.currentUser;
 
   const outletContext = useOutletContext() || {};
   const { searchResults, isSearching, activeQuery = "" } = outletContext;
+  
   const [allProducts, setAllProducts] = useState([]);
   const [statusMessage, setStatusMessage] = useState("Exploring the market...");
   const [isLoadingFeed, setIsLoadingFeed] = useState(true);
+  
+  // 🎯 NEW STATE: Track the active engagement filter selection
+  const [smartFilter, setSmartFilter] = useState("all"); // 'all', 'best-sellers', 'top-products', 'fresh-drops'
 
   useEffect(() => {
     let cancelled = false;
@@ -22,17 +26,21 @@ export default function MarketHub() {
     const loadProducts = async () => {
       try {
         setIsLoadingFeed(true);
-        
-        // 🔒 AUTH HANDSHAKE: Pull the live cryptographic session token if logged in
         const token = loggedInUser?.getIdToken ? await loggedInUser.getIdToken() : null;
         
-        // Build request parameters and inject authorization headers seamlessly
-        const config = {
+        // 🚀 DYNAMIC ROUTE REDIRECTION BASED ON CHIP STATE
+        let targetEndpoint = "/products";
+        let config = {
           params: { status: "LISTED" },
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         };
 
-        const response = await apiClient.get("/products", config);
+        if (smartFilter !== "all") {
+          targetEndpoint = "/products/discovery";
+          config.params = { type: smartFilter }; // Routes to our new switch statement layers
+        }
+
+        const response = await apiClient.get(targetEndpoint, config);
         
         if (!cancelled) {
           const dataArray = response.data?.feed || response.data || [];
@@ -48,7 +56,7 @@ export default function MarketHub() {
 
     loadProducts();
     return () => { cancelled = true; };
-  }, [loggedInUser]); // 🎯 WATCH INSTANCE: Re-run immediately as soon as the user profile session hydrates
+  }, [loggedInUser, smartFilter]); // 🎯 RE-FETCH ON CHIP CLICK: Re-runs instantly whenever the active filter state changes
 
   const displayedProducts = useMemo(() => {
     const query = activeQuery.trim().toLowerCase();
@@ -77,9 +85,39 @@ export default function MarketHub() {
         onProductClick={handleProductClick} 
       />
 
+      {/* =========================================================================
+          🚀 NEW COMPONENT RENDERING: SMART ENGAGEMENT NAVIGATION CHIPS
+         ========================================================================= */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4">
+        {[
+          { id: "all", label: "🛒 All Items" },
+          { id: "best-sellers", label: "🔥 Best Sellers" },
+          { id: "top-products", label: "💎 Top Brands" },
+          { id: "fresh-drops", label: "🆕 Fresh Drops" }
+        ].map((chip) => (
+          <button
+            key={chip.id}
+            onClick={() => setSmartFilter(chip.id)}
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all duration-200 cursor-pointer border ${
+              smartFilter === chip.id
+                ? "bg-slate-900 border-slate-900 text-white shadow-xs"
+                : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            }`}
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+
+      {/* MAIN CATALOG FEED GRID CONTAINER */}
       <div className="space-y-4">
         <div className="flex justify-between items-baseline border-b border-slate-100 pb-3">
-          <h2 className="text-xl font-bold text-slate-800">Marketplace</h2>
+          <h2 className="text-xl font-bold text-slate-800">
+            {smartFilter === "all" && "Marketplace"}
+            {smartFilter === "best-sellers" && "Hot Trending Products"}
+            {smartFilter === "top-products" && "Verified Supplier Showcases"}
+            {smartFilter === "fresh-drops" && "Fresh Warehouse Arrivals"}
+          </h2>
           {activeQuery && <span className="text-xs text-slate-400">Filtered by: "{activeQuery}"</span>}
         </div>
 
