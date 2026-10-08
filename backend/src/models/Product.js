@@ -108,16 +108,14 @@ productSchema.index({ category: 1, price: 1 });
 productSchema.index({ isShelved: 1, category: 1, "metrics.conversionRate": -1 });
 
 // Atomic calculation pre-save helper
-productSchema.pre("save", function (next) {
-  // Synchronize alternative variable names across our pipelines automatically
+productSchema.pre("save", async function () {
   if (this.wholesalePrice === 0 && this.price > 0) {
     this.wholesalePrice = this.price - this.affiliateCommission;
   }
   
   this.resellerWholesaleCost = this.wholesalePrice;
   if (!this.merchantId) this.merchantId = this.sellerId;
-  
-  next();
 });
+
 
 module.exports = mongoose.model("Product", productSchema);
