@@ -8,18 +8,23 @@ const {
   createProduct, 
   updateProduct, 
   deleteProduct,
-  shareProduct,       // 🎯 FIXED: Imported the product sharing handler
-  toggleProductShelf  // 🎯 FIXED: Imported your intended shelf controller
+  shareProduct,       
+  toggleProductShelf,
+  getSmartDiscoveries // 🎯 NEW: Imported the behavioral engagement smart discovery engine handler
 } = require("./product.controller");
 
 const router = express.Router();
 
 // =========================================================================
-// 🛒 1. PUBLIC APIS & SPECIFIC PATHS
+// 🛒 1. PUBLIC APIS & SPECIFIC PATHS (Static paths must sit at the top)
 // =========================================================================
 
 // GET /api/products
 router.get("/", listProducts);
+
+// 🧠 NEW: Smart behavioral engagement feeds (Calculates Best Sellers, Fresh Drops, Top Brands)
+// Maps to: GET /api/products/discovery
+router.get("/discovery", getSmartDiscoveries);
 
 // 🎯 FIXED: Mounted /share BEFORE the /:id wildcard so it doesn't cause formatting crashes
 // POST /api/products/share
