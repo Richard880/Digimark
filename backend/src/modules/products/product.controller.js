@@ -10,63 +10,79 @@ function productCode() {
 
 async function listProducts(req, res) {
   try {
-    // 1. Identify active user authorization parameters if present (Fallback to guest state)
     const isAuthenticated = !!(req.user && req.user._id);
     const userCategory = req.userCategory || "guest"; // 'network', 'retail', or 'guest'
 
-    // 2. Base Query Filters: Guests and standard retail clients can ONLY see active, shelved catalog items
+    // 1. Defensive Base Query Filters
     const baseMatch = {
       isShelved: true,
-      quantity: { $gt: 0 } // Exclude completely out-of-stock variations from the feed
+      // Handle legacy products that don't have a quantity field set yet
+      $or: [
+        { quantity: { $gt: 0 } },
+        { quantity: { $exists: false } }
+      ]
     };
 
-    // If an exclusive vendor is reviewing the feed, let them see their own drafted/unshelved inventory items too
+    // Let validated vendors view their own draft inventory entries alongside public listings
     if (userCategory === "network" && isAuthenticated) {
       delete baseMatch.isShelved;
       baseMatch.$or = [
         { isShelved: true },
-        { sellerId: new mongoose.Types.ObjectId(req.user._id) }
+        { sellerId: new mongoose.Types.ObjectId(req.user._id) },
+        { merchantId: new mongoose.Types.ObjectId(req.user._id) } // Match whatever legacy key is in your schema
       ];
     }
 
-    // 3. Construct the Algorithmic Hybrid Aggregation Pipeline Layer
+    // 2. Execution Aggregation Pipeline
     const pipeline = [
       { $match: baseMatch },
 
-      // 🧠 HYBRID RANKING ENGINE SCORE EVALUATION LAYER
+      // 🧠 DEFENSIVE METRICS FALLBACK ENGINE LAYER
+      {
+        $addFields: {
+          // If the metrics object or individual values are missing entirely from your document records,
+          // this guarantees they default safely to 0 instead of breaking your calculation arrays.
+          conversionRateSafe: { $ifNull: ["$metrics.conversionRate", 0] },
+          referralCountSafe: { $ifNull: ["$metrics.referralCount", 0] },
+          escrowDisputeRateSafe: { $ifNull: ["$metrics.escrowDisputeRate", 0] }
+        }
+      },
+
       {
         $addFields: {
           rankingScore: {
             $add: [
-              // Dimension A: Boost validated smart-link premium subscription sellers significantly
+              // Dimension A: Premium validation boost
               { $cond: [{ $eq: ["$isPremiumVendor", true] }, 50, 0] },
 
-              // Dimension B: Factor in historical conversion velocity metrics cleanly
-              { $multiply: [{ $ifNull: ["$metrics.conversionRate", 0] }, 10] },
+              // Dimension B: Conversion velocity metric computation
+              { $multiply: ["$conversionRateSafe", 10] },
 
-              // Dimension C: Reward network popularity (MLM referral volume counts)
-              { $multiply: [{ $ifNull: ["$metrics.referralCount", 0] }, 2] },
+              // Dimension C: Affiliate MLM network promoter volume
+              { $multiply: ["$referralCountSafe", 2] },
 
-              // Dimension D: Demote bad behavior instantly (Heavy penalty score calculation for escrow disputes)
-              { $multiply: [{ $ifNull: ["$metrics.escrowDisputeRate", 0] }, -30] }
+              // Dimension D: Escrow transaction penalty calculation
+              { $multiply: ["$escrowDisputeRateSafe", -30] }
             ]
           }
         }
       },
 
-      // Sort by calculated ranking scores descending so the highest performing items appear first
+      // Sort by evaluated scoring metrics descending
       { $sort: { rankingScore: -1, createdAt: -1 } }
     ];
 
-    // 🔒 DATA REDACTION GUARD LAYER: Clean structural output projection matrices based on context
+    // 🔒 DATA REDACTION GUARD LAYER
     if (userCategory !== "network") {
       pipeline.push({
         $project: {
-          // Explicitly hide confidential internal wholesale cuts and commission parameters from buyers/guests
           affiliateCommission: 0,
           resellerWholesaleCost: 0,
-          "metrics.escrowDisputeRate": 0,
-          internalNotes: 0
+          metrics: 0,
+          internalNotes: 0,
+          conversionRateSafe: 0,
+          referralCountSafe: 0,
+          escrowDisputeRateSafe: 0
         }
       });
     }
@@ -85,6 +101,7 @@ async function listProducts(req, res) {
     return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
   }
 }
+
 /**
  * 🛒 Layer 4b Single Item Inspection Lookup
  * Fetches a single product record from MongoDB by its unique ObjectId identifier string
