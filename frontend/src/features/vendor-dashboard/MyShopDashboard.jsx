@@ -325,7 +325,7 @@ export default function MyShopDashboard() {
         uploadImageToCloudinary={uploadImageToCloudinary}
       />
       
-    </div> {/* 🎯 CLOSES: main text flex-1 pl-64 container */}
+    </div>
   </div> 
   );
 }
