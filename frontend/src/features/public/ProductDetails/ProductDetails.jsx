@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import useAuth from "../../auth/hooks/useAuth"; 
-import styles from "./ProductDetails.module.css";
+import { useParams, useSearchParams } from "react-router-dom";
+import useAuth from "../../auth/hooks/useAuth";
+import CheckoutButton from "../../../CheckoutButton/CheckoutButton"; // 🎯 IMPORTED NEW SECURE PIPELINE BUTTON
 
 const API_URL = import.meta.env.PROD 
   ? "" 
@@ -9,273 +9,181 @@ const API_URL = import.meta.env.PROD
 
 export default function ProductDetails() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const { auth } = useAuth(); 
+  const [searchParams] = useSearchParams();
+  const { auth, userCategory } = useAuth(); // Assuming userCategory is exposed via auth context
+  const loggedInUser = auth?.currentUser;
+
+  // Extract affiliate promoter ID if tracking link was used
+  const affiliateId = searchParams.get("ref") || null;
 
   const [product, setProduct] = useState(null);
+  const [quantity, setQuantity] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState(null);
-  const [isPinning, setIsPinning] = useState(false);
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [activeTab, setActiveTab] = useState("description");
 
   useEffect(() => {
-    if (!id) return;
-
-    const fetchDetails = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch(`${API_URL}/api/products/${id}`);
-        
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error("Product records do not match active inventory indexes (404).");
-          }
-          throw new Error("Hanging sync connection error.");
-        }
-
-        const data = await response.json();
-        setProduct(data);
-      } catch (err) {
-        setErrorMsg(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDetails();
+    if (id) fetchProductDetails();
   }, [id]);
 
-  const handleSecureAssetAllocation = async () => {
-    if (!auth?.currentUser) {
-      alert("Please log into your account to securely purchase assets from MarketHub.");
-      return;
-    }
-
-    if (!window.confirm(`Initialize Escrow Contract for ${product?.name}? Funds will be held until delivery scan/pin handshake completion.`)) return;
-
-    setIsCheckingOut(true);
+  const fetchProductDetails = async () => {
     try {
-      const token = await auth?.currentUser?.getIdToken();
-      
-      const checkoutPayload = {
-        productId: id,
-        quantity: 1,
-        shippingDetails: {
-          fullName: auth?.profile?.brandName || "SokoDigi Client Customer",
-          county: "Kisumu",
-          subCounty: "Kisumu Central"
-        }
-      };
-
-      const response = await fetch(`${API_URL}/api/orders`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(checkoutPayload)
-      });
-
+      setIsLoading(true);
+      const response = await fetch(`${API_URL}/api/products/${id}`);
       const data = await response.json();
       if (response.ok) {
-        alert(`🎉 Escrow Transaction Initialized! Secure Order: ${data.order?.orderNumber || "SDO-PRO"}`);
-        navigate("/profile");
-      } else {
-        alert(data.reason || data.error || "Failed to process escrow asset checkout.");
+        setProduct(data.feed || data); // Matches your backend object wrapping
       }
     } catch (err) {
-      console.error("Order checkpoint synchronization error:", err);
-      alert("Network connectivity issue. Unable to establish escrow ledger contract.");
+      console.error("Failed to load catalog details profile:", err);
     } finally {
-      setIsCheckingOut(false);
+      setIsLoading(false);
     }
   };
 
-  const handlePinProduct = async () => {
-    setIsPinning(true);
+  const handleShelfPinToggle = async () => {
     try {
-      const token = await auth?.currentUser?.getIdToken();
-      const response = await fetch(`${API_URL}/api/products/share`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          productId: id, 
-          customNotes: `Affiliate recommendation: Pick up this premium ${product?.name || "item"} today!` 
-        })
+      const token = loggedInUser?.getIdToken ? await loggedInUser.getIdToken() : null;
+      const response = await fetch(`${API_URL}/api/products/${id}/toggle-shelf`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` }
       });
-
-      const data = await response.json();
       if (response.ok) {
-        alert("🎉 Product successfully pinned to your Shared Storefront catalog profile view!");
-        navigate("/profile"); 
-      } else {
-        alert(data.reason || "This product is already pinned to your storefront layout matrix.");
+        alert("🏪 Storefront layout shelf positioning updated successfully!");
+        fetchProductDetails();
       }
     } catch (err) {
-      console.error("Failed to execute share connection transaction:", err);
-      alert("Network timeout or connection boundary error.");
-    } finally {
-      setIsPinning(false);
+      console.error("Failed to execute toggle pin:", err);
     }
   };
-
-  const handleBackNavigation = () => navigate("/marketplace");
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 text-center space-y-4 min-h-[60vh]">
-        <div className="w-10 h-10 border-4 border-emerald-600/20 border-t-emerald-600 rounded-full animate-spin"></div>
-        <p className="text-xs font-black uppercase tracking-widest text-slate-400 animate-pulse">Resolving Item Parameters...</p>
+      <div className="flex min-h-screen items-center justify-center bg-slate-50/50">
+        <div className="w-8 h-8 border-4 border-emerald-600/20 border-t-emerald-600 rounded-full animate-spin"></div>
       </div>
     );
   }
 
-  if (errorMsg) {
+  if (!product) {
     return (
-      <div className={styles["error-wrapper"]}>
-        <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center font-bold mb-3 border border-red-100">!</div>
-        <h3 className="text-base font-bold text-slate-800">Inventory Error</h3>
-        <p className="text-xs text-slate-400 mt-1 max-w-xs">{errorMsg}</p>
-        <button type="button" onClick={handleBackNavigation} className="mt-4 px-4 py-2 bg-slate-800 text-white text-xs font-semibold rounded-lg">Back to Hub</button>
+      <div className="text-center py-12 text-slate-500 text-xs">
+        The requested product catalog asset could not be found.
       </div>
     );
   }
-
-  const isNetworkAffiliate = auth?.profile?.accountCategory === "network" || auth?.user?.accountCategory === "network";
-  const retailPrice = Number(product?.price || 0);
-  const commission = Number(product?.affiliateCommission || 0);
-  const resellerCost = retailPrice - commission;
 
   return (
-    <div className={styles["details-shell"]}>
-      {/* 🧭 NAVIGATION BACK-ANCHOR */}
-      <button type="button" onClick={handleBackNavigation} className={styles["back-action-anchor"]}>
-        <svg xmlns="http://w3.org" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-          <line x1="19" y1="12" x2="5" y2="12"></line>
-          <polyline points="12 19 5 12 12 5"></polyline>
-        </svg>
-        <span>Back to MarketHub</span>
-      </button>
-
-      {/* 🎛️ CORE CONTAINER CARDS PANEL MESH */}
-      <div className={styles["details-container"]}>
+    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <div className="grid gap-8 md:grid-cols-2">
         
-        {/* LEFT COLUMN: VISUAL IMAGE CANVAS PANEL */}
-        <div className={styles["image-canvas-side"]}>
-          <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
-            <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-slate-900 text-white tracking-wider border border-white/10 shadow-sm">
-              🛡️ SokoDigi Verified
-            </span>
-            {product?.fromNetwork && (
-              <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-blue-600 text-white tracking-wider shadow-sm">
-                Network Connection
-              </span>
-            )}
-          </div>
+        {/* PRODUCT VISUAL IMAGE RENDER */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-2 overflow-hidden shadow-xs h-96 flex items-center justify-center">
           <img 
-            src={product?.imageUrl || "https://unsplash.com"} 
-            crossOrigin="anonymous" 
-            alt={product?.name || "Inventory Item"} 
-            onError={(e) => { e.currentTarget.src = 'https://unsplash.com'; }}
+            src={product.imageUrl || "https://unsplash.com"} 
+            alt={product.name} 
+            className="max-h-full max-w-full object-contain rounded-xl"
           />
         </div>
 
-        {/* RIGHT COLUMN: CORE METRIC STRIPS & CHECKOUTS */}
-        <div className={styles["meta-content-side"]}>
-          <div className="space-y-2">
-            <span className={styles["category-badge"]}>
-              {product?.category || "General Catalog"}
-            </span>
-            <h1 className={styles["product-headline"]}>
-              {product?.name || "Premium Inventory Spec Asset"}
-            </h1>
-            <p className={styles["vendor-text"]}>
-              Sourcing Hub: <strong>{product?.brandName || "Independent Supplier"}</strong>
-            </p>
-          </div>
-
-          {/* ⭐⭐⭐⭐⭐ REPLICA RATINGS BLOCK */}
-          <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-2 rounded-xl w-max mt-4">
-            <div className="flex text-amber-400 text-xs tracking-tighter">★★★★★</div>
-            <span className="text-[11px] font-black text-slate-700">4.9 Rating</span>
-            <span className="text-slate-200 text-xs">|</span>
-            <span className="text-[11px] font-bold text-slate-400">Verified Hub Dispatch</span>
-          </div>
-
-          {/* 💰 COMPREHENSIVE FINANCIAL SPLIT MATRIX STRIP */}
-          <div className="my-6 space-y-4 border-y border-slate-100 py-4">
-            <div className={styles["price-tag-row"]}>
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Customer Retail Value</span>
-              <span className={styles["price-readout"]}>
-                KSh {retailPrice.toLocaleString()}
-              </span>
+        {/* METRICS & TRANSACTION CONTROL SELECTIONS */}
+        <div className="flex flex-col justify-between">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight sm:text-3xl">{product.name}</h1>
+            
+            {/* PRICING INDICATOR DISPLAY */}
+            <div className="mt-4 flex items-baseline space-x-2">
+              <span className="text-3xl font-black text-emerald-600 tracking-tight">Ksh {product.price?.toLocaleString()}</span>
+              {product.deliveryFee > 0 && (
+                <span className="text-xs text-slate-400 font-medium">+ Ksh {product.deliveryFee} delivery</span>
+              )}
             </div>
 
-            {/* MARGIN INCENTIVES HIGHLIGHT SHEET (VISUALLY LOCKED TO VETTED MARKETERS ONLY) */}
-            {isNetworkAffiliate && commission > 0 && (
-              <div className="grid grid-cols-2 gap-2 bg-gradient-to-br from-amber-400/10 to-amber-500/5 border border-amber-200/60 p-3.5 rounded-2xl">
+            {/* VENDOR CONTROL STRIP */}
+            {userCategory === "network" && (
+              <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
                 <div>
-                  <span className="block text-[9px] uppercase font-bold text-slate-500 tracking-wider">Your Reseller Cost</span>
-                  <span className="text-base font-black text-slate-800">KSh {resellerCost.toLocaleString()}</span>
+                  <span className="block text-[10px] uppercase font-bold text-slate-400">Network Commission Margin</span>
+                  <span className="text-sm font-bold text-emerald-700">+Ksh {product.affiliateCommission?.toLocaleString()} per sale</span>
                 </div>
-                <div className="text-right border-l border-amber-200/40 pl-2">
-                  <span className="block text-[9px] uppercase font-bold text-amber-700 tracking-wider">Share Profit Cut</span>
-                  <span className="text-base font-black text-amber-600">KSh {commission.toLocaleString()}</span>
-                </div>
+                <button
+                  onClick={handleShelfPinToggle}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-xs"
+                >
+                  📌 {product.isShelved ? "Unpin from Shelf" : "Pin to Storefront"}
+                </button>
               </div>
             )}
 
-            {/* LOWER METADATA SPECIFICATIONS STRIP */}
-            <div className="grid grid-cols-2 gap-4 text-xs text-slate-600 bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                          <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Warehouse Stock</span>
-                <span className={product?.quantity > 0 ? "text-slate-800 font-black" : "text-red-600 font-black"}>
-                  {product?.quantity > 0 ? `${product.quantity} units available` : "Out of Stock"}
-                </span>
+            {/* QUANTITY CONFIGURE CONTROL PICKER */}
+            <div className="mt-6 flex items-center space-x-4 border-t border-slate-100 pt-6">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Quantity:</span>
+              <div className="flex items-center border border-slate-200 rounded-lg bg-white overflow-hidden">
+                <button 
+                  onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                  className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold border-r border-slate-200"
+                >
+                  -
+                </button>
+                <span className="px-4 text-sm font-mono font-bold text-slate-800">{quantity}</span>
+                <button 
+                  onClick={() => setQuantity(q => Math.min(product.quantity || 10, q + 1))}
+                  className="px-3 py-1 bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold border-l border-slate-200"
+                >
+                  +
+                </button>
               </div>
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider mb-0.5">Escrow Courier Fee</span>
-                <span className="font-black text-slate-800">
-                  KSh {Number(product?.deliveryFee || 0).toLocaleString()}
-                </span>
-              </div>
-            </div>
-
-            {/* OVERVIEW PANEL DETAILS SUMMARY */}
-            <div className="space-y-1 pt-1">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Product Overview</span>
-              <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                {product?.description || "This verified inventory asset meets all SokoDigi quality assurance guidelines. Funds remain secured safely within escrow until delivery handshake confirmation."}
-              </p>
+              <span className="text-xs text-slate-400 font-semibold">({product.quantity || 0} pieces remaining in warehouse)</span>
             </div>
           </div>
 
-          {/* 🎯 CORE INTERACTION CONTROLLERS ROW */}
-          <div className="space-y-2">
-            <button 
-              type="button" 
-              onClick={handleSecureAssetAllocation}
-              disabled={isCheckingOut || !product?.quantity}
-              className={styles["cart-action-btn"]}
+          {/* DYNAMIC INTEGRATED ESCROW CHECKOUT ACTIONS HOOK PANEL */}
+          <div className="mt-8 border-t border-slate-100 pt-6">
+            <CheckoutButton 
+              productId={product._id} 
+              quantity={quantity} 
+              affiliateId={affiliateId}
+              onOrderSuccess={() => setQuantity(1)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* METADATA INFORMATIONAL TAB BAR MATRICES */}
+      <div className="mt-12 border-t border-slate-200 pt-8">
+        <div className="flex space-x-4 border-b border-slate-200 pb-px">
+          <button
+            onClick={() => setActiveTab("description")}
+            className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition ${
+              activeTab === "description" ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
+            }`}
+          >
+            Product Info
+          </button>
+          {userCategory === "network" && (
+            <button
+              onClick={() => setActiveTab("network")}
+              className={`pb-3 text-xs font-bold uppercase tracking-wider border-b-2 transition ${
+                activeTab === "network" ? "border-slate-900 text-slate-900" : "border-transparent text-slate-400 hover:text-slate-600"
+              }`}
             >
-              {isCheckingOut ? "Compiling Escrow Balance Signature..." : "Secure Asset Allocation (Buy Now)"}
+              🤝 Shared Store Metrics
             </button>
+          )}
+        </div>
 
-            {isNetworkAffiliate && (
-              <button 
-                type="button" 
-                onClick={handlePinProduct}
-                disabled={isPinning}
-                className="w-full rounded-xl border-2 border-dashed border-emerald-200 hover:border-emerald-500 bg-emerald-50/30 text-emerald-800 font-extrabold text-xs py-3.5 text-center transition disabled:opacity-40 uppercase tracking-widest"
-              >
-                {isPinning ? "Pinning Storefront Matrix..." : "📌 Pin Product to Storefront"}
-              </button>
-            )}
-          </div>
-
+        <div className="mt-6 text-sm text-slate-600 leading-relaxed max-w-3xl">
+          {activeTab === "description" ? (
+            <p>{product.description || "No specific detailed description logging provided by merchant catalog entries."}</p>
+          ) : (
+            <div className="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <p className="text-xs font-bold text-slate-700">Vendor Accounting Summary Mapping:</p>
+              <ul className="text-xs space-y-1.5 font-medium text-slate-500 list-disc list-inside">
+                <li>Wholesale cost to shop base: <span className="font-mono text-slate-800 font-bold">Ksh {product.price - product.affiliateCommission}</span></li>
+                <li>Calculated conversion multiplier rate: <span className="text-slate-800 font-bold">{(product.metrics?.conversionRate || 0) * 100}%</span></li>
+                <li>Tracked MLM global network shares: <span className="text-slate-800 font-bold">{product.metrics?.referralCount || 0} referrals</span></li>
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </div>
