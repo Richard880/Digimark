@@ -256,7 +256,66 @@ async function deleteProduct(req, res) {
   }
 }
 
+async function getSmartDiscoveries(req, res) {
+  try {
+    const { type, limit = 8 } = req.query;
+    const userCategory = req.userCategory || "guest";
 
+    // Base query filter limits viewable items exclusively to active storefront items
+    let queryFilter = { isShelved: true, status: "LISTED", quantity: { $gt: 0 } };
+    let sortCriteria = { createdAt: -1 };
+
+    // 📊 ROUTE LOGIC MATRICES BASED ON SMART TARGETS
+    switch (type) {
+      case "best-sellers":
+        // Target: High conversion velocity and high MLM promoter sharing distribution
+        queryFilter["metrics.conversionRate"] = { $gte: 0.12 }; // Items with 12%+ conversion speed
+        sortCriteria = { "metrics.conversionRate": -1, "metrics.referralCount": -1 };
+        break;
+
+      case "top-products":
+        // Target: Highly reliable, premium tier vendor products with clean escrow safety histories
+        queryFilter.isPremiumVendor = true;
+        queryFilter["metrics.escrowDisputeRate"] = { $lt: 0.03 }; // Drop products with >3% delivery issues
+        sortCriteria = { "metrics.referralCount": -1, createdAt: -1 };
+        break;
+
+      case "fresh-drops":
+        // Target: Brand new marketplace catalog listings added within the current rolling week
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        queryFilter.createdAt = { $gte: oneWeekAgo };
+        sortCriteria = { createdAt: -1 };
+        break;
+
+      default:
+        // Fallback default response: Highly shared items first
+        sortCriteria = { "metrics.referralCount": -1, createdAt: -1 };
+    }
+
+    // Execute lookup with lean processing maps for lightning speed optimization
+    let items = await Product.find(queryFilter)
+      .sort(sortCriteria)
+      .limit(Number(limit))
+      .lean();
+
+    // 🔒 PRIVACY REDACTION BOUNDARY: Strip supplier wholesale sheets from standard buyers
+    if (userCategory !== "network") {
+      items = items.map(({ affiliateCommission, wholesalePrice, resellerWholesaleCost, metrics, ...cleanItem }) => cleanItem);
+    }
+
+    return res.status(200).json({
+      ok: true,
+      smartCategory: type || "trending",
+      count: items.length,
+      feed: items
+    });
+
+  } catch (error) {
+    console.error("❌ Smart Categories Engine operational failure:", error.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
+  }
+}
 // Add these functions somewhere inside your product.controller.js
 
 async function shareProduct(req, res) {
@@ -295,6 +354,7 @@ module.exports = {
   createProduct,
   updateProduct,
   deleteProduct,
+  getSmartDiscoveries,
   shareProduct,       // 👈 MUST MATCH PRECISELY
   toggleProductShelf  // 👈 MUST MATCH PRECISELY
 };
