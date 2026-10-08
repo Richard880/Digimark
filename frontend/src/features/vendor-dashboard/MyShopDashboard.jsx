@@ -316,8 +316,7 @@ export default function MyShopDashboard() {
   </div>
 )}
 
-      {/* 🚀 TWO-TIER COMPONENT MODAL MODULAR BLOCK INSIGHT */}
-      <AddProductModal
+          <AddProductModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={(newProduct) => {
