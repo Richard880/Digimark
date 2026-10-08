@@ -233,8 +233,9 @@ export default function MyShopDashboard() {
     )}
   </div>
 )}
-
-{/* SECTION B: SALES AND PIN ESCROW TRANSACTION RENDER LOOP */}
+{/* =========================================================================
+    📋 SECTION B: SALES AND PIN ESCROW TRANSACTION RENDER LOOP (FIXED)
+   ========================================================================= */}
 {activeTab === "orders" && (
   <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
     <div className="p-6 border-b border-slate-100 bg-slate-50/50">
@@ -256,31 +257,54 @@ export default function MyShopDashboard() {
               <th className="p-4">Customer Base</th>
               <th className="p-4">Escrow Value</th>
               <th className="p-4">Status</th>
-              <th className="p-4 pr-6 text-right">Clearance Verification</th>
+              <th className="p-4 pr-6 text-right">Clearance Verification Lock</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
             {salesOrders.map((order, idx) => (
-              <tr key={order.id || idx} className="hover:bg-slate-50/50 transition">
-                <td className="p-4 pl-6 font-mono text-slate-900">#{order.orderNumber || "0000"}</td>
-                <td className="p-4">{order.customerName || "Direct Consumer"}</td>
+              <tr key={order._id || order.id || idx} className="hover:bg-slate-50/50 transition">
+                <td className="p-4 pl-6 font-mono text-slate-900 font-bold">#{order.orderNumber || "0000"}</td>
+                
+                {/* 🎯 FIXED: Reads correct schema values from shippingDetails nested object */}
+                <td className="p-4">
+                  <div className="font-semibold text-slate-800">{order.shippingDetails?.fullName || "Guest Account"}</div>
+                  <div className="text-[10px] text-slate-400 font-normal">{order.shippingDetails?.phoneNumber || "No Contact"}</div>
+                </td>
+                
                 <td className="p-4 font-bold text-slate-900">KES {order.totalPrice?.toLocaleString() || 0}</td>
+                
                 <td className="p-4">
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                     order.orderStatus === "DELIVERED" 
-                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
-                      : "bg-amber-100 text-amber-800 border border-amber-200"
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-100/40" 
+                      : "bg-amber-50 text-amber-700 border border-amber-100/40"
                   }`}>
-                    {order.orderStatus || "PENDING"}
+                    {order.orderStatus === "DELIVERED" ? "Released" : "In Escrow"}
                   </span>
                 </td>
+                
+                {/* 🎯 FIXED: Restored functional PIN fields and action buttons hooks */}
                 <td className="p-4 pr-6 text-right">
                   {order.orderStatus === "DELIVERED" ? (
-                    <span className="text-emerald-500 text-[11px] font-bold">✓ Cleared to Vault</span>
+                    <span className="text-emerald-600 font-bold inline-flex items-center gap-1">✅ Payout Processed</span>
                   ) : (
-                    <button className="px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 font-bold rounded-lg text-[11px] transition shadow-xs">
-                      Release Funds
-                    </button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <input
+                        type="text"
+                        maxLength={6}
+                        placeholder="6-Digit PIN..."
+                        value={pinInputs[order.orderNumber] || ""}
+                        onChange={(e) => setPinInputs(p => ({ ...p, [order.orderNumber]: e.target.value }))}
+                        className="w-28 text-center rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-mono font-bold tracking-widest focus:border-emerald-500 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleVerifyDeliveryPin(order.orderNumber)}
+                        className="px-3 py-1.5 bg-slate-900 text-white hover:bg-slate-800 font-bold rounded-lg text-[10px] uppercase transition tracking-wider shadow-xs cursor-pointer"
+                      >
+                        Verify Key
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -292,12 +316,17 @@ export default function MyShopDashboard() {
   </div>
 )}
 
-{/* 🚀 TWO-TIER COMPONENT MODAL MODULAR BLOCK INSIGHT */}
-<AddProductModal
-  isOpen={isModalOpen}
-  onClose={() => setIsModalOpen(false)}
-  onSuccess={(newProduct) => {
-    setAllProducts(prev => [newProduct, ...prev]);
-  }}
-  uploadImageToCloudinary={uploadImageToCloudinary}
-/>
+      {/* 🚀 TWO-TIER COMPONENT MODAL MODULAR BLOCK INSIGHT */}
+      <AddProductModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={(newProduct) => {
+          setAllProducts(prev => [newProduct, ...prev]);
+        }}
+        uploadImageToCloudinary={uploadImageToCloudinary}
+      />
+      
+    </div> {/* 🎯 CLOSES: main text flex-1 pl-64 container */}
+  </div> 
+  );
+}
