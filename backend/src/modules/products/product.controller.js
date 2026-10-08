@@ -2,7 +2,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose"); // 🎯 THE FIX: Imported the missing core module dependency
 const Product = require("../../models/Product");
 const UserProfile = require("../../models/UserProfile");
-const crypto = require("crypto"); 
+
 
 function productCode() {
   return `SDK-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
