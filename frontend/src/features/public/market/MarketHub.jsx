@@ -18,8 +18,9 @@ export default function MarketHub() {
       try {
         const response = await apiClient.get("/products", { params: { status: "LISTED" } });
         if (!cancelled) {
-          const data = response.data || [];
-          setAllProducts(data);
+          // 🎯 FIXED: Safely extract the 'feed' array parameter from the nested backend response wrapper
+          const dataArray = response.data?.feed || response.data || [];
+          setAllProducts(Array.isArray(dataArray) ? dataArray : []);
         }
       } catch (error) {
         console.error("Product catalog fetch failed:", error);
@@ -34,26 +35,33 @@ export default function MarketHub() {
 
   const displayedProducts = useMemo(() => {
     const query = activeQuery.trim().toLowerCase();
-    if (query.length >= 2 && searchResults?.length) return searchResults;
+    
+    // Ensure allProducts is an array before processing filters to stay bulletproof
+    const safeAllProducts = Array.isArray(allProducts) ? allProducts : [];
+    const safeSearchResults = Array.isArray(searchResults) ? searchResults : [];
+
+    if (query.length >= 2 && safeSearchResults.length) return safeSearchResults;
     if (query.length >= 2) {
-      return allProducts.filter((product) =>
-        [product.name, product.brandName, product.category].some((value) =>
+      return safeAllProducts.filter((product) =>
+        product && [product.name, product.brandName, product.category].some((value) =>
           String(value || "").toLowerCase().includes(query)
         )
       );
     }
-    return allProducts;
+    return safeAllProducts;
   }, [activeQuery, searchResults, allProducts]);
 
   const handleProductClick = (productId) => navigate(`/product-details/${productId}`);
-  const isFeedEmpty = displayedProducts.length === 0;
+  
+  // Guard length check calculation safely
+  const isFeedEmpty = !Array.isArray(displayedProducts) || displayedProducts.length === 0;
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8">
       
       {/* 🎯 FIXED & PLUGGED: Standalone Hero Slider executes safely with zero hook volume violations! */}
       <HeroSlider 
-        products={allProducts} 
+        products={Array.isArray(allProducts) ? allProducts : []} 
         onProductClick={handleProductClick} 
       />
 
