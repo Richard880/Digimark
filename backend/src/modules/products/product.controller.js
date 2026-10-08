@@ -8,8 +8,6 @@ function productCode() {
   return `SDK-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
 }
 
-
- */
 async function listProducts(req, res) {
   try {
     const isAuthenticated = !!(req.user && req.user._id);
