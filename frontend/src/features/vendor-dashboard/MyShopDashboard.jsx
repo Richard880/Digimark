@@ -36,6 +36,7 @@ export default function MyShopDashboard() {
   const fileInputRef = useRef(null);
 
   // Synchronize data: fetch inventory and orders
+  // Synchronize data: fetch inventory and orders cleanly
   useEffect(() => {
     const fetchShopData = async () => {
       try {
@@ -49,26 +50,30 @@ export default function MyShopDashboard() {
           auth?.currentUser?.uid;
         if (!resolvedSellerId) return;
 
-        // 1. Fetch Inventory
+        // 1. Fetch Inventory Safely
         const prodRes = await fetch(`${API_URL}/api/products?sellerId=${resolvedSellerId}&status=all`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (prodRes.ok) {
           const prodData = await prodRes.json();
-          setAllProducts(Array.isArray(prodData) ? prodData : []);
+          // 🎯 FIXED: Extract the 'feed' array parameter from the ranking engine wrapper object
+          const inventoryArray = prodData?.feed || prodData || [];
+          setAllProducts(Array.isArray(inventoryArray) ? inventoryArray : []);
         }
 
-        // 2. Fetch Orders
+        // 2. Fetch Orders Safely
         const orderRes = await fetch(`${API_URL}/api/orders`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (orderRes.ok) {
           const orderData = await orderRes.json();
-          setSalesOrders(Array.isArray(orderData) ? orderData : []);
+          // 🎯 FIXED: Extract the tracking array parameter if wrapped inside an object schema
+          const ordersArray = orderData?.orders || orderData?.feed || orderData || [];
+          setSalesOrders(Array.isArray(ordersArray) ? ordersArray : []);
         }
       } catch (err) {
         console.error("Dashboard backend hydration exception:", err);
-      } finally {
+      } {
         setIsLoading(false);
       }
     };
