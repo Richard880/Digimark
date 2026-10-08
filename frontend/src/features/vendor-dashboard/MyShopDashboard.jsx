@@ -54,7 +54,7 @@ export default function MyShopDashboard() {
         }
       } catch (err) {
         console.error("Dashboard backend hydration exception:", err);
-      } finaly {
+      } finally { // 🎯 FIXED: Corrected spelling to standard 'finally'
         setIsLoading(false);
       }
     };
