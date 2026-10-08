@@ -13,7 +13,9 @@ export default function Wallet() {
   const [walletDetails, setWalletDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [topUpAmount, setTopUpAmount] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isTopUpProcessing, setIsTopUpProcessing] = useState(false);
 
   useEffect(() => {
     if (loggedInUser) {
@@ -40,6 +42,46 @@ export default function Wallet() {
       console.error("Failed to load wallet metrics profile:", err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // =========================================================================
+  // 📲 SAFARICOM M-PESA DARAJA STK PUSH INTERFACE TOP-UP
+  // =========================================================================
+  const handleMpesaTopUpRequest = async (e) => {
+    e.preventDefault();
+    const amount = Number(topUpAmount);
+    if (!amount || amount < 10) return alert("Minimum M-PESA transaction top-up amount is Ksh 10.");
+
+    setIsTopUpProcessing(true);
+    try {
+      const token = loggedInUser?.getIdToken ? await loggedInUser.getIdToken() : null;
+      if (!token) throw new Error("Your authentication session has expired.");
+
+      const response = await fetch(`${API_URL}/api/wallet/mpesa-topup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ amount })
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        alert("📲 STK Push initialized! Check your handset for the M-PESA PIN prompt window to confirm deposit allocation.");
+        setTopUpAmount("");
+        
+        // Polling interval delay loop to refresh available liquid ledger figures cleanly
+        setTimeout(() => fetchWalletDetails(), 6000);
+      } else {
+        alert(data.error || data.reason || "M-PESA STK connection handshake rejected.");
+      }
+    } catch (err) {
+      console.error("Top-Up connection breakdown caught:", err);
+      alert(err.message || "Failed to initialize Safaricom billing engine transaction parameters.");
+    } finally {
+      setIsTopUpProcessing(false);
     }
   };
 
@@ -81,12 +123,13 @@ export default function Wallet() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50/50">
-        <p className="text-xs font-bold text-slate-400 animate-pulse tracking-wider uppercase">Hydrating secure ledger balance sheet...</p>
+        <div className="flex flex-col items-center space-y-3">
+          <div className="w-8 h-8 border-4 border-emerald-600/20 border-t-emerald-600 rounded-full animate-spin"></div>
+          <p className="text-xs font-bold text-slate-400 animate-pulse tracking-wider uppercase">Hydrating secure ledger balance sheet...</p>
+        </div>
       </div>
     );
   }
-
- 
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -114,26 +157,51 @@ export default function Wallet() {
           <p className="text-[10px] text-slate-400 mt-4 leading-normal">Held secure until consumers confirm successful package receipt.</p>
         </div>
 
-        {/* EXPRESS WITHDRAWAL UTILITY QUICK FORM CARD */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 text-slate-800 shadow-sm sm:col-span-2 lg:col-span-1">
-          <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-2">Express Cash-Out Outflow</span>
-          <form onSubmit={handleWithdrawalRequest} className="flex gap-2">
-            <input
-              type="number"
-              value={withdrawAmount}
-              onChange={(e) => setWithdrawAmount(e.target.value)}
-              disabled={isProcessing || walletDetails?.isFrozen}
-              placeholder="Amount (KES)..."
-              className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none"
-            />
-            <button
-              type="submit"
-              disabled={isProcessing || walletDetails?.isFrozen || !withdrawAmount}
-              className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-4 py-2 transition disabled:opacity-40"
-            >
-              {isProcessing ? "Processing..." : "Withdraw"}
-            </button>
-          </form>
+        {/* INTERACTION MATRIX CARD HOUSING DUAL UTILITIES */}
+        <div className="flex flex-col gap-3 sm:col-span-2 lg:col-span-1">
+          {/* M-PESA STK TOP UP INPUT COMPONENT ELEMENT */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-800 shadow-sm">
+            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1.5">📲 M-PESA Instant STK Top-Up</span>
+            <form onSubmit={handleMpesaTopUpRequest} className="flex gap-2">
+              <input
+                type="number"
+                value={topUpAmount}
+                onChange={(e) => setTopUpAmount(e.target.value)}
+                disabled={isTopUpProcessing}
+                placeholder="Amount (KES)..."
+                className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs focus:border-emerald-500 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={isTopUpProcessing || !topUpAmount}
+                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-3 py-1.5 transition disabled:opacity-40"
+              >
+                {isTopUpProcessing ? "Pushing..." : "Top-Up"}
+              </button>
+            </form>
+          </div>
+
+          {/* EXPRESS WITHDRAWAL UTILITY QUICK FORM COMPONENT */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-slate-800 shadow-sm">
+            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400 mb-1.5">💸 Express Cash-Out Outflow</span>
+            <form onSubmit={handleWithdrawalRequest} className="flex gap-2">
+              <input
+                type="number"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                disabled={isProcessing || walletDetails?.isFrozen}
+                placeholder="Amount (KES)..."
+                className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs focus:border-emerald-500 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={isProcessing || walletDetails?.isFrozen || !withdrawAmount}
+                className="rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold px-3 py-1.5 transition disabled:opacity-40"
+              >
+                {isProcessing ? "Processing..." : "Withdraw"}
+              </button>
+            </form>
+          </div>
         </div>
 
       </div>
@@ -148,43 +216,21 @@ export default function Wallet() {
           <div className="space-y-4">
             {walletDetails.transactions.map((txn) => (
               <div 
-                key={txn.transactionId} 
+                key={txn.transactionId || txn._id} 
                 className="flex items-start gap-4 p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition"
               >
                 {/* Visual Status Indicator Icon Circles */}
-                <div className={`h-10 w-10 shrink-0 rounded-full flex items-center justify-center text-sm font-bold shadow-xs ${
-                  txn.amount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-700"
-                }`}>
-                  {txn.amount > 0 ? "＋" : "⎼"}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                    <h4 className="text-sm font-bold text-slate-800 leading-none capitalize">
-                      {txn.type.replace("_", " ")}
-                    </h4>
-                    <span className={`text-xs font-black tracking-tight ${txn.amount > 0 ? "text-emerald-600" : "text-slate-800"}`}>
-                      {txn.amount > 0 ? "+" : ""}Ksh {txn.amount.toLocaleString()}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">{txn.description}</p>
-                  
-                  <div className="flex flex-wrap items-center gap-3 mt-2 text-[10px] text-slate-400 font-medium">
-                    <span className="font-mono uppercase">{txn.transactionId}</span>
-                    <span>•</span>
-                    <span>{new Date(txn.createdAt).toLocaleString("en-KE")}</span>
-                  </div>
-                </div>
-
+                {/* Visual Transaction Status Pill Badge */}
                 <div className="shrink-0 text-right">
                   <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide ${
                     txn.status === "COMPLETED" ? "bg-emerald-50 text-emerald-700" : 
                     txn.status === "ESCROW_HELD" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-500"
                   }`}>
-                    {txn.status === "COMPLETED" ? "Success" : txn.status.replace("_", " ")}
+                    {txn.status === "COMPLETED" ? "Success" : txn.status?.replace("_", " ") || "Pending"}
                   </span>
                 </div>
-              </div>
+
+              </div> // 🎯 CLOSES INDIVIDUAL TXN ITEM LOOP CARD
             ))}
           </div>
         ) : (
@@ -194,6 +240,6 @@ export default function Wallet() {
         )}
       </div>
 
-    </div>
+    </div> // 🎯 CLOSES MAIN WORKSPACE SHELL WRAPPER CONTAINER
   );
 }
