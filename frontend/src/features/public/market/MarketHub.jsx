@@ -1,11 +1,15 @@
 import { useEffect, useState, useMemo } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import apiClient from "../../../services/apiClient";
+import useAuth from "../../auth/hooks/useAuth"; // 🎯 ADDED: Import your custom session context
 import ProductCard from "./ProductCard";
-import HeroSlider from "./HeroSlider"; // 🎯 IMPORT REFACTORED SECURE SLIDER
+import HeroSlider from "./HeroSlider"; 
 
 export default function MarketHub() {
   const navigate = useNavigate();
+  const { auth } = useAuth(); // 🎯 ADDED: Extract active auth engine details
+  const loggedInUser = auth?.currentUser;
+
   const outletContext = useOutletContext() || {};
   const { searchResults, isSearching, activeQuery = "" } = outletContext;
   const [allProducts, setAllProducts] = useState([]);
@@ -14,11 +18,23 @@ export default function MarketHub() {
 
   useEffect(() => {
     let cancelled = false;
+    
     const loadProducts = async () => {
       try {
-        const response = await apiClient.get("/products", { params: { status: "LISTED" } });
+        setIsLoadingFeed(true);
+        
+        // 🔒 AUTH HANDSHAKE: Pull the live cryptographic session token if logged in
+        const token = loggedInUser?.getIdToken ? await loggedInUser.getIdToken() : null;
+        
+        // Build request parameters and inject authorization headers seamlessly
+        const config = {
+          params: { status: "LISTED" },
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        };
+
+        const response = await apiClient.get("/products", config);
+        
         if (!cancelled) {
-          // 🎯 FIXED: Safely extract the 'feed' array parameter from the nested backend response wrapper
           const dataArray = response.data?.feed || response.data || [];
           setAllProducts(Array.isArray(dataArray) ? dataArray : []);
         }
@@ -29,14 +45,14 @@ export default function MarketHub() {
         if (!cancelled) setIsLoadingFeed(false);
       }
     };
+
     loadProducts();
     return () => { cancelled = true; };
-  }, []);
+  }, [loggedInUser]); // 🎯 WATCH INSTANCE: Re-run immediately as soon as the user profile session hydrates
 
   const displayedProducts = useMemo(() => {
     const query = activeQuery.trim().toLowerCase();
     
-    // Ensure allProducts is an array before processing filters to stay bulletproof
     const safeAllProducts = Array.isArray(allProducts) ? allProducts : [];
     const safeSearchResults = Array.isArray(searchResults) ? searchResults : [];
 
@@ -52,14 +68,10 @@ export default function MarketHub() {
   }, [activeQuery, searchResults, allProducts]);
 
   const handleProductClick = (productId) => navigate(`/product-details/${productId}`);
-  
-  // Guard length check calculation safely
   const isFeedEmpty = !Array.isArray(displayedProducts) || displayedProducts.length === 0;
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8">
-      
-      {/* 🎯 FIXED & PLUGGED: Standalone Hero Slider executes safely with zero hook volume violations! */}
       <HeroSlider 
         products={Array.isArray(allProducts) ? allProducts : []} 
         onProductClick={handleProductClick} 
