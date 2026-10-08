@@ -298,10 +298,10 @@ async function releaseEscrowViaPinVerification(req, res) {
     );
 
     // 2. Allocate the wholesale amount and delivery fees straight to the merchant's fluid wallet balance
-    await Wallet.findOneAndUpdate(
+      await Wallet.findOneAndUpdate(
       { userId: order.sellerId },
       {
-        ($inc: { balance: merchantShare },)$push: {
+        \(inc: { balance: merchantShare },\)push: {
           transactions: {
             transactionId: `REL-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
             amount: merchantShare,
@@ -312,7 +312,7 @@ async function releaseEscrowViaPinVerification(req, res) {
           }
         }
       },
-      { session }
+      { session, new: true }
     );
 
     // 3. Allocate profit cut margins to the network promoter marketer wallet if an affiliate tracking ID is logged
