@@ -301,7 +301,7 @@ async function releaseEscrowViaPinVerification(req, res) {
     await Wallet.findOneAndUpdate(
       { userId: order.sellerId },
       {
-        (inc: { balance: merchantShare },)push: {
+        ($inc: { balance: merchantShare },)$push: {
           transactions: {
             transactionId: `REL-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
             amount: merchantShare,
