@@ -302,99 +302,147 @@ export default function MyShopDashboard() {
 </header>
 
         {/* ACTION WORKSPACE WRAPPER */}
-        <div className="p-8 max-w-7xl mx-auto">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-32 space-y-3 bg-white border border-slate-200/60 rounded-2xl shadow-xs">
-              <div className="w-8 h-8 border-4 border-emerald-500/20 border-t-emerald-600 rounded-full animate-spin"></div>
+     {/* SECTION A: WAREHOUSE INVENTORY */}
+{activeTab === "inventory" && (
+  <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
+    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+      <div>
+        <h2 className="text-base font-bold text-slate-800">
+          Stock Registry
+        </h2>
+        <p className="text-xs text-slate-400 mt-0.5">
+          Manage listed market catalog streams and shelf placements.
+        </p>
+      </div>
 
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Hydrating SokoDigi ledger data...
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* SECTION A: WAREHOUSE INVENTORY */}
-              {activeTab === "inventory" && (
-                <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
-                  <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                    <div>
-                      <h2 className="text-base font-bold text-slate-800">
-                        Stock Registry
-                      </h2>
+      <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200/40">
+        Total Items: {allProducts?.length || 0}
+      </span>
+    </div>
 
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Manage listed market catalog streams and
-                        shelf placements.
-                      </p>
+    {!allProducts || allProducts.length === 0 ? (
+      <div className="p-16 text-center">
+        <p className="text-sm font-bold text-slate-700">
+          Your stockroom is empty
+        </p>
+        <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+          Click 'List New Asset' to publish products directly to the MarketHub grid feed.
+        </p>
+      </div>
+    ) : (
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <th className="p-4 pl-6">Product Details</th>
+              <th className="p-4">SKU / Code</th>
+              <th className="p-4">Retail Price</th>
+              <th className="p-4">Network Comm</th>
+              {/* 🎯 Added far-right Actions column heading */}
+              <th className="p-4 pr-6 text-right">Actions</th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+            {allProducts.map((product, idx) => {
+              const isUnlisted = product.status === "UNLISTED";
+              const prodId = product._id || product.id;
+
+              return (
+                <tr
+                  key={prodId || idx}
+                  className={`transition ${isUnlisted ? "bg-slate-50/60 text-slate-400" : "hover:bg-slate-50/50"}`}
+                >
+                  <td className="p-4 pl-6">
+                    <div className="flex items-center gap-2">
+                      <span className={`font-bold ${isUnlisted ? "text-slate-400 line-through" : "text-slate-900"}`}>
+                        {product.name || "Unnamed Asset"}
+                      </span>
+                      {/* Status pill capsule indicator */}
+                      {isUnlisted && (
+                        <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md">
+                          Unlisted
+                        </span>
+                      )}
                     </div>
+                  </td>
 
-                    <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200/40">
-                      Total Items: {allProducts?.length || 0}
-                    </span>
-                  </div>
+                  <td className="p-4 font-mono text-slate-500">
+                    {product.productCode || product.sku || "N/A"}
+                  </td>
 
-                  {!allProducts || allProducts.length === 0 ? (
-                    <div className="p-16 text-center">
-                      <p className="text-sm font-bold text-slate-700">
-                        Your stockroom is empty
-                      </p>
+                  <td className={`p-4 ${isUnlisted ? "text-slate-400" : "text-slate-700"}`}>
+                    KES {Number(product.price || 0).toLocaleString()}
+                  </td>
 
-                      <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                        Click 'List New Asset' to publish products
-                        directly to the MarketHub grid feed.
-                      </p>
+                  <td className={`p-4 ${isUnlisted ? "text-slate-400" : "text-emerald-600 font-bold"}`}>
+                    KES {Number(product.affiliateCommission || 0).toLocaleString()}
+                  </td>
+
+                  {/* 🎯 Fixed: Interactive operational control layout block */}
+                  <td className="p-4 pr-6 text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      {/* Button A: Visibility Toggle (List / Unlist) */}
+                      <button
+                        type="button"
+                        onClick={() => handleToggleProductVisibility?.(prodId, product.status)}
+                        className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                          isUnlisted
+                            ? "bg-amber-50 border-amber-200 text-amber-600 hover:bg-amber-100"
+                            : "bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                        }`}
+                        title={isUnlisted ? "Publish to public store shelves" : "Unlist from store shelves"}
+                      >
+                        {isUnlisted ? (
+                          /* Slash eye icon for unlisted assets */
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                          </svg>
+                        ) : (
+                          /* Standard visible eye icon */
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        )}
+                      </button>
+
+                      {/* Button B: Edit / Update Product Profile */}
+                      <button
+                        type="button"
+                        onClick={() => handleTriggerEditModal?.(product)}
+                        className="p-1.5 bg-white border border-slate-200 text-slate-500 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition cursor-pointer"
+                        title="Edit product parameters"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+
+                      {/* Button C: Permanent Asset Purge (Delete) */}
+                      <button
+                        type="button"
+                        onClick={() => handlePurgeProductAsset?.(prodId)}
+                        className="p-1.5 bg-white border border-red-200 text-red-500 rounded-lg hover:bg-red-50 hover:text-red-600 transition cursor-pointer"
+                        title="Delete product permanently"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-14v4M1 7h22" />
+                        </svg>
+                      </button>
                     </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            <th className="p-4 pl-6">
-                              Product Details
-                            </th>
-                            <th className="p-4">SKU / Code</th>
-                            <th className="p-4">Retail Price</th>
-                            <th className="p-4">Network Comm</th>
-                          </tr>
-                        </thead>
-
-                        <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
-                          {allProducts.map((product, idx) => (
-                            <tr
-                              key={product._id || product.id || idx}
-                              className="hover:bg-slate-50/50 transition"
-                            >
-                              <td className="p-4 pl-6 font-bold text-slate-900">
-                                {product.name || "Unnamed Asset"}
-                              </td>
-
-                              <td className="p-4 font-mono text-slate-500">
-                                {product.productCode || "N/A"}
-                              </td>
-
-                              <td className="p-4">
-                                KES{" "}
-                                {Number(
-                                  product.price || 0
-                                ).toLocaleString()}
-                              </td>
-
-                              <td className="p-4 text-emerald-600">
-                                KES{" "}
-                                {Number(
-                                  product.affiliateCommission || 0
-                                ).toLocaleString()}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* SECTION B: SALES AND PIN ESCROW */}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+)}
+        
+{/* SECTION B: SALES AND PIN ESCROW */}
               {activeTab === "orders" && (
                 <div className="bg-white rounded-2xl border border-slate-200/60 shadow-xs overflow-hidden">
                   <div className="p-6 border-b border-slate-100 bg-slate-50/50">
