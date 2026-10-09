@@ -1,16 +1,18 @@
 const express = require("express");
 const authenticate = require("../../middleware/authenticate"); // Parses token data variables
-const authorize = require("../../middleware/authorize");       // 🎯 NEW: Verifies category rights
+const authorize = require("../../middleware/authorize");       // Verifies category rights
 
 const { 
   listProducts,
+  getPublicStoreProducts, // 🎯 Included public catalog feed stream handler
   getProductById,
   createProduct, 
   updateProduct, 
-  deleteProduct,
+  updateProductStatus,    // 🎯 NEW: Imported status toggle controller
+  purgeProductAsset,      // 🎯 NEW: Imported permanent asset purge controller
   shareProduct,       
   toggleProductShelf,
-  getSmartDiscoveries // 🎯 NEW: Imported the behavioral engagement smart discovery engine handler
+  getSmartDiscoveries 
 } = require("./product.controller");
 
 const router = express.Router();
@@ -22,11 +24,13 @@ const router = express.Router();
 // GET /api/products
 router.get("/", listProducts);
 
-// 🧠 NEW: Smart behavioral engagement feeds (Calculates Best Sellers, Fresh Drops, Top Brands)
+// GET /api/products/public-store
+router.get("/public-store", getPublicStoreProducts);
+
+// 🧠 Smart behavioral engagement feeds (Calculates Best Sellers, Fresh Drops, Top Brands)
 // Maps to: GET /api/products/discovery
 router.get("/discovery", getSmartDiscoveries);
 
-// 🎯 FIXED: Mounted /share BEFORE the /:id wildcard so it doesn't cause formatting crashes
 // POST /api/products/share
 router.post("/share", authenticate, shareProduct);
 
@@ -38,9 +42,12 @@ router.post("/share", authenticate, shareProduct);
 // POST /api/products
 router.post("/", authenticate, authorize("network"), createProduct);
 
-// 🎯 FIXED: Correctly routes to toggleProductShelf instead of createProduct
 // PATCH /api/products/:id/toggle-shelf
 router.patch("/:id/toggle-shelf", authenticate, authorize("network"), toggleProductShelf);
+
+// 🎯 NEW: Balanced layout status router mapping for frontend dashboard sync switches
+// Maps to: PATCH /api/products/:id/status
+router.patch("/:id/status", authenticate, authorize("network"), updateProductStatus);
 
 
 // =========================================================================
@@ -53,7 +60,8 @@ router.get("/:id", getProductById);
 // PUT /api/products/:id
 router.put("/:id", authenticate, authorize("network"), updateProduct);
 
+// 🎯 FIXED: Swapped out generic deleteProduct method to pass through your robust purge engine handler
 // DELETE /api/products/:id
-router.delete("/:id", authenticate, authorize("network"), deleteProduct);
+router.delete("/:id", authenticate, authorize("network"), purgeProductAsset);
 
 module.exports = router;
