@@ -1,0 +1,580 @@
+/* MyShopDashboard.css */
+
+:root {
+  --emerald-50: #f0fdf4;
+  --emerald-100: #dcfce7;
+  --emerald-200: #bbf7d0;
+  --emerald-300: #86efac;
+  --emerald-400: #4ade80;
+  --emerald-500: #22c55e;
+  --emerald-600: #16a34a;
+  --emerald-700: #15803d;
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --slate-950: #020617;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================= SHOP DASHBOARD ============================= */
+.shop-dashboard {
+  background: linear-gradient(135deg, var(--slate-50) 0%, var(--slate-100) 100%);
+  min-height: 100vh;
+}
+
+/* ============================= SIDEBAR ============================= */
+.sidebar {
+  background: linear-gradient(
+    180deg,
+    var(--slate-900) 0%,
+    var(--slate-950) 100%
+  );
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  border-right: 1px solid var(--slate-800);
+  transition: all 0.3s ease;
+}
+
+.sidebar:hover {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.sidebar .nav-btn {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar .nav-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  transition: left 0.3s ease;
+}
+
+.sidebar .nav-btn:hover::before {
+  left: 100%;
+}
+
+.sidebar .add-btn {
+  transition: all 0.3s ease;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.sidebar .add-btn:hover {
+  border-color: var(--emerald-400);
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+.user-profile {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(10px);
+}
+
+.user-profile > div:first-child {
+  background: linear-gradient(135deg, var(--emerald-600), var(--emerald-700));
+  box-shadow: 0 10px 20px rgba(22, 163, 74, 0.3);
+}
+
+/* ============================= MAIN CONTENT ============================= */
+.main-content {
+  background: linear-gradient(135deg, var(--slate-50) 0%, var(--slate-100) 100%);
+  min-height: 100vh;
+  transition: all 0.3s ease;
+}
+
+/* Header */
+.main-content header {
+  background: white;
+  border-bottom: 1px solid var(--slate-200);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.home-btn {
+  transition: all 0.3s ease;
+}
+
+.home-btn:hover {
+  transform: translateX(4px);
+}
+
+/* ============================= CONTENT AREA ============================= */
+.content-area {
+  padding: 2rem 1rem;
+}
+
+@media (min-width: 768px) {
+  .content-area {
+    padding: 2rem;
+  }
+}
+
+/* Error Banner */
+.error-banner {
+  animation: slideInDown 0.3s ease;
+  border-left: 4px solid #dc2626;
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading State */
+.loading-state {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.loader {
+  animation: spin 1s linear infinite;
+  border-top-color: var(--emerald-600);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================= SECTIONS ============================= */
+.inventory-section,
+.orders-section {
+  background: white;
+  border: 1px solid var(--slate-200);
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.inventory-section:hover,
+.orders-section:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  border-color: var(--emerald-200);
+}
+
+.inventory-section > div:first-child,
+.orders-section > div:first-child {
+  background: linear-gradient(90deg, var(--slate-50) 0%, rgba(16, 185, 129, 0.05) 100%);
+  border-bottom: 1px solid var(--slate-100);
+}
+
+.item-count {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* ============================= EMPTY STATE ============================= */
+.empty-state {
+  text-align: center;
+  padding: 4rem 1rem;
+  animation: fadeIn 0.4s ease;
+}
+
+.empty-state div:first-child {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* ============================= TABLES ============================= */
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.products-table,
+.orders-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.products-table thead tr,
+.orders-table thead tr {
+  background: var(--slate-50);
+  border-bottom: 2px solid var(--slate-100);
+}
+
+.products-table th,
+.orders-table th {
+  padding: 1rem;
+  text-align: left;
+  color: var(--slate-500);
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.product-row {
+  transition: all 0.3s ease;
+  border-bottom: 1px solid var(--slate-100);
+}
+
+.product-row:hover {
+  background-color: rgba(16, 185, 129, 0.03);
+}
+
+.product-row.unlisted {
+  background-color: rgba(251, 191, 36, 0.03);
+}
+
+.products-table td,
+.orders-table td {
+  padding: 1rem;
+}
+
+/* Product Image Thumbnails */
+.products-table img {
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: 0.5rem;
+  object-fit: cover;
+  border: 1px solid var(--slate-200);
+  transition: all 0.3s ease;
+}
+
+.products-table img:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Status Badges */
+.products-table .status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  animation: slideInLeft 0.3s ease;
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.stock-high {
+  background-color: var(--emerald-100);
+  color: var(--emerald-700);
+  border: 1px solid var(--emerald-200);
+}
+
+.stock-medium {
+  background-color: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+}
+
+.stock-low {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+/* ============================= ACTION BUTTONS ============================= */
+.action-btn {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  transform: scale(1);
+}
+
+.action-btn:hover:not(:disabled) {
+  transform: scale(1.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.action-btn:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.action-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+/* ============================= FORM ELEMENTS ============================= */
+.form-input {
+  transition: all 0.3s ease;
+  background-color: white;
+  border: 1px solid var(--slate-300);
+}
+
+.form-input:focus {
+  border-color: var(--emerald-500);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1),
+    0 0 0 1px var(--emerald-500);
+  outline: none;
+}
+
+.form-input::placeholder {
+  color: var(--slate-400);
+}
+
+/* ============================= MODAL ============================= */
+.modal-overlay {
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+  animation: scaleIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.close-btn {
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.close-btn:hover {
+  background-color: var(--slate-100);
+  transform: rotate(90deg);
+}
+
+/* Modal Form */
+.modal-content form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.modal-content label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--slate-700);
+  margin-bottom: 0.5rem;
+}
+
+/* ============================= BUTTONS ============================= */
+.btn-cancel {
+  transition: all 0.3s ease;
+}
+
+.btn-cancel:hover {
+  background-color: var(--slate-200);
+  transform: translateY(-2px);
+}
+
+.btn-save {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(135deg, var(--emerald-600), var(--emerald-500));
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-save::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-save:hover:not(:disabled)::before {
+  width: 300px;
+  height: 300px;
+}
+
+.btn-save:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 25px -5px rgba(22, 163, 74, 0.3);
+}
+
+.btn-save:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+/* Verify PIN Button */
+.verify-btn {
+  transition: all 0.3s ease;
+}
+
+.verify-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+}
+
+/* ============================= PIN INPUT ============================= */
+.modal-content input[type="text"][inputMode="numeric"] {
+  font-kerning: auto;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+/* ============================= RESPONSIVE DESIGN ============================= */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+    position: fixed;
+    height: 64px;
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid var(--slate-800);
+  }
+
+  .main-content {
+    padding-left: 0;
+    padding-top: 64px;
+  }
+
+  .content-area {
+    padding: 1rem 0.5rem;
+  }
+
+  .products-table,
+  .orders-table {
+    font-size: 0.75rem;
+  }
+
+  .products-table th,
+  .orders-table th,
+  .products-table td,
+  .orders-table td {
+    padding: 0.5rem;
+  }
+
+  .action-btn {
+    padding: 0.375rem !important;
+  }
+
+  .modal-content {
+    width: 100% !important;
+    border-radius: 1rem 1rem 0 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .item-count {
+    font-size: 0.875rem;
+  }
+
+  .empty-state div:first-child {
+    font-size: 2rem;
+  }
+
+  .table-wrapper {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* ============================= ANIMATIONS ============================= */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+/* Utility for loading skeletons */
+.shimmer {
+  animation: shimmer 2s infinite;
+  background: linear-gradient(
+    90deg,
+    var(--slate-200) 25%,
+    var(--slate-100) 50%,
+    var(--slate-200) 75%
+  );
+  background-size: 1000px 100%;
+}
+
+/* Print Styles */
+@media print {
+  .sidebar,
+  .close-btn,
+  .action-btn {
+    display: none;
+  }
+
+  .products-table,
+  .orders-table {
+    page-break-inside: avoid;
+  }
+}
