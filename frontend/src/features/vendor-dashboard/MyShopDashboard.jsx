@@ -20,6 +20,9 @@ export default function MyShopDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pinInputs, setPinInputs] = useState({});
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+const [selectedProductForEdit, setSelectedProductForEdit] = useState(null);
+
 
   useEffect(() => {
     const fetchShopData = async () => {
@@ -125,6 +128,92 @@ export default function MyShopDashboard() {
       );
     }
   };
+
+  // =========================================================================
+// 🔄 INVENTORY ASSET LIFECYCLE MANAGEMENT HANDLERS (apiClient)
+// =========================================================================
+
+/**
+ * Toggle Product Visibility Capsule (ACTIVE <-> UNLISTED)
+ * Patches the status configuration down to our server database collections
+ */
+const handleToggleProductVisibility = async (productId, currentStatus) => {
+  const targetStatus = currentStatus === "UNLISTED" ? "ACTIVE" : "UNLISTED";
+  
+  // ⚡ Optimistic UI Update: Flip state instantly for responsive interaction feel
+  setAllProducts(prevProducts =>
+    prevProducts.map(prod =>
+      (prod._id === productId || prod.id === productId)
+        ? { ...prod, status: targetStatus }
+        : prod
+    )
+  );
+
+  try {
+    const response = await apiClient.patch(`/products/${productId}/status`, {
+      status: targetStatus
+    });
+
+    if (response.status !== 200) {
+      throw new Error("Server rejected our ledger toggle update stream");
+    }
+  } catch (error) {
+    console.error("❌ Failed to patch asset placement status:", error);
+    // ↩️ Rollback state if the network request fails completely
+    setAllProducts(prevProducts =>
+      prevProducts.map(prod =>
+        (prod._id === productId || prod.id === productId)
+          ? { ...prod, status: currentStatus }
+          : prod
+      )
+    );
+    alert("Network sync failed. Please review your backend container endpoints connectivity.");
+  }
+};
+
+/**
+ * Permanent Asset Purge (DELETE)
+ * Erases catalog document entries directly from our database clusters
+ */
+const handlePurgeProductAsset = async (productId) => {
+  const confirmPurge = window.confirm(
+    "⚠️ Warning: This action will permanently remove this asset profile from all reseller grids. Are you sure you want to proceed?"
+  );
+  
+  if (!confirmPurge) return;
+
+  // Cache original product list in case we need a network rollback
+  const rollbackCache = [...allProducts];
+
+  // ⚡ Optimistic UI Update: Drop item from state immediately
+  setAllProducts(prevProducts => 
+    prevProducts.filter(prod => prod._id !== productId && prod.id !== productId)
+  );
+
+  try {
+    const response = await apiClient.delete(`/products/${productId}`);
+
+    if (response.status !== 200 && response.status !== 204) {
+      throw new Error("Server rejected asset document deletion query");
+    }
+  } catch (error) {
+    console.error("❌ Exception thrown during product asset clear loop:", error);
+    // ↩️ Rollback local state state back to original registry setup
+    setAllProducts(rollbackCache);
+    alert("Could not process product asset deletion. Confirm your user authorization clearance keys.");
+  }
+};
+
+/**
+ * Trigger Parameter Edit Modal Overlay Setup
+ * Pre-populates our dynamic form state inputs for structural changes
+ */
+const handleTriggerEditModal = (product) => {
+  // Sets targeted edit data block and raises layout visibility flag
+  setSelectedProductForEdit(product); 
+  setIsEditModalOpen(true);
+};
+
 
   const handleVerifyDeliveryPin = async (orderNumber) => {
     const code = pinInputs[orderNumber];
