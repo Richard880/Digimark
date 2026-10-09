@@ -10,28 +10,41 @@ export default function ProductCard({ product, onClick }) {
 
   // Fallback math parameters mirroring our dynamic multi-level accounting matrix
   const retailPrice = Number(product.price || 0);
+  const originalPrice = Number(product.originalPrice || 0); // 🎯 Added for promotion tracking
   const commission = Number(product.affiliateCommission || 0);
-  const resellerCost = retailPrice - commission;
   const stockCount = Number(product.quantity || 0);
+
+  // Calculate dynamic savings percentage drop if product is on sale
+  const hasOffer = originalPrice > retailPrice;
+  const discountPercent = hasOffer ? Math.round(((originalPrice - retailPrice) / originalPrice) * 100) : 0;
 
   return (
     <div className="group bg-white border border-slate-200/80 rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col h-full w-full relative">
       
       {/* 🟢 TOP ACTION BADGES */}
-      <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
+      <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none gap-2">
         {/* Marketplace Identity Label Tag */}
-        <span className="bg-slate-900/80 backdrop-blur-xs text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border border-white/10">
+        <span className="bg-slate-900/80 backdrop-blur-xs text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border border-white/10 shrink-0">
           SokoDigi
         </span>
         
-        {/* Real-time Inventory Shell Readout Tag */}
-        <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border ${
-          stockCount > 0 
-            ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" 
-            : "bg-red-50 text-red-700 border-red-200/60"
-        }`}>
-          ● {stockCount > 0 ? "In Stock" : "Out of Stock"}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {/* 🎯 FIXED: Dynamic Offer / Promo Capsule Ribbon */}
+          {hasOffer && (
+            <span className="bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border border-rose-500 shadow-xs animate-pulse">
+              🔥 {discountPercent}% OFF
+            </span>
+          )}
+
+          {/* Real-time Inventory Shell Readout Tag */}
+          <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border shrink-0 ${
+            stockCount > 0 
+              ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" 
+              : "bg-red-50 text-red-700 border-red-200/60"
+          }`}>
+            ● {stockCount > 0 ? "In Stock" : "Out of Stock"}
+          </span>
+        </div>
       </div>
 
       {/* 🖼️ HERO IMAGE CONTAINER GRAPHIC */}
@@ -46,10 +59,9 @@ export default function ProductCard({ product, onClick }) {
 
         {/* 🔥 HIGH-CONTRAST FLOATING COMMISSION FLOATER */}
         {commission > 0 && (
-          <div className="absolute bottom-3 right-3 bg-amber-400 border-2 border-white text-slate-950 font-black rounded-full h-16 w-16 shadow-md flex flex-col items-center justify-center text-center p-1 leading-none transform translate-y-1 group-hover:translate-y-0 transition-transform duration-300">
-            <span className="text-[7px] uppercase tracking-tighter opacity-80 font-bold">You Earn</span>
-            <span className="text-xs font-black mt-0.5">KSh</span>
-            <span className="text-[11px] font-extrabold -mt-0.5">{commission.toLocaleString()}</span>
+          <div className="absolute bottom-3 right-3 bg-amber-400 border-2 border-white text-slate-950 font-black rounded-full h-14 w-14 shadow-md flex flex-col items-center justify-center text-center p-1 leading-none transform translate-y-1 group-hover:translate-y-0 transition-transform duration-300">
+            <span className="text-[7px] uppercase tracking-tighter opacity-80 font-bold">Earn</span>
+            <span className="text-[11px] font-black mt-0.5">KSh {commission.toLocaleString()}</span>
           </div>
         )}
       </div>
@@ -76,27 +88,21 @@ export default function ProductCard({ product, onClick }) {
           <span className="text-[10px] font-bold text-slate-500 capitalize">{product.category || "General"}</span>
         </div>
 
-        {/* 💰 COMPREHENSIVE SPLIT ACCOUNTING PRICING ROW PANEL */}
-        <div className="grid grid-cols-3 gap-1 bg-slate-50/50 rounded-2xl border border-slate-100 p-2.5 mt-2">
-          
-          {/* Box Pillar A: Customer Face Selling Price */}
-          <div className="text-center border-r border-slate-200/60 pr-1">
+        {/* 🎯 FIXED: Clean consumer pricing panel (Removed explicit rows grid matrix block) */}
+        <div className="flex items-baseline gap-2 bg-slate-50/50 rounded-2xl border border-slate-100 px-4 py-3 mt-1.5">
+          <div className="flex flex-col">
             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight block">Selling Price</span>
-            <span className="text-[11px] font-black text-slate-800 block mt-1 tracking-tight">KSh {retailPrice.toLocaleString()}</span>
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <span className="text-base font-black text-slate-900 tracking-tight">
+                KSh {retailPrice.toLocaleString()}
+              </span>
+              {hasOffer && (
+                <span className="text-xs font-bold text-slate-400 line-through tracking-tight">
+                  KSh {originalPrice.toLocaleString()}
+                </span>
+              )}
+            </div>
           </div>
-
-          {/* Box Pillar B: Core Merchant Reseller Cost */}
-          {/* <div className="text-center border-r border-slate-200/60 px-1">
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight block">Reseller Price</span>
-            <span className="text-[11px] font-black text-emerald-700 block mt-1 tracking-tight">KSh {resellerCost.toLocaleString()}</span>
-          </div> */}
-
-          {/* Box Pillar C: Direct Affiliate Split Cuts */}
-          <div className="text-center pl-1">
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight block">Commission</span>
-            <span className="text-[11px] font-black text-amber-600 block mt-1 tracking-tight">KSh {commission.toLocaleString()}</span>
-          </div>
-
         </div>
 
         {/* 📦 LOWER METADATA REGISTRY ENTRIES FOOTER ROW */}
@@ -111,12 +117,12 @@ export default function ProductCard({ product, onClick }) {
           </div>
         </div>
 
-        {/* 🎯 CORE INTERACTION ACTION CONTROL BUTTON KEYS BUTTON MODULES */}
+        {/* 🎯 CORE INTERACTION ACTION CONTROL BUTTON KEYS */}
         <div className="grid grid-cols-4 gap-2 mt-2 pt-1">
           <button
             type="button"
             onClick={() => onClick?.(productId)}
-            className="col-span-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 text-center transition shadow-xs flex items-center justify-center gap-2 group/btn"
+            className="col-span-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 text-center transition shadow-xs flex items-center justify-center gap-2 group/btn cursor-pointer"
           >
             🛒 Add to Basket
           </button>
@@ -124,7 +130,7 @@ export default function ProductCard({ product, onClick }) {
           <button
             type="button"
             onClick={() => onClick?.(productId)}
-            className="col-span-1 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-700 transition"
+            className="col-span-1 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-700 transition cursor-pointer"
             title="View Product Layout Specifications Details Passing Keys"
           >
             <svg className="h-4 w-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
