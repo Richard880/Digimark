@@ -112,6 +112,18 @@ module.exports = {
   // Keep your other controller exports intact...
   listProducts
 };
+
+// backend/src/modules/products/product.controller.js
+export const getPublicStoreProducts = async (req, res) => {
+  try {
+    const products = await Product.find({ status: { $ne: "UNLISTED" } });
+    res.status(200).json(products);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to stream public store catalog assets" });
+  }
+};
+
+
 /**
  * 🛒 Layer 4b Single Item Inspection Lookup
  * Fetches a single product record from MongoDB by its unique ObjectId identifier string
