@@ -71,19 +71,22 @@ const productSchema = new mongoose.Schema(
     // =========================================================================
     // 📦 INVENTORY & METRICS CONTROLS
     // =========================================================================
+    // =========================================================================
+    // 📦 INVENTORY & METRICS CONTROLS
+    // =========================================================================
     quantity: { type: Number, default: 0, min: 0 },
     deliveryFee: { type: Number, default: 0, min: 0 },
     description: { type: String, trim: true, default: "" },
     imageUrl: { type: String, default: "" },
     
-    // 🎯 EXPANDED ENUM: Added 'LISTED' to match the active frontend feed configurations
+    // 🎯 FIXED OVERFLOW: Expanded enum configurations to support your UI status toggles
     status: { 
       type: String, 
-      enum: ["DRAFT", "READY", "LISTED", "ARCHIVED"], 
-      default: "READY", 
+      enum: ["DRAFT", "READY", "LISTED", "ACTIVE", "UNLISTED", "ARCHIVED"], 
+      default: "ACTIVE", // Swapped default to matching ACTIVE state 
       index: true 
     },
-    // 🎯 NEW VISIBILITY FLAGS: Synchronizes with the dashboard toggle-shelf buttons
+    // 🎯 VISIBILITY FLAGS: Synchronizes with the dashboard toggle-shelf buttons
     isShelved: { type: Boolean, default: true, index: true },
     isPremiumVendor: { type: Boolean, default: false },
     likesCount: { type: Number, default: 0, min: 0 },
