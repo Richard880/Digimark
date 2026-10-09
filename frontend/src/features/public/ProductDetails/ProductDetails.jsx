@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import useAuth from "../../auth/hooks/useAuth";
-import CheckoutButton from "../../../components/CheckoutButton/CheckoutButton"; // 🎯 IMPORTED NEW SECURE PIPELINE BUTTON
+import CheckoutButton from "../../../components/CheckoutButton/CheckoutButton"; 
 
 const API_URL = import.meta.env.PROD 
   ? "" 
@@ -10,7 +10,7 @@ const API_URL = import.meta.env.PROD
 export default function ProductDetails() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
-  const { auth, userCategory } = useAuth(); // Assuming userCategory is exposed via auth context
+  const { auth, userCategory } = useAuth(); 
   const loggedInUser = auth?.currentUser;
 
   // Extract affiliate promoter ID if tracking link was used
@@ -31,7 +31,12 @@ export default function ProductDetails() {
       const response = await fetch(`${API_URL}/api/products/${id}`);
       const data = await response.json();
       if (response.ok) {
-        setProduct(data.feed || data); // Matches your backend object wrapping
+        // 🎯 THE FIX: Extract data.product cleanly to align with the backend lookup wrapper envelope
+        if (data && data.product) {
+          setProduct(data.product);
+        } else {
+          setProduct(data.feed || data);
+        }
       }
     } catch (err) {
       console.error("Failed to load catalog details profile:", err);
@@ -171,6 +176,7 @@ export default function ProductDetails() {
           )}
         </div>
 
+        {/* 🎯 FIXED: Fully balanced and safely closed list strings and block layout elements */}
         <div className="mt-6 text-sm text-slate-600 leading-relaxed max-w-3xl">
           {activeTab === "description" ? (
             <p>{product.description || "No specific detailed description logging provided by merchant catalog entries."}</p>
@@ -178,9 +184,8 @@ export default function ProductDetails() {
             <div className="space-y-2 p-4 bg-slate-50 rounded-xl border border-slate-100">
               <p className="text-xs font-bold text-slate-700">Vendor Accounting Summary Mapping:</p>
               <ul className="text-xs space-y-1.5 font-medium text-slate-500 list-disc list-inside">
-                <li>Wholesale cost to shop base: <span className="font-mono text-slate-800 font-bold">Ksh {product.price - product.affiliateCommission}</span></li>
+                <li>Wholesale cost to shop base: <span className="font-mono text-slate-800 font-bold">Ksh {(product.price - (product.affiliateCommission || 0)).toLocaleString()}</span></li>
                 <li>Calculated conversion multiplier rate: <span className="text-slate-800 font-bold">{(product.metrics?.conversionRate || 0) * 100}%</span></li>
-                <li>Tracked MLM global network shares: <span className="text-slate-800 font-bold">{product.metrics?.referralCount || 0} referrals</span></li>
               </ul>
             </div>
           )}
