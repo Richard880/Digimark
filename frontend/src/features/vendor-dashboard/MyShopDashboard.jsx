@@ -1,9 +1,9 @@
-
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import useAuth from "../auth/hooks/useAuth";
 import { uploadImageToCloudinary } from "../../utils/cloudinaryUploader";
 import AddProductModal from "./AddProductModal";
+import "./MyShopDashboard.css";
 
 const API_URL = (
   import.meta.env.VITE_API_URL ||
@@ -35,83 +35,150 @@ export default function MyShopDashboard() {
   const [editForm, setEditForm] = useState(initialEditForm);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [busyProductId, setBusyProductId] = useState(null);
+  const [error, setError] = useState(null);
 
+  /**
+   * Get Firebase ID token and construct auth headers
+   * Used for all authenticated API calls to backend
+   */
   const getAuthHeaders = useCallback(
     async (json = false) => {
-      const token = await auth?.currentUser?.getIdToken();
+      try {
+        const token = await auth?.currentUser?.getIdToken();
 
-      if (!token) {
-        throw new Error("Your session has expired. Please sign in again.");
+        if (!token) {
+          throw new Error("Your session has expired. Please sign in again.");
+        }
+
+        return {
+          Authorization: `Bearer ${token}`,
+          ...(json ? { "Content-Type": "application/json" } : {}),
+        };
+      } catch (err) {
+        console.error("❌ Auth header error:", err);
+        throw err;
       }
-
-      return {
-        Authorization: `Bearer ${token}`,
-        ...(json ? { "Content-Type": "application/json" } : {}),
-      };
     },
     [auth?.currentUser]
   );
 
+  /**
+   * Parse API response and handle errors consistently
+   */
   const readResponse = async (response) => {
-    const data = await response.json().catch(() => ({}));
+    let data = {};
+    try {
+      data = await response.json();
+    } catch {
+      console.warn("⚠️ Response body is not valid JSON");
+    }
 
     if (!response.ok) {
-      throw new Error(
+      const errorMsg =
         data.reason ||
-          data.message ||
-          data.error ||
-          `Request failed with status ${response.status}`
-      );
+        data.message ||
+        data.error ||
+        `Request failed with status ${response.status}`;
+      throw new Error(errorMsg);
     }
 
     return data;
   };
 
+  /**
+   * FETCH SHOP DATA FROM BACKEND
+   * 
+   * Calls GET /api/products?status=all with Firebase auth token
+   * Backend controller (listProducts) checks:
+   * - If authenticated with Firebase token
+   * - Returns products where sellerId matches req.user._id
+   * - Includes both LISTED and UNLISTED products when status=all
+   */
   const fetchShopData = useCallback(async () => {
+    // Don't fetch if user is not authenticated
     if (!auth?.currentUser) {
+      console.log("⚠️ No authenticated user, skipping product fetch");
       setAllProducts([]);
       setSalesOrders([]);
       setIsLoading(false);
+      setError(null);
       return;
     }
 
     setIsLoading(true);
+    setError(null);
 
     try {
       const headers = await getAuthHeaders();
 
-      const [productsResponse, ordersResponse] = await Promise.all([
-        fetch(`${API_URL}/api/products?status=all`, { headers }),
-        fetch(`${API_URL}/api/orders`, { headers }),
-      ]);
+      console.log("📡 Fetching products from:", `${API_URL}/api/products?status=all`);
+
+      // Fetch products with status=all to include both listed and unlisted
+      const productsResponse = await fetch(
+        `${API_URL}/api/products?status=all`,
+        { headers }
+      );
 
       const productsData = await readResponse(productsResponse);
-      const ordersData = await readResponse(ordersResponse);
 
-      const products =
-        productsData?.feed ??
-        productsData?.products ??
-        productsData;
+      // ✅ Backend controller returns { ok: true, feed: [...], categoryContext, count }
+      let products = [];
+      if (Array.isArray(productsData)) {
+        products = productsData;
+      } else if (productsData?.feed && Array.isArray(productsData.feed)) {
+        products = productsData.feed;
+      } else if (productsData?.products && Array.isArray(productsData.products)) {
+        products = productsData.products;
+      } else if (productsData?.data && Array.isArray(productsData.data)) {
+        products = productsData.data;
+      }
 
-      const orders =
-        ordersData?.orders ??
-        ordersData?.feed ??
-        ordersData;
+      console.log(`✅ Loaded ${products.length} products from backend`);
+      setAllProducts(products);
 
-      setAllProducts(Array.isArray(products) ? products : []);
-      setSalesOrders(Array.isArray(orders) ? orders : []);
+      // Try to fetch orders (optional endpoint, may not be implemented)
+      try {
+        const ordersResponse = await fetch(`${API_URL}/api/orders`, { headers });
+        const ordersData = await readResponse(ordersResponse);
+
+        let orders = [];
+        if (Array.isArray(ordersData)) {
+          orders = ordersData;
+        } else if (ordersData?.orders && Array.isArray(ordersData.orders)) {
+          orders = ordersData.orders;
+        } else if (ordersData?.feed && Array.isArray(ordersData.feed)) {
+          orders = ordersData.feed;
+        }
+
+        setSalesOrders(orders);
+      } catch (orderError) {
+        console.warn("⚠️ Orders endpoint not available:", orderError.message);
+        setSalesOrders([]);
+      }
     } catch (error) {
-      console.error("Failed to load shop dashboard:", error);
-      alert(error.message || "Unable to load your shop data.");
+      console.error("❌ Failed to load shop dashboard:", error);
+      setError(error.message || "Unable to load your shop data.");
+      setAllProducts([]);
+      setSalesOrders([]);
     } finally {
       setIsLoading(false);
     }
   }, [auth?.currentUser, getAuthHeaders]);
 
+  /**
+   * Fetch shop data when auth state changes
+   */
   useEffect(() => {
     fetchShopData();
   }, [fetchShopData]);
 
+  /**
+   * TOGGLE PRODUCT VISIBILITY
+   * 
+   * Calls PATCH /api/products/:id/status
+   * Toggles between LISTED (visible) and UNLISTED (hidden)
+   * Backend validates: auth required + sellerId must match + valid status
+   */
   const handleToggleProductVisibility = async (product) => {
     const productId = product._id || product.id;
 
@@ -121,16 +188,15 @@ export default function MyShopDashboard() {
     }
 
     const previousStatus = product.status;
-    const targetStatus =
-      previousStatus === "UNLISTED" ? "ACTIVE" : "UNLISTED";
+    const targetStatus = previousStatus === "UNLISTED" ? "LISTED" : "UNLISTED";
 
     setBusyProductId(productId);
 
-    // Optimistically update the interface.
+    // Optimistically update UI
     setAllProducts((previous) =>
       previous.map((item) =>
         (item._id || item.id) === productId
-          ? { ...item, status: targetStatus }
+          ? { ...item, status: targetStatus, isShelved: targetStatus === "LISTED" }
           : item
       )
     );
@@ -138,30 +204,31 @@ export default function MyShopDashboard() {
     try {
       const headers = await getAuthHeaders(true);
 
-      const response = await fetch(
-        `${API_URL}/api/products/${productId}/status`,
-        {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify({ status: targetStatus }),
-        }
+      console.log(
+        `📡 Updating product ${productId} status to ${targetStatus}`
       );
+
+      const response = await fetch(`${API_URL}/api/products/${productId}/status`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ status: targetStatus }),
+      });
 
       const data = await readResponse(response);
 
+      // Update with server response
       if (data.product) {
         setAllProducts((previous) =>
           previous.map((item) =>
-            (item._id || item.id) === productId
-              ? data.product
-              : item
+            (item._id || item.id) === productId ? data.product : item
           )
         );
+        console.log(`✅ Product ${productId} status updated to ${targetStatus}`);
       }
     } catch (error) {
-      console.error("Failed to update product visibility:", error);
+      console.error("❌ Failed to update product visibility:", error);
 
-      // Restore the original state if the request fails.
+      // Restore previous state on error
       setAllProducts((previous) =>
         previous.map((item) =>
           (item._id || item.id) === productId
@@ -176,6 +243,12 @@ export default function MyShopDashboard() {
     }
   };
 
+  /**
+   * DELETE PRODUCT
+   * 
+   * Calls DELETE /api/products/:id (routes to purgeProductAsset controller)
+   * Backend validates: auth required + sellerId must match
+   */
   const handleDeleteProduct = async (product) => {
     const productId = product._id || product.id;
 
@@ -193,6 +266,7 @@ export default function MyShopDashboard() {
     const previousProducts = [...allProducts];
     setBusyProductId(productId);
 
+    // Optimistically remove from UI
     setAllProducts((previous) =>
       previous.filter((item) => (item._id || item.id) !== productId)
     );
@@ -200,17 +274,19 @@ export default function MyShopDashboard() {
     try {
       const headers = await getAuthHeaders();
 
-      const response = await fetch(
-        `${API_URL}/api/products/${productId}`,
-        {
-          method: "DELETE",
-          headers,
-        }
-      );
+      console.log(`📡 Deleting product ${productId}`);
+
+      const response = await fetch(`${API_URL}/api/products/${productId}`, {
+        method: "DELETE",
+        headers,
+      });
 
       await readResponse(response);
+      console.log(`✅ Product ${productId} deleted`);
+      alert("Product deleted successfully.");
     } catch (error) {
-      console.error("Failed to delete product:", error);
+      console.error("❌ Failed to delete product:", error);
+      // Restore on error
       setAllProducts(previousProducts);
       alert(error.message || "Could not delete this product.");
     } finally {
@@ -218,6 +294,10 @@ export default function MyShopDashboard() {
     }
   };
 
+  /**
+   * OPEN EDIT MODAL
+   * Populates form with current product data
+   */
   const handleOpenEditModal = (product) => {
     setSelectedProduct(product);
 
@@ -233,6 +313,9 @@ export default function MyShopDashboard() {
     });
   };
 
+  /**
+   * HANDLE EDIT INPUT CHANGE
+   */
   const handleEditInputChange = (event) => {
     const { name, value } = event.target;
 
@@ -242,6 +325,12 @@ export default function MyShopDashboard() {
     }));
   };
 
+  /**
+   * SAVE PRODUCT EDIT
+   * 
+   * Calls PUT /api/products/:id (routes to updateProduct controller)
+   * Backend validates: auth required + sellerId must match + all fields are valid
+   */
   const handleSaveProductEdit = async (event) => {
     event.preventDefault();
 
@@ -253,6 +342,7 @@ export default function MyShopDashboard() {
     const quantity = Number(editForm.quantity);
     const deliveryFee = Number(editForm.deliveryFee || 0);
 
+    // Validation
     if (!editForm.name.trim()) {
       alert("Enter a product name.");
       return;
@@ -283,23 +373,22 @@ export default function MyShopDashboard() {
     try {
       const headers = await getAuthHeaders(true);
 
-      const response = await fetch(
-        `${API_URL}/api/products/${productId}`,
-        {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify({
-            name: editForm.name.trim(),
-            price,
-            affiliateCommission: commission,
-            quantity,
-            deliveryFee,
-            category: editForm.category.trim(),
-            description: editForm.description.trim(),
-            imageUrl: editForm.imageUrl.trim(),
-          }),
-        }
-      );
+      console.log(`📡 Updating product ${productId}`);
+
+      const response = await fetch(`${API_URL}/api/products/${productId}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          name: editForm.name.trim(),
+          price,
+          affiliateCommission: commission,
+          quantity,
+          deliveryFee,
+          category: editForm.category.trim() || "general",
+          description: editForm.description.trim(),
+          imageUrl: editForm.imageUrl.trim(),
+        }),
+      });
 
       const data = await readResponse(response);
       const updatedProduct = data.product || data;
@@ -313,15 +402,22 @@ export default function MyShopDashboard() {
       );
 
       setSelectedProduct(null);
+      console.log(`✅ Product ${productId} updated`);
       alert("Product updated successfully.");
     } catch (error) {
-      console.error("Failed to update product:", error);
+      console.error("❌ Failed to update product:", error);
       alert(error.message || "Could not update the product.");
     } finally {
       setIsSavingEdit(false);
     }
   };
 
+  /**
+   * VERIFY DELIVERY PIN
+   * 
+   * Calls PATCH /api/orders/verify-release-pin
+   * This endpoint may not be implemented yet
+   */
   const handleVerifyDeliveryPin = async (orderNumber) => {
     const code = pinInputs[orderNumber] || "";
 
@@ -365,11 +461,15 @@ export default function MyShopDashboard() {
           "PIN verified successfully. Check your wallet for the updated balance."
       );
     } catch (error) {
-      console.error("Delivery PIN verification failed:", error);
+      console.error("❌ Delivery PIN verification failed:", error);
       alert(error.message || "Could not verify the delivery PIN.");
     }
   };
 
+  /**
+   * HANDLE PIN INPUT CHANGE
+   * Only accepts digits, max 6 characters
+   */
   const handlePinInputChange = (orderNumber, value) => {
     setPinInputs((previous) => ({
       ...previous,
@@ -377,18 +477,30 @@ export default function MyShopDashboard() {
     }));
   };
 
+  /**
+   * CHECK IF PRODUCT IS UNLISTED
+   */
   const isUnlisted = (product) => product.status === "UNLISTED";
 
+  /**
+   * GET STOCK STATUS BADGE CLASS
+   */
+  const getStockStatusClass = (quantity) => {
+    if (quantity > 10) return "stock-high";
+    if (quantity > 0) return "stock-medium";
+    return "stock-low";
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans antialiased text-slate-600">
-      {/* SIDEBAR */}
-      <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-800 bg-slate-900 text-slate-300 shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950 p-6">
+    <div className="shop-dashboard min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 font-sans antialiased text-slate-600">
+      {/* ============================= SIDEBAR ============================= */}
+      <aside className="sidebar fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 text-slate-300 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/80 p-6">
           <h1 className="flex items-center gap-2 text-lg font-black tracking-tight text-white">
             🚀 Soko<span className="text-emerald-400">Digi</span>
           </h1>
 
-          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300 shadow-lg shadow-emerald-500/20">
             PRO
           </span>
         </div>
@@ -397,9 +509,9 @@ export default function MyShopDashboard() {
           <button
             type="button"
             onClick={() => setActiveTab("inventory")}
-            className={`w-full rounded-xl px-4 py-3 text-left text-xs font-bold transition ${
+            className={`nav-btn w-full rounded-xl px-4 py-3 text-left text-xs font-bold transition duration-300 ${
               activeTab === "inventory"
-                ? "bg-emerald-600 text-white"
+                ? "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-600/50"
                 : "text-slate-400 hover:bg-slate-800 hover:text-white"
             }`}
           >
@@ -409,9 +521,9 @@ export default function MyShopDashboard() {
           <button
             type="button"
             onClick={() => setActiveTab("orders")}
-            className={`w-full rounded-xl px-4 py-3 text-left text-xs font-bold transition ${
+            className={`nav-btn w-full rounded-xl px-4 py-3 text-left text-xs font-bold transition duration-300 ${
               activeTab === "orders"
-                ? "bg-emerald-600 text-white"
+                ? "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-600/50"
                 : "text-slate-400 hover:bg-slate-800 hover:text-white"
             }`}
           >
@@ -422,15 +534,15 @@ export default function MyShopDashboard() {
             <button
               type="button"
               onClick={() => setIsModalOpen(true)}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-xs font-bold text-white transition hover:bg-slate-700"
+              className="add-btn w-full rounded-xl border border-emerald-500/40 bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-3 text-xs font-bold text-emerald-300 transition duration-300 hover:border-emerald-400 hover:bg-gradient-to-r hover:from-emerald-900 hover:to-emerald-800 hover:text-white"
             >
               ➕ List New Asset
             </button>
           </div>
         </nav>
 
-        <div className="flex items-center gap-3 border-t border-slate-800 bg-slate-950/40 p-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-xs font-bold text-emerald-400">
+        <div className="user-profile flex items-center gap-3 border-t border-slate-800 bg-slate-950/60 p-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-emerald-500/50 bg-gradient-to-br from-emerald-600 to-emerald-700 text-xs font-bold text-white shadow-lg">
             {auth?.profile?.displayName?.charAt(0)?.toUpperCase() || "M"}
           </div>
 
@@ -445,14 +557,14 @@ export default function MyShopDashboard() {
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
-      <main className="min-h-screen pl-64">
-        <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 shadow-sm md:px-8">
+      {/* ============================= MAIN CONTENT ============================= */}
+      <main className="main-content min-h-screen pl-64">
+        <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 shadow-md md:px-8">
           <div className="flex items-center gap-4">
             <button
               type="button"
               onClick={() => navigate("/")}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+              className="home-btn inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition duration-300 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700"
               title="Back to Home"
             >
               <span className="text-base">⌂</span>
@@ -476,57 +588,67 @@ export default function MyShopDashboard() {
           </div>
         </header>
 
-        <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-8">
+        <div className="content-area mx-auto max-w-7xl space-y-6 p-4 md:p-8">
+          {/* Error Banner */}
+          {error && (
+            <div className="error-banner rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+              ⚠️ {error}
+            </div>
+          )}
+
+          {/* Loading State */}
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center space-y-3 rounded-2xl border border-slate-200 bg-white py-32">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500/20 border-t-emerald-600" />
+            <div className="loading-state flex flex-col items-center justify-center space-y-4 rounded-2xl border border-slate-200 bg-white py-32 shadow-sm">
+              <div className="loader h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600"></div>
               <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
                 Loading your shop...
               </p>
             </div>
           ) : (
             <>
-              {/* INVENTORY */}
+              {/* ============================= INVENTORY TAB ============================= */}
               {activeTab === "inventory" && (
-                <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/50 p-6">
+                <section className="inventory-section overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-slate-100/50 p-6">
                     <div>
-                      <h2 className="text-base font-bold text-slate-800">
+                      <h2 className="text-xl font-bold text-slate-900">
                         Stock Registry
                       </h2>
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-slate-500">
                         Manage your products, prices, and store visibility.
                       </p>
                     </div>
 
-                    <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-                      Total Items: {allProducts.length}
+                    <span className="item-count rounded-full border border-emerald-200 bg-gradient-to-r from-emerald-50 to-emerald-100 px-4 py-2 text-sm font-bold text-emerald-700 shadow-sm">
+                      <span className="text-lg">{allProducts.length}</span> Items
                     </span>
                   </div>
 
                   {allProducts.length === 0 ? (
-                    <div className="p-16 text-center">
-                      <p className="text-sm font-bold text-slate-700">
+                    <div className="empty-state p-16 text-center">
+                      <div className="mb-4 text-5xl">📦</div>
+                      <p className="text-lg font-bold text-slate-700">
                         Your stockroom is empty
                       </p>
-                      <p className="mx-auto mt-1 max-w-xs text-xs text-slate-400">
-                        Select “List New Asset” to add your first product.
+                      <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">
+                        Start building your inventory by adding your first product. Click "List New Asset" to get started!
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse text-left">
+                    <div className="table-wrapper overflow-x-auto">
+                      <table className="products-table w-full border-collapse text-left">
                         <thead>
-                          <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <tr className="border-b border-slate-100 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                             <th className="p-4 pl-6">Product Details</th>
                             <th className="p-4">SKU / Code</th>
                             <th className="p-4">Retail Price</th>
                             <th className="p-4">Affiliate Commission</th>
+                            <th className="p-4">Stock</th>
                             <th className="p-4 pr-6 text-right">Actions</th>
                           </tr>
                         </thead>
 
-                        <tbody className="divide-y divide-slate-100 text-xs">
+                        <tbody className="divide-y divide-slate-100 text-sm">
                           {allProducts.map((product, index) => {
                             const productId = product._id || product.id;
                             const unlisted = isUnlisted(product);
@@ -535,59 +657,89 @@ export default function MyShopDashboard() {
                             return (
                               <tr
                                 key={productId || index}
-                                className={`transition ${
+                                className={`product-row transition duration-200 ${
                                   unlisted
-                                    ? "bg-slate-50/60 text-slate-400"
-                                    : "hover:bg-slate-50/50"
+                                    ? "bg-amber-50/40 text-slate-400"
+                                    : "bg-white hover:bg-slate-50/60"
                                 }`}
                               >
                                 <td className="p-4 pl-6">
-                                  <div className="flex items-center gap-2">
-                                    <span
-                                      className={`font-bold ${
-                                        unlisted
-                                          ? "text-slate-400"
-                                          : "text-slate-900"
-                                      }`}
-                                    >
-                                      {product.name || "Unnamed Product"}
-                                    </span>
+                                  <div className="flex items-center gap-3">
+                                    {product.imageUrl ? (
+                                      <img
+                                        src={product.imageUrl}
+                                        alt={product.name}
+                                        className="h-10 w-10 rounded-lg object-cover"
+                                        onError={(e) => {
+                                          e.target.style.display = "none";
+                                        }}
+                                      />
+                                    ) : (
+                                      <div className="h-10 w-10 rounded-lg border border-slate-300 bg-slate-200 flex items-center justify-center">
+                                        📷
+                                      </div>
+                                    )}
+                                    <div>
+                                      <span
+                                        className={`font-semibold ${
+                                          unlisted
+                                            ? "text-slate-400"
+                                            : "text-slate-900"
+                                        }`}
+                                      >
+                                        {product.name || "Unnamed Product"}
+                                      </span>
+                                      {product.category && (
+                                        <div className="text-xs text-slate-400">
+                                          {product.category}
+                                        </div>
+                                      )}
+                                    </div>
 
                                     {unlisted && (
-                                      <span className="rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700">
+                                      <span className="ml-auto rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">
                                         Unlisted
                                       </span>
                                     )}
                                   </div>
                                 </td>
 
-                                <td className="p-4 font-mono text-slate-500">
-                                  {product.productCode || product.sku || "N/A"}
+                                <td className="p-4 font-mono text-xs font-semibold text-slate-600">
+                                  {product.productCode || "N/A"}
                                 </td>
 
-                                <td className="p-4">
+                                <td className="p-4 font-bold text-slate-900">
                                   KES {Number(product.price || 0).toLocaleString()}
                                 </td>
 
                                 <td className="p-4 font-bold text-emerald-600">
-                                  KES{" "}
-                                  {Number(
+                                  KES {Number(
                                     product.affiliateCommission || 0
                                   ).toLocaleString()}
                                 </td>
 
+                                <td className="p-4">
+                                  <span
+                                    className={`status-badge ${getStockStatusClass(
+                                      product.quantity
+                                    )}`}
+                                  >
+                                    {product.quantity || 0}
+                                  </span>
+                                </td>
+
                                 <td className="p-4 pr-6">
-                                  <div className="flex items-center justify-end gap-2">
+                                  <div className="flex items-center justify-end gap-1">
                                     <button
                                       type="button"
                                       disabled={busy}
                                       onClick={() =>
                                         handleToggleProductVisibility(product)
                                       }
-                                      className={`rounded-lg border p-2 transition disabled:cursor-wait disabled:opacity-50 ${
+                                      className={`action-btn rounded-lg border p-2 transition duration-200 disabled:cursor-wait disabled:opacity-50 ${
                                         unlisted
-                                          ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
-                                          : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                                          ? "border-amber-300 bg-amber-100 text-amber-700 hover:bg-amber-200"
+                                          : "border-slate-300 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-600"
                                       }`}
                                       title={
                                         unlisted
@@ -602,7 +754,7 @@ export default function MyShopDashboard() {
                                       type="button"
                                       disabled={busy}
                                       onClick={() => handleOpenEditModal(product)}
-                                      className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+                                      className="action-btn rounded-lg border border-slate-300 bg-white p-2 text-slate-600 transition duration-200 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50"
                                       title="Edit product"
                                     >
                                       ✏️
@@ -612,7 +764,7 @@ export default function MyShopDashboard() {
                                       type="button"
                                       disabled={busy}
                                       onClick={() => handleDeleteProduct(product)}
-                                      className="rounded-lg border border-red-200 bg-white p-2 text-red-500 transition hover:bg-red-50 disabled:opacity-50"
+                                      className="action-btn rounded-lg border border-red-300 bg-white p-2 text-red-600 transition duration-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
                                       title="Delete product"
                                     >
                                       🗑
@@ -629,32 +781,33 @@ export default function MyShopDashboard() {
                 </section>
               )}
 
-              {/* SALES ORDERS */}
+              {/* ============================= SALES ORDERS TAB ============================= */}
               {activeTab === "orders" && (
-                <section className="overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-sm">
-                  <div className="border-b border-slate-100 bg-slate-50/50 p-6">
-                    <h2 className="text-base font-bold text-slate-800">
+                <section className="orders-section overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md">
+                  <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-slate-100/50 p-6">
+                    <h2 className="text-xl font-bold text-slate-900">
                       Sales Orders
                     </h2>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-slate-500">
                       Verify customer delivery PINs for eligible orders.
                     </p>
                   </div>
 
                   {salesOrders.length === 0 ? (
-                    <div className="p-16 text-center">
-                      <p className="text-sm font-bold text-slate-700">
+                    <div className="empty-state p-16 text-center">
+                      <div className="mb-4 text-5xl">📋</div>
+                      <p className="text-lg font-bold text-slate-700">
                         No transactions recorded
                       </p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        Your orders will appear here when available.
+                      <p className="mt-2 text-sm text-slate-500">
+                        Your orders will appear here when customers purchase from your store.
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse text-left">
+                    <div className="table-wrapper overflow-x-auto">
+                      <table className="orders-table w-full border-collapse text-left">
                         <thead>
-                          <tr className="border-b border-slate-100 bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <tr className="border-b border-slate-100 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                             <th className="p-4 pl-6">Order ID</th>
                             <th className="p-4">Customer</th>
                             <th className="p-4">Order Value</th>
@@ -663,14 +816,14 @@ export default function MyShopDashboard() {
                           </tr>
                         </thead>
 
-                        <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
+                        <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
                           {salesOrders.map((order, index) => {
                             const orderKey =
                               order.orderNumber || order._id || order.id || index;
                             const delivered = order.orderStatus === "DELIVERED";
 
                             return (
-                              <tr key={orderKey} className="hover:bg-slate-50/50">
+                              <tr key={orderKey} className="transition duration-200 hover:bg-slate-50/60">
                                 <td className="p-4 pl-6 font-mono font-bold text-slate-900">
                                   #{order.orderNumber || order._id || "N/A"}
                                 </td>
@@ -680,26 +833,25 @@ export default function MyShopDashboard() {
                                     {order.shippingDetails?.fullName ||
                                       "Guest Account"}
                                   </div>
-                                  <div className="mt-1 text-[10px] text-slate-400">
+                                  <div className="mt-1 text-xs text-slate-500">
                                     {order.shippingDetails?.phoneNumber ||
                                       "No Contact"}
                                   </div>
                                 </td>
 
                                 <td className="p-4 font-bold text-slate-900">
-                                  KES{" "}
-                                  {Number(order.totalPrice || 0).toLocaleString()}
+                                  KES {Number(order.totalPrice || 0).toLocaleString()}
                                 </td>
 
                                 <td className="p-4">
                                   <span
-                                    className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase ${
+                                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${
                                       delivered
-                                        ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-                                        : "border-amber-100 bg-amber-50 text-amber-700"
+                                        ? "border-emerald-200 bg-emerald-100 text-emerald-800"
+                                        : "border-amber-200 bg-amber-100 text-amber-800"
                                     }`}
                                   >
-                                    {delivered ? "Delivered" : order.orderStatus || "Pending"}
+                                    {delivered ? "✓ Delivered" : order.orderStatus || "Pending"}
                                   </span>
                                 </td>
 
@@ -722,7 +874,7 @@ export default function MyShopDashboard() {
                                             event.target.value
                                           )
                                         }
-                                        className="w-28 rounded-lg border border-slate-200 px-2 py-2 text-center font-mono text-xs font-bold tracking-widest outline-none focus:border-emerald-500"
+                                        className="w-28 rounded-lg border border-slate-300 px-3 py-2 text-center font-mono text-xs font-bold tracking-widest outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
                                       />
 
                                       <button
@@ -730,7 +882,7 @@ export default function MyShopDashboard() {
                                         onClick={() =>
                                           handleVerifyDeliveryPin(order.orderNumber)
                                         }
-                                        className="rounded-lg bg-slate-900 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white transition hover:bg-slate-800"
+                                        className="verify-btn rounded-lg bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition duration-200 hover:from-slate-700 hover:to-slate-800"
                                       >
                                         Verify PIN
                                       </button>
@@ -751,7 +903,7 @@ export default function MyShopDashboard() {
         </div>
       </main>
 
-      {/* ADD PRODUCT MODAL */}
+      {/* ============================= ADD PRODUCT MODAL ============================= */}
       <AddProductModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -766,10 +918,10 @@ export default function MyShopDashboard() {
         uploadImageToCloudinary={uploadImageToCloudinary}
       />
 
-      {/* EDIT PRODUCT MODAL */}
+      {/* ============================= EDIT PRODUCT MODAL ============================= */}
       {selectedProduct && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/60 p-4"
+          className="modal-overlay fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4 backdrop-blur-sm"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !isSavingEdit) {
               setSelectedProduct(null);
@@ -780,18 +932,18 @@ export default function MyShopDashboard() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="edit-product-title"
-            className="my-auto w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+            className="modal-content my-auto w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
           >
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2
                   id="edit-product-title"
-                  className="text-lg font-bold text-slate-900"
+                  className="text-2xl font-bold text-slate-900"
                 >
                   Edit Product
                 </h2>
-                <p className="mt-1 text-xs text-slate-400">
-                  Update your product information.
+                <p className="mt-1 text-sm text-slate-500">
+                  Update your product information and availability.
                 </p>
               </div>
 
@@ -799,16 +951,16 @@ export default function MyShopDashboard() {
                 type="button"
                 disabled={isSavingEdit}
                 onClick={() => setSelectedProduct(null)}
-                className="rounded-lg px-3 py-2 text-slate-500 hover:bg-slate-100"
+                className="close-btn rounded-lg px-3 py-2 text-slate-500 transition hover:bg-slate-100"
                 aria-label="Close edit dialog"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveProductEdit} className="space-y-4">
+            <form onSubmit={handleSaveProductEdit} className="space-y-5">
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-600">
+                <label className="mb-2 block text-sm font-bold text-slate-700">
                   Product Name
                 </label>
                 <input
@@ -816,13 +968,14 @@ export default function MyShopDashboard() {
                   value={editForm.name}
                   onChange={handleEditInputChange}
                   required
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                  className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
+                  placeholder="e.g., Premium Laptop Stand"
                 />
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-600">
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
                     Retail Price (KES)
                   </label>
                   <input
@@ -833,12 +986,13 @@ export default function MyShopDashboard() {
                     value={editForm.price}
                     onChange={handleEditInputChange}
                     required
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
+                    placeholder="0.00"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-600">
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
                     Affiliate Commission (KES)
                   </label>
                   <input
@@ -849,13 +1003,14 @@ export default function MyShopDashboard() {
                     value={editForm.affiliateCommission}
                     onChange={handleEditInputChange}
                     required
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
+                    placeholder="0.00"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-600">
-                    Quantity
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
+                    Quantity in Stock
                   </label>
                   <input
                     name="quantity"
@@ -865,12 +1020,13 @@ export default function MyShopDashboard() {
                     value={editForm.quantity}
                     onChange={handleEditInputChange}
                     required
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
+                    placeholder="0"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-xs font-bold text-slate-600">
+                  <label className="mb-2 block text-sm font-bold text-slate-700">
                     Delivery Fee (KES)
                   </label>
                   <input
@@ -880,42 +1036,45 @@ export default function MyShopDashboard() {
                     step="0.01"
                     value={editForm.deliveryFee}
                     onChange={handleEditInputChange}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                    className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
+                    placeholder="0.00"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-600">
+                <label className="mb-2 block text-sm font-bold text-slate-700">
                   Category
                 </label>
                 <input
                   name="category"
                   value={editForm.category}
                   onChange={handleEditInputChange}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                  className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
+                  placeholder="e.g., Electronics"
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-xs font-bold text-slate-600">
-                  Description
+                <label className="mb-2 block text-sm font-bold text-slate-700">
+                  Product Description
                 </label>
                 <textarea
                   name="description"
                   value={editForm.description}
                   onChange={handleEditInputChange}
                   rows={3}
-                  className="w-full resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-emerald-500"
+                  className="form-input w-full resize-y rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
+                  placeholder="Describe your product..."
                 />
               </div>
 
-              <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+              <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
                 <button
                   type="button"
                   disabled={isSavingEdit}
                   onClick={() => setSelectedProduct(null)}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  className="btn-cancel rounded-lg border border-slate-300 bg-slate-50 px-5 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -923,7 +1082,7 @@ export default function MyShopDashboard() {
                 <button
                   type="submit"
                   disabled={isSavingEdit}
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-60"
+                  className="btn-save rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-5 py-2 text-sm font-bold text-white shadow-md shadow-emerald-600/30 transition duration-200 hover:from-emerald-700 hover:to-emerald-600 disabled:cursor-wait disabled:opacity-60"
                 >
                   {isSavingEdit ? "Saving..." : "Save Changes"}
                 </button>
@@ -935,4 +1094,3 @@ export default function MyShopDashboard() {
     </div>
   );
 }
-
