@@ -933,6 +933,55 @@ async function purgeProductAsset(req, res) {
   }
 }
 
+
+// Add this method inside backend/src/modules/products/product.controller.js
+
+async function getHeroBannerFeed(req, res) {
+  try {
+    const pipeline = [
+      { 
+        $match: { 
+          // Match your schema enum from earlier ("ACTIVE" or "LISTED")
+          status: { $in: ["LISTED", "ACTIVE"] },
+          isShelved: true,
+          quantity: { $gt: 5 },
+          "metrics.escrowDisputeRate": { $lt: 0.05 } 
+        } 
+      },
+      {
+        $addFields: {
+          bannerScore: {
+            $add: [
+              { $cond: [{ $eq: ["$isPremiumVendor", true] }, 30, 0] },
+              { $multiply: [{ $ifNull: ["$metrics.conversionRate", 0] }, 50] },
+              { $multiply: [{ $ifNull: ["$metrics.referralCount", 0] }, 2] }
+            ]
+          }
+        }
+      },
+      { $sort: { bannerScore: -1 } },
+      { $limit: 5 },
+      {
+        $project: {
+          name: 1, 
+          price: 1, 
+          imageUrl: 1, 
+          description: 1, 
+          brandName: 1,
+          affiliateCommission: 1
+        }
+      }
+    ];
+
+    const bannerProducts = await Product.aggregate(pipeline);
+    return res.status(200).json({ ok: true, banner: bannerProducts });
+  } catch (error) {
+    console.error("❌ Hero banner pipeline error:", error.message);
+    return res.status(500).json({ ok: false, error: "INTERNAL_SERVER_ERROR" });
+  }
+}
+
+
 // =========================================================================
 // EXPORTS
 // =========================================================================
@@ -950,4 +999,5 @@ module.exports = {
   getSmartDiscoveries,
   shareProduct,
   toggleProductShelf,
+ getHeroBannerFeed
 };
