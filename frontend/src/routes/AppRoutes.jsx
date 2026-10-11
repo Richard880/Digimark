@@ -9,6 +9,8 @@ import MyShopDashboard from "../features/vendor-dashboard/MyShopDashboard";
 import MyTeamDirectory from "../features/vendor-dashboard/MyTeamDirectory";
 import Profile from "../features/public/Profile/Profile"; 
 import Wallet from "../features/public/wallet/Wallet";
+// 🎯 IMPORTED NEW SECURE PIPELINE VIEW
+import InboxConversationView from "../features/chats/components/InboxConversationView";
 
 // Import your unified authentication state hook
 import useAuth from "../features/auth/hooks/useAuth";
@@ -51,6 +53,29 @@ function ProtectedVendorRoute({ children }) {
 }
 
 /**
+ * 🛡️ STANDARD AUTH GUARD FOR MESSAGES
+ * Bounces unauthenticated guests back to the homepage if they try to access chat channels.
+ */
+function ProtectedChatRoute({ children }) {
+  const { auth } = useAuth();
+  const isAuthenticated = auth?.authenticated || !!auth?.currentUser;
+
+  if (auth?.loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
+
+/**
  * 🗺️ Global Routing Orchestration Matrix
  */
 export default function AppRoutes() {
@@ -66,21 +91,32 @@ export default function AppRoutes() {
           <Route path={ROUTES.MARKETPLACE} element={<MarketHub />} />
           <Route path={ROUTES.PRODUCT_DETAILS} element={<ProductDetails />} />
           <Route path={ROUTES.PUBLIC_PROFILE} element={<Profile />} />
-           <Route 
-    path="/my-team" 
-    element={
-      <ProtectedVendorRoute>
-        <MyTeamDirectory />
-      </ProtectedVendorRoute>
-    } 
-  />
+          
+          {/* 🎯 REGISTERED CHAT PATH NODE */}
+          <Route 
+            path="/messages" 
+            element={
+              <ProtectedChatRoute>
+                <InboxConversationView />
+              </ProtectedChatRoute>
+            } 
+          />
+
+          <Route 
+            path="/my-team" 
+            element={
+              <ProtectedVendorRoute>
+                <MyTeamDirectory />
+              </ProtectedVendorRoute>
+            } 
+          />
 
           <Route path="/wallet" element={<ProtectedVendorRoute><Wallet /></ProtectedVendorRoute>} />
         </Route>
 
         {/* ==========================================================================
            2. ISOLATED MERCHANT SYSTEM (Secured via Client-Side Deflection Guard)
-           ========================================================================== */}
+           ========================================================================= */}
         <Route 
           path={ROUTES.MEMBER_DASHBOARD} 
           element={
