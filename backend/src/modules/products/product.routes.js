@@ -12,7 +12,8 @@ const {
   purgeProductAsset,      // 🎯 NEW: Imported permanent asset purge controller
   shareProduct,       
   toggleProductShelf,
-  getSmartDiscoveries 
+  getSmartDiscoveries,
+  getHeroBannerFeed
 } = require("./product.controller");
 
 const router = express.Router();
@@ -92,6 +93,9 @@ router.get("/:id", getProductById);
 // PUT /api/products/:id
 // Update product fields (requires auth + network role)
 router.put("/:id", authenticate, authorize("network"), updateProduct);
+
+// Mount the path right above your regular list routing hooks:
+router.get("/hero-banner", getHeroBannerFeed);
 
 // DELETE /api/products/:id
 // Delete product permanently (requires auth + network role)
