@@ -220,8 +220,8 @@ export default function InboxConversationView() {
       isTyping: true
     });
 
-    clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
+    clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
       socketRef.current.emit("typing", {
         recipientId: partnerMetadata.id,
         senderId: currentUserId,
@@ -427,12 +427,64 @@ export default function InboxConversationView() {
                       <div className="p-3 bg-white border border-slate-200 text-slate-400 text-xs rounded-2xl rounded-bl-none shadow-xs font-medium flex items-center gap-1.5">
                         <span>{partnerMetadata.name} is drafting a response</span>
                         <div className="flex gap-0.5">
-                          <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                          <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                          <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}>
+                          <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                          <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                          <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
 
-
-
-)}
-</>
-)}
+            {/* Message composer */}
+            <form
+              onSubmit={handleSendMessage}
+              className="shrink-0 border-t border-slate-100 bg-white p-3 sm:p-4"
+            >
+              <div className="flex items-end gap-2">
+                <textarea
+                  value={typedMessage}
+                  onChange={handleInputChange}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey) {
+                      event.preventDefault();
+                      handleSendMessage(event);
+                    }
+                  }}
+                  placeholder={sharedKey ? "Write an encrypted message..." : "Establishing secure connection..."}
+                  disabled={!sharedKey || isLoadingThread}
+                  rows={1}
+                  className="min-h-[44px] max-h-32 flex-1 resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                />
+                <button
+                  type="submit"
+                  disabled={!typedMessage.trim() || !sharedKey || isLoadingThread}
+                  className="flex h-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Send
+                </button>
+              </div>
+              <p className="mt-2 px-1 text-[10px] text-slate-400">
+                Messages are encrypted before transmission.
+              </p>
+            </form>
+          </>
+        ) : (
+          <div className="max-w-sm">
+            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+              <svg className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
+              </svg>
+            </div>
+            <h2 className="text-base font-black text-slate-800">Your secure inbox</h2>
+            <p className="mt-1 text-sm leading-relaxed text-slate-500">
+              Select a conversation or start a new message to connect with a buyer or supplier.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
