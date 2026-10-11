@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import useAuth from "../../auth/hooks/useAuth";
 import CheckoutButton from "../../../components/CheckoutButton/CheckoutButton"; 
 
@@ -12,6 +13,7 @@ export default function ProductDetails() {
   const [searchParams] = useSearchParams();
   const { auth, userCategory } = useAuth(); 
   const loggedInUser = auth?.currentUser;
+  const navigate = useNavigate();
 
   // Extract affiliate promoter ID if tracking link was used
   const affiliateId = searchParams.get("ref") || null;
@@ -76,6 +78,20 @@ export default function ProductDetails() {
       </div>
     );
   }
+
+  const handleInitiateTraderChat = async () => {
+  if (!loggedInUser) {
+    alert("Authentication required before messaging SokoDigi traders.");
+    return;
+  }
+  
+  try {
+    // Inject or push context route parameters directly over to your new inbox workspace
+    navigate(`/messages?targetUser=${product.sellerId}&initMsg=true`);
+  } catch (err) {
+    console.error("Failed to map chat traversal path context lines:", err);
+  }
+};
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -149,6 +165,17 @@ export default function ProductDetails() {
               affiliateId={affiliateId}
               onOrderSuccess={() => setQuantity(1)}
             />
+
+              <button
+      type="button"
+      onClick={handleInitiateTraderChat}
+      className="w-full py-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 font-bold text-xs uppercase tracking-wider transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+    >
+      <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+      </svg>
+      Inquire / Negotiate With Trader
+    </button>  
           </div>
         </div>
       </div>
