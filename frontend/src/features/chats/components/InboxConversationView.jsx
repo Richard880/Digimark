@@ -91,6 +91,58 @@ export default function InboxConversationView() {
     };
   }, [currentUserId, activeThread, partnerMetadata?.id]);
 
+    // 🎯 INSERT THIS RIGHT BELOW YOUR MAIN SOCKET USEEFFECT
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const targetUserId = queryParams.get("targetUser");
+    const shouldInit = queryParams.get("initMsg");
+
+    if (targetUserId && shouldInit && currentUserId) {
+      const initExternalThread = async () => {
+        try {
+          // Check if this user is already in our sidebar list
+          const existingConvo = conversations.find(c => {
+            const isSender = c.lastMessage?.senderId === currentUserId;
+            const pId = isSender ? c.lastMessage?.recipientId : c.lastMessage?.senderId;
+            return pId === targetUserId;
+          });
+
+          if (existingConvo) {
+            handleSelectConversation(existingConvo);
+          } else {
+            // Optimistically forge a temporary sidebar row for this new trader
+            const mockConvo = {
+              _id: `temp_room_${targetUserId}`,
+              partnerName: "New Trader (" + targetUserId.substring(0, 6) + "...)",
+              updatedAt: new Date().toISOString(),
+              lastMessage: {
+                senderId: currentUserId,
+                recipientId: targetUserId,
+                content: "",
+                iv: [],
+                isRead: true
+              }
+            };
+            setConversations(prev => [mockConvo, ...prev]);
+            setActiveThread(mockConvo);
+            
+            // Establish the secure E2EE crypto pipeline instantly
+            const myKeys = await chatEncryptionService.getOrCreateSessionKeyPair(currentUserId);
+            const keyResponse = await apiClient.get(`/users/${targetUserId}/public-key`);
+            const derivedSecret = await chatEncryptionService.deriveSharedSecret(myKeys.privateKey, keyResponse.data.publicKey);
+            setSharedKey(derivedSecret);
+            setMessages([]);
+          }
+        } catch (err) {
+          console.error("Failed to optimistically initialize target link:", err);
+        }
+      };
+      initExternalThread();
+    }
+  }, [window.location.search, conversations.length, currentUserId]);
+
+
+  
   // Push viewport visibility index down to keep real-time streams readable
   useEffect(() => {
     if (scrollAnchorRef.current) {
@@ -211,14 +263,32 @@ export default function InboxConversationView() {
     }
   };
 
-  return (
+ return (
     <div className="w-full max-w-6xl mx-auto h-[calc(100vh-140px)] min-h-[500px] border border-slate-200 bg-white rounded-3xl overflow-hidden shadow-xs grid grid-cols-1 md:grid-cols-12">
       
       {/* 📂 LEFT-HAND CONVERSATION LIST INBOX MATRICES FEED */}
       <div className={`md:col-span-4 border-r border-slate-100 flex flex-col h-full bg-slate-50/50 ${activeThread ? "hidden md:flex" : "flex"}`}>
-        <div className="p-4 border-b border-slate-100 bg-white">
-          <h1 className="text-lg font-black text-slate-900 tracking-tight">Messages Inbox</h1>
-          <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">🔏 End-to-End Encrypted Tunnel</p>
+        {/* 🎯 UPDATED SIDEBAR HEADER: Injected the "Start Chat" dynamic button portal */}
+        <div className="p-4 border-b border-slate-100 bg-white flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-black text-slate-900 tracking-tight">Messages Inbox</h1>
+            <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">🔏 End-to-End Encrypted Tunnel</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const targetId = prompt("Enter the User ID of the trader you want to message:");
+              if (targetId?.trim()) {
+                window.location.search = `?targetUser=${targetId.trim()}&initMsg=true`;
+              }
+            }}
+            className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition cursor-pointer"
+            title="Start new direct message thread"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
@@ -271,28 +341,52 @@ export default function InboxConversationView() {
       <div className={`md:col-span-8 flex flex-col h-full bg-white ${!activeThread ? "hidden md:flex items-center justify-center text-center p-8" : "flex"}`}>
         {activeThread ? (
           <>
-            {/* THREAD CONTAINER EXECUTIVE ROW HEADER */}
-            <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-white shrink-0">
-              <button 
-                onClick={() => setActiveThread(null)} 
-                className="md:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 mr-1"
-                aria-label="Back to conversations list"
+            {/* 🎯 UPDATED HEADER: Display context meta elements alongside the clear data trash icon utility button */}
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setActiveThread(null)} 
+                  className="md:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 mr-1"
+                  aria-label="Back to conversations list"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+                  </svg>
+                </button>
+                
+                <div className="h-9 w-9 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                  {partnerMetadata.initials}
+                </div>
+                <div>
+                  <h2 className="text-xs font-black text-slate-900 tracking-tight">{partnerMetadata.name}</h2>
+                  <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    E2EE Connection Confirmed
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  if (confirm("Are you sure you want to delete this chat history? This will clear local logs and device session caches permanently.")) {
+                    try {
+                      await chatEncryptionService.clearDeviceVault(currentUserId);
+                      alert("Cryptographic session storage wiped clean.");
+                      setActiveThread(null);
+                      window.location.href = "/messages";
+                    } catch (err) {
+                      console.error("Wipe operation failed:", err);
+                    }
+                  }
+                }}
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                title="Wipe Local Key & Clear Logs"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 0v3M4 7h16"/>
                 </svg>
               </button>
-              
-              <div className="h-9 w-9 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
-                {partnerMetadata.initials}
-              </div>
-              <div>
-                <h2 className="text-xs font-black text-slate-900 tracking-tight">{partnerMetadata.name}</h2>
-                <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-0.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  E2EE Connection Confirmed
-                </p>
-              </div>
             </div>
 
             {/* CHAT LOG SCREEN COMPONENT INTERFACE LIST */}
@@ -335,54 +429,10 @@ export default function InboxConversationView() {
                         <div className="flex gap-0.5">
                           <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
                           <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                          <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                          <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}>
 
-                  <div ref={scrollAnchorRef} />
-                </>
-              )}
-            </div>
 
-            {/* SEND CONSOLE ACTIONS BAR BOX PANEL CONTAINER FORM */}
-            <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-100 flex items-center gap-2 bg-white shrink-0">
-              <input
-                type="text"
-                value={typedMessage}
-                onChange={handleInputChange}
-                placeholder={`Secure chat with ${partnerMetadata.name}...`}
-                disabled={isLoadingThread || !sharedKey}
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-hidden focus:border-slate-400 focus:bg-white transition-colors"
-              />
-              <button
-                type="submit"
-                disabled={!typedMessage.trim() || !sharedKey}
-                className="p-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-300 text-white transition shadow-sm cursor-pointer"
-                aria-label="Transmit Secure Cryptographic Message String"
-              >
-                <svg className="w-4 h-4 transform rotate-90" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
-                </svg>
-              </button>
-            </form>
-          </>
-        ) : (
-                  <div className="space-y-3">
-              <div className="h-12 w-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 mx-auto shadow-xs">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-                </svg>
-              </div>
-              <h3 className="text-sm font-black text-slate-800 tracking-tight">Your Marketplace Messaging Core</h3>
-              <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
-                Select a conversation thread on the left layout console to begin secure, end-to-end encrypted negotiation logs instantly.
-              </p>
-            </div>
-          )}
-        </div>
 
-      </div>
-    );
-}
+)}
+</>
+)}
