@@ -236,7 +236,7 @@ export default function Navbar({
 
                 <Link 
                   to="/wallet" 
-                  onClick={closeMenu;
+                  onClick={closeMenu}
                   className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition px-2 py-1 bg-emerald-50 rounded-lg"
                 >
                   💳 Wallet
