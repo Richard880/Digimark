@@ -8,8 +8,8 @@ import apiClient from "../../../services/apiClient";
 export default function HeroSlider({ products = [], onProductClick }) {
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // Take up to 5 items to showcase in the trending carousel
-  const sliderItems = products.slice(0, 5);
+  // Take up to 5 algorithmic showcase items passed down from the database query
+  const sliderItems = Array.isArray(products) ? products.slice(0, 5) : [];
 
   // Auto-slide transition engine loop handles movement cleanly
   useEffect(() => {
@@ -48,9 +48,11 @@ export default function HeroSlider({ products = [], onProductClick }) {
 
   const activeProduct = sliderItems[currentIndex];
   const productId = activeProduct._id || activeProduct.id;
+  
+  const baseApiUrl = apiClient.defaults.baseURL || "http://localhost:5000/api";
   const imageUrl = activeProduct.imageUrl?.startsWith("http")
     ? activeProduct.imageUrl
-    : `${apiClient.defaults.baseURL.replace(/\/api\/?$/, "")}${activeProduct.imageUrl || ""}`;
+    : `${baseApiUrl.replace(/\/api\/?$/, "")}${activeProduct.imageUrl || ""}`;
   
   const commission = Number(activeProduct.affiliateCommission || 0);
 
