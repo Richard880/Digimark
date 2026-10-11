@@ -241,6 +241,19 @@ export default function Navbar({
                 >
                   💳 Wallet
                 </Link>
+
+                {/* 🎯 PLACE THIS DIRECTLY AT THE BOTTOM OF YOUR NAVBAR BELL DROPDOWN VIEW ARRAY */}
+{unreadNotifications.length > 0 && (
+  <Link
+    to="/notifications"
+    onClick={() => setShowNotifDropdown(false)}
+    className="block text-center py-2 text-[10px] font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 bg-slate-50 border-t border-slate-100 transition"
+  >
+    See All Historical Logs →
+  </Link>
+)}
+
+                
               </div>
 
               <button
