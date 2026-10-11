@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { useOutletContext, useNavigate } from "react-router-dom";
 import apiClient from "../../../services/apiClient";
-import useAuth from "../../auth/hooks/useAuth"; // 🎯 EXTRACTS ACTIVE USER SECTOR PROFILE
+import useAuth from "../../auth/hooks/useAuth"; 
 import ProductCard from "./ProductCard";
 import HeroSlider from "./HeroSlider"; 
 
@@ -14,12 +14,29 @@ export default function MarketHub() {
   const { searchResults, isSearching, activeQuery = "" } = outletContext;
   
   const [allProducts, setAllProducts] = useState([]);
+  // 🎯 THE FIX: Dedicated state loop keeps the banner independent from main grid changes
+  const [bannerProducts, setBannerProducts] = useState([]);
   const [statusMessage, setStatusMessage] = useState("Exploring the market...");
   const [isLoadingFeed, setIsLoadingFeed] = useState(true);
   
-  // 🎯 NEW STATE: Track the active engagement filter selection
-  const [smartFilter, setSmartFilter] = useState("all"); // 'all', 'best-sellers', 'top-products', 'fresh-drops'
+  const [smartFilter, setSmartFilter] = useState("all"); 
 
+  // 🎡 Independent, one-time fetch loop for the premium banner stream
+  useEffect(() => {
+    const loadHeroBanner = async () => {
+      try {
+        const response = await apiClient.get("/products/hero-banner");
+        if (response.data?.ok) {
+          setBannerProducts(response.data.banner || []);
+        }
+      } catch (error) {
+        console.error("Hero banner stream compilation issue:", error);
+      }
+    };
+    loadHeroBanner();
+  }, []);
+
+  // 🛒 Marketplace grid fetch engine loop
   useEffect(() => {
     let cancelled = false;
     
@@ -28,7 +45,6 @@ export default function MarketHub() {
         setIsLoadingFeed(true);
         const token = loggedInUser?.getIdToken ? await loggedInUser.getIdToken() : null;
         
-        // 🚀 DYNAMIC ROUTE REDIRECTION BASED ON CHIP STATE
         let targetEndpoint = "/products";
         let config = {
           params: { status: "LISTED" },
@@ -37,7 +53,7 @@ export default function MarketHub() {
 
         if (smartFilter !== "all") {
           targetEndpoint = "/products/discovery";
-          config.params = { type: smartFilter }; // Routes to our new switch statement layers
+          config.params = { type: smartFilter }; 
         }
 
         const response = await apiClient.get(targetEndpoint, config);
@@ -56,7 +72,7 @@ export default function MarketHub() {
 
     loadProducts();
     return () => { cancelled = true; };
-  }, [loggedInUser, smartFilter]); // 🎯 RE-FETCH ON CHIP CLICK: Re-runs instantly whenever the active filter state changes
+  }, [loggedInUser, smartFilter]); 
 
   const displayedProducts = useMemo(() => {
     const query = activeQuery.trim().toLowerCase();
@@ -80,14 +96,13 @@ export default function MarketHub() {
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8">
+      {/* 🎯 FIXED: Fed via your optimized banner array to stop carousel flicker */}
       <HeroSlider 
-        products={Array.isArray(allProducts) ? allProducts : []} 
+        products={bannerProducts} 
         onProductClick={handleProductClick} 
       />
 
-      {/* =========================================================================
-          🚀 NEW COMPONENT RENDERING: SMART ENGAGEMENT NAVIGATION CHIPS
-         ========================================================================= */}
+      {/* SMART ENGAGEMENT NAVIGATION CHIPS */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4">
         {[
           { id: "all", label: "🛒 All Items" },
