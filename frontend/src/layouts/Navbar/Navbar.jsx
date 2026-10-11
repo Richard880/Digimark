@@ -117,6 +117,7 @@ export default function Navbar({
           )}
         </Link>
 
+        {/* 🗺️ LOCATION 1: MIDDLE NAVIGATION SYSTEM */}
         <nav
           className={`${styles["sokodigi-nav"]} ${
             isOpen ? styles["menu-expanded"] : ""
@@ -129,9 +130,15 @@ export default function Navbar({
             MarketHub
           </Link>
           {user && (
-            <Link to="/dashboard" onClick={closeMenu}>
-              Dashboard
-            </Link>
+            <>
+              {/* 🎯 PLACEMENT: Added quick-access messenger right inside main nav stream links */}
+              <Link to="/messages" onClick={closeMenu}>
+                💬 Messages
+              </Link>
+              <Link to="/dashboard" onClick={closeMenu}>
+                Dashboard
+              </Link>
+            </>
           )}
         </nav>
 
@@ -160,7 +167,6 @@ export default function Navbar({
                 aria-hidden="true"
               >
                 <circle cx="11" cy="11" r="8" />
-                {/* 🎯 SYNTAX TYPO RESOLVED BELOW (x2 and y2 coordinates mapped accurately) */}
                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
             </button>
@@ -174,82 +180,92 @@ export default function Navbar({
             />
           </div>
 
-{user ? (
-  <div className={styles["profile-avatar-wrapper"]}>
-    <Link
-      to={profileUserId ? `/profile/${profileUserId}` : "/profile"}
-      onClick={closeMenu}
-      className={styles["avatar-profile-link"]}
-      title="View My Profile Storefront"
-      style={{
-        display: "block",
-        textDecoration: "none",
-      }}
-    >
-      <div
-        className={styles["avatar-circle"]}
-        style={{ cursor: "pointer" }}
-      >
-        {avatarUrl ? (
-          <img
-            src={avatarUrl}
-            alt={`${displayName} profile`}
-            className={styles["avatar-img-element"]}
-            crossOrigin="anonymous" 
-            onError={(event) => {
-              console.error("Navbar failed to render avatar source:", avatarUrl);
-              event.currentTarget.style.display = "none";
-              setAvatarUrl(""); 
-            }}
-          />
-        ) : (
-          <svg
-            className={styles["avatar-fallback-icon"]}
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            width="1em"
-            height="1em"
-            aria-hidden="true"
-          >
-            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-          </svg>
-        )}
-      </div>
-    </Link>
+          {user ? (
+            <div className={styles["profile-avatar-wrapper"]}>
+              <Link
+                to={profileUserId ? `/profile/${profileUserId}` : "/profile"}
+                onClick={closeMenu}
+                className={styles["avatar-profile-link"]}
+                title="View My Profile Storefront"
+                style={{
+                  display: "block",
+                  textDecoration: "none",
+                }}
+              >
+                <div
+                  className={styles["avatar-circle"]}
+                  style={{ cursor: "pointer" }}
+                >
+                  {avatarUrl ? (
+                    <img
+                      src={avatarUrl}
+                      alt={`${displayName} profile`}
+                      className={styles["avatar-img-element"]}
+                      crossOrigin="anonymous" 
+                      onError={(event) => {
+                        console.error("Navbar failed to render avatar source:", avatarUrl);
+                        event.currentTarget.style.display = "none";
+                        setAvatarUrl(""); 
+                      }}
+                    />
+                  ) : (
+                    <svg
+                      className={styles["avatar-fallback-icon"]}
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      width="1em"
+                      height="1em"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                    </svg>
+                  )}
+                </div>
+              </Link>
 
-    {/* 🎯 THE FIX: Wrapped the comment cleanly inside curly brackets so the JSX parser compiles it green! */}
-    {/* 🎯 NEW: Short-cut Wallet Button text link inside your top navbar header block */}
-    <Link 
-      to="/wallet" 
-      onClick={closeMenu}
-      className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition px-2 py-1 bg-emerald-50 rounded-lg"
-    >
-      💳 Wallet
-    </Link>
+              {/* 🗺️ LOCATION 2: RIGHT ACTION CHIPS (Next to wallet element block) */}
+              <div className="flex items-center gap-1.5">
+                <Link 
+                  to="/messages" 
+                  onClick={closeMenu}
+                  className="text-xs font-bold text-slate-700 hover:text-slate-900 transition px-2 py-1 bg-slate-100 rounded-lg"
+                  title="Open Secure Chat Inbox"
+                >
+                  💬 Inbox
+                </Link>
 
-    <button
-      type="button"
-      className={styles["logout-btn"]}
-      onClick={() => {
-        onLogout?.();
-        closeMenu();
-      }}
-    >
-      Logout
-    </button>
-  </div>
-) : (
-  <button
-    type="button"
-    className={styles["login-cta-button"]}
-    onClick={() => {
-      onAuthClick?.();
-      closeMenu();
-    }}
-  >
-    Get Started
-  </button>
-)}
+                <Link 
+                  to="/wallet" 
+                  onClick={closeMenu;
+                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition px-2 py-1 bg-emerald-50 rounded-lg"
+                >
+                  💳 Wallet
+                </Link>
+              </div>
+
+              <button
+                type="button"
+                className={styles["logout-btn"]}
+                onClick={() => {
+                  onLogout?.();
+                  closeMenu();
+                }}
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={styles["login-cta-button"]}
+              onClick={() => {
+                onAuthClick?.();
+                closeMenu();
+              }}
+            >
+              Get Started
+            </button>
+          )}
 
           <button
             type="button"
