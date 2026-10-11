@@ -9,8 +9,9 @@ import MyShopDashboard from "../features/vendor-dashboard/MyShopDashboard";
 import MyTeamDirectory from "../features/vendor-dashboard/MyTeamDirectory";
 import Profile from "../features/public/Profile/Profile"; 
 import Wallet from "../features/public/wallet/Wallet";
-// 🎯 IMPORTED NEW SECURE PIPELINE VIEW
 import InboxConversationView from "../features/chats/components/InboxConversationView";
+// 🎯 IMPORTED NEW DEDICATED NOTIFICATIONS PAGE
+import NotificationsPage from "../features/public/notifications/NotificationsPage";
 
 // Import your unified authentication state hook
 import useAuth from "../features/auth/hooks/useAuth";
@@ -53,8 +54,8 @@ function ProtectedVendorRoute({ children }) {
 }
 
 /**
- * 🛡️ STANDARD AUTH GUARD FOR MESSAGES
- * Bounces unauthenticated guests back to the homepage if they try to access chat channels.
+ * 🛡️ STANDARD AUTH GUARD FOR SECURED ROUTES
+ * Bounces unauthenticated guests back to the homepage if they try to access internal workflows.
  */
 function ProtectedChatRoute({ children }) {
   const { auth } = useAuth();
@@ -92,12 +93,22 @@ export default function AppRoutes() {
           <Route path={ROUTES.PRODUCT_DETAILS} element={<ProductDetails />} />
           <Route path={ROUTES.PUBLIC_PROFILE} element={<Profile />} />
           
-          {/* 🎯 REGISTERED CHAT PATH NODE */}
+          {/* 🎯 REGISTERED MESSAGES PATH NODE */}
           <Route 
             path="/messages" 
             element={
               <ProtectedChatRoute>
                 <InboxConversationView />
+              </ProtectedChatRoute>
+            } 
+          />
+
+          {/* 🎯 REGISTERED DEDICATED NOTIFICATIONS PANEL NODE */}
+          <Route 
+            path="/notifications" 
+            element={
+              <ProtectedChatRoute>
+                <NotificationsPage />
               </ProtectedChatRoute>
             } 
           />
@@ -116,7 +127,7 @@ export default function AppRoutes() {
 
         {/* ==========================================================================
            2. ISOLATED MERCHANT SYSTEM (Secured via Client-Side Deflection Guard)
-           ========================================================================= */}
+           ========================================================================== */}
         <Route 
           path={ROUTES.MEMBER_DASHBOARD} 
           element={
