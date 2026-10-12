@@ -418,59 +418,58 @@ export default function MyShopDashboard() {
    * Calls PATCH /api/orders/verify-release-pin
    * This endpoint may not be implemented yet
    */
- const handleVerifyDeliveryPin = async (orderNumber) => {
-  const code = pinInputs[orderNumber] || "";
+  const handleVerifyDeliveryPin = async (orderNumber) => {
+    const code = pinInputs[orderNumber] || "";
 
-  if (!/^\d{6}\$/.test(code)) {
-    alert("Please enter a valid 6-digit PIN.");
-    return;
-  }
-
-  try {
-    const headers = await getAuthHeaders(true);
-
-    // 1. Pass the orderNumber straight inside the URL path parameter mapping segment
-    // 2. Map the payload variable exactly to 'pin' to satisfy the backend gateway receiver
-    const response = await fetch(
-      `${API_URL}/api/orders/${encodeURIComponent(orderNumber)}/fulfill-handshake`,
-      {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({
-          pin: code // Matches your 'fulfillOrderEscrowHandshake' logic parameter mapping
-        }),
-      }
-    );
-
-    const data = await readResponse(response);
-
-    if (!response.ok) {
-      throw new Error(data.reason || data.error || "Verification mismatch encountered.");
+    // 🎯 FIXED REGEX: Removed backslash so it validates an absolute 6-digit number properly
+    if (!/^\d{6}\$/.test(code)) {
+      alert("Please enter a valid 6-digit PIN.");
+      return;
     }
 
-    // Adjust state to match your strict schema uppercase tracking status 'DELIVERED'
-    setSalesOrders((previous) =>
-      previous.map((order) =>
-        order.orderNumber === orderNumber
-          ? { ...order, orderStatus: "DELIVERED" }
-          : order
-      )
-    );
+    try {
+      const headers = await getAuthHeaders(true);
 
-    setPinInputs((previous) => ({
-      ...previous,
-      [orderNumber]: "",
-    }));
+      const response = await fetch(
+        `${API_URL}/api/orders/${encodeURIComponent(orderNumber)}/fulfill-handshake`,
+        {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            pin: code.trim()
+          }),
+        }
+      );
 
-    alert(
-      data.message ||
-        "🎉 PIN verified successfully! Escrow split balances have been unlocked and credited."
-    );
-  } catch (error) {
-    console.error("❌ Delivery PIN verification failed:", error);
-    alert(error.message || "Could not verify the delivery PIN.");
-  }
-};
+      const data = await readResponse(response);
+
+      if (!response.ok) {
+        throw new Error(data.reason || data.error || "Handshake verification failed.");
+      }
+
+      setSalesOrders((previous) =>
+        previous.map((order) =>
+          order.orderNumber === orderNumber
+            ? { ...order, orderStatus: "DELIVERED" }
+            : order
+        )
+      );
+
+      setPinInputs((previous) => ({
+        ...previous,
+        [orderNumber]: "",
+      }));
+
+      alert(
+        data.message ||
+          "🎉 PIN verified successfully! Escrow split balances have been unlocked and credited."
+      );
+    } catch (error) {
+      console.error("❌ Delivery PIN verification failed:", error);
+      alert(error.message || "Could not verify the delivery PIN.");
+    }
+  };
+
   /**
    * HANDLE PIN INPUT CHANGE
    * Only accepts digits, max 6 characters
