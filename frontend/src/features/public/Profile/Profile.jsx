@@ -441,23 +441,97 @@ export default function Profile() {
         // ====================================================================
         // PRODUCTS FETCHING
         // ====================================================================
-      const productsResponse = await fetch(
-  `${API_URL}/api/products?shopId=${encodeURIComponent(activeTargetId)}&status=LISTED&isShelved=true`
-);
-        
+  
+        // ================================================================
+        // PRODUCTS FETCHING
+        // ================================================================
         let resolvedProducts = [];
 
-       if (productsResponse.ok) {
-  const productsData = await productsResponse.json();
-  const rawList = Array.isArray(productsData) 
-    ? productsData 
-    : (Array.isArray(productsData?.products) ? productsData.products : []);
-  
-  // Double-check alignment: filters out items that don't match public visibility markers
-  resolvedProducts = rawList.filter(product => 
-    (product.status === "LISTED" || product.status === "active") && product.isShelved !== false
-  );
-}
+        try {
+          const token = loggedInUser?.getIdToken
+            ? await loggedInUser.getIdToken()
+            : auth?.token || auth?.accessToken || null;
+
+          const params = new URLSearchParams({
+            shopId: String(activeTargetId),
+            status: "LISTED",
+            isShelved: "true",
+          });
+
+          const productsResponse = await fetch(
+            `${API_URL}/api/products?${params.toString()}`,
+            {
+              headers: token
+                ? { Authorization: `Bearer ${token}` }
+                : {},
+            }
+          );
+
+          const responseText = await productsResponse.text();
+          let productsData = {};
+
+          try {
+            productsData = responseText
+              ? JSON.parse(responseText)
+              : {};
+          } catch {
+            throw new Error(
+              "The products API returned an invalid JSON response."
+            );
+          }
+
+          if (!productsResponse.ok) {
+            throw new Error(
+              `Products API failed (${productsResponse.status}): ${
+                productsData?.message ||
+                productsData?.error ||
+                responseText ||
+                "Unknown server error"
+              }`
+            );
+          }
+
+          const rawList = Array.isArray(productsData)
+            ? productsData
+            : Array.isArray(productsData?.products)
+              ? productsData.products
+              : Array.isArray(productsData?.data)
+                ? productsData.data
+                : [];
+
+          resolvedProducts = rawList.filter((product) => {
+            const status = String(
+              product?.status || ""
+            ).toUpperCase();
+
+            const visible =
+              status === "LISTED" ||
+              status === "ACTIVE";
+
+            const notShelved =
+              product?.isShelved !== false;
+
+            return visible && notShelved;
+          });
+
+          console.info(
+            "[SokoDigi Profile] Products loaded:",
+            {
+              profileId: activeTargetId,
+              totalReturned: rawList.length,
+              visibleProducts: resolvedProducts.length,
+              endpoint: `${API_URL}/api/products`,
+            }
+          );
+        } catch (error) {
+          console.error(
+            "[SokoDigi Profile] Product loading failed:",
+            error
+          );
+
+          resolvedProducts = [];
+        }
+
 
         // Emergency validation safety net to prevent blank screens
         if (!resolvedProfile) {
@@ -1483,39 +1557,51 @@ export default function Profile() {
 // ============================================================================
 
 function OrderCardDetails({ order }) {
-  const orderId =
-    order?._id ||
-    order?.id ||
+  const orderId = order?._id || order?.id || "";
+  const orderReference =
+    order?.orderNumber ||
+    order?.orderCode ||
+    order?.reference ||
+    String(orderId).slice(-10) ||
     "N/A";
 
   const status =
-    order?.status ||
-    order?.orderStatus ||
-    "Pending";
+    order?.status || order?.orderStatus || "Pending";
 
-  const total =
-    Number(
-      order?.totalAmount ??
-        order?.total ??
-        order?.amount ??
-        0
-    ) || 0;
+  const total = Number(
+    order?.totalAmount ?? order?.total ?? order?.amount ?? 0
+  ) || 0;
 
-  const createdAt =
-    order?.createdAt ||
-    order?.date ||
-    null;
+  const createdAt = order?.createdAt || order?.date || null;
+
+  // These fields must match what your backend actually returns.
+  const deliveryPin =
+    order?.deliveryPin ??
+    order?.releasePin ??
+    order?.orderPin ??
+    order?.pin ??
+    "";
+
+  // Prefer a backend-generated QR payload if one exists.
+  // Otherwise encode only the order reference, never the PIN.
+  const qrValue =
+    order?.qrCodeData ||
+    order?.qrPayload ||
+    (orderId ? `SokoDigi Order: ${orderId}` : "");
+
+  const items = Array.isArray(order?.items)
+    ? order.items
+    : [];
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-            Order
+            Order Reference
           </p>
-
           <h3 className="mt-1 font-mono text-sm font-bold text-slate-800">
-            #{String(orderId).slice(-10)}
+            #{orderReference}
           </h3>
         </div>
 
@@ -1529,44 +1615,108 @@ function OrderCardDetails({ order }) {
           <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
             Total
           </p>
-
           <p className="mt-1 text-sm font-black text-slate-900">
-            KSh {total.toLocaleString()}
+            KSh {total.toLocaleString("en-KE")}
           </p>
         </div>
 
         <div>
           <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-            Date
+            Order Date
           </p>
-
           <p className="mt-1 text-xs font-semibold text-slate-600">
-            {createdAt
-              ? new Date(
-                  createdAt
-                ).toLocaleDateString()
+            {createdAt &&
+            !Number.isNaN(new Date(createdAt).getTime())
+              ? new Date(createdAt).toLocaleDateString("en-KE")
               : "N/A"}
           </p>
         </div>
       </div>
 
-      {order?.items && (
+      {items.length > 0 && (
         <div className="mt-4 border-t border-slate-100 pt-4">
           <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
             Items
           </p>
 
-          <p className="mt-1 text-xs text-slate-600">
-            {Array.isArray(order.items)
-              ? `${order.items.length} item${
-                  order.items.length === 1
-                    ? ""
-                    : "s"
-                }`
-              : "Order items available"}
-          </p>
+          <ul className="mt-2 space-y-2">
+            {items.map((item, index) => (
+              <li
+                key={item?._id || item?.productId || index}
+                className="flex justify-between gap-3 text-xs text-slate-600"
+              >
+                <span>
+                  {item?.name ||
+                    item?.productName ||
+                    "Product"}
+                  {" × "}
+                  {item?.quantity ?? 1}
+                </span>
+
+                <span className="font-semibold">
+                  KSh{" "}
+                  {Number(
+                    item?.subtotal ??
+                      (Number(item?.price || 0) *
+                        Number(item?.quantity ?? 1))
+                  ).toLocaleString("en-KE")}
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
+
+      <div className="mt-5 border-t border-slate-100 pt-5">
+        <h4 className="text-sm font-black text-slate-900">
+          Delivery Verification
+        </h4>
+
+        {qrValue ? (
+          <div className="mt-3 flex flex-col items-center rounded-xl bg-slate-50 p-4">
+            <QRCodeSVG
+              value={qrValue}
+              size={160}
+              level="M"
+              includeMargin
+              title={`QR code for order ${orderReference}`}
+            />
+
+            <p className="mt-3 text-center text-[10px] text-slate-500">
+              Scan to identify this order. Delivery verification
+              must still be performed by your backend.
+            </p>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-slate-500">
+            The order reference is not available for QR generation.
+          </p>
+        )}
+
+        {deliveryPin ? (
+          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">
+              Your Delivery PIN
+            </p>
+
+            <p className="mt-2 font-mono text-2xl font-black tracking-[0.3em] text-emerald-900">
+              {String(deliveryPin)}
+            </p>
+
+            <p className="mt-2 text-[11px] leading-5 text-emerald-800">
+              Keep this PIN private and share it with the
+              authorized delivery person only when your
+              order is ready to be verified.
+            </p>
+          </div>
+        ) : (
+          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+            No delivery PIN was returned for this order.
+            If the order is eligible, check that the backend
+            generates and returns its delivery PIN.
+          </p>
+        )}
+      </div>
     </article>
   );
 }
