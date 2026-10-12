@@ -10,8 +10,10 @@ import MyTeamDirectory from "../features/vendor-dashboard/MyTeamDirectory";
 import Profile from "../features/public/Profile/Profile"; 
 import Wallet from "../features/public/wallet/Wallet";
 import InboxConversationView from "../features/chats/components/InboxConversationView";
-// 🎯 IMPORTED NEW DEDICATED NOTIFICATIONS PAGE
 import NotificationsPage from "../features/public/notifications/NotificationsPage";
+
+// 🎯 IMPORTED NEW DEDICATED CHECKOUT WORKSPACE
+import CheckoutPage from "../features/Checkout/CheckoutPage"; 
 
 // Import your unified authentication state hook
 import useAuth from "../features/auth/hooks/useAuth";
@@ -26,7 +28,6 @@ import ROUTES from "../constants/routes";
 function ProtectedVendorRoute({ children }) {
   const { auth } = useAuth();
 
-  // 1. Await application authentication context synchronization loop
   if (auth?.loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
@@ -39,17 +40,14 @@ function ProtectedVendorRoute({ children }) {
     );
   }
 
-  // 2. Extract permission criteria from user profile or document structures
   const userCategory = auth?.profile?.accountCategory || auth?.user?.accountCategory || "retail";
   const isAuthenticated = auth?.authenticated || !!auth?.currentUser;
 
-  // 3. ENFORCEMENT GATE: Bounce users back to the marketplace if they aren't "network" affiliates
   if (!isAuthenticated || userCategory !== "network") {
     console.warn(`[Routing Deflection] Diverted user tier "${userCategory}" away from merchant views.`);
     return <Navigate to={ROUTES.MARKETPLACE} replace />;
   }
 
-  // 4. Verification satisfied, release the isolated merchant workspace
   return children;
 }
 
@@ -93,6 +91,16 @@ export default function AppRoutes() {
           <Route path={ROUTES.PRODUCT_DETAILS} element={<ProductDetails />} />
           <Route path={ROUTES.PUBLIC_PROFILE} element={<Profile />} />
           
+          {/* 🎯 REGISTERED ESCROW CHECKOUT NODE */}
+          <Route 
+            path="/checkout" 
+            element={
+              <ProtectedChatRoute>
+                <CheckoutPage />
+              </ProtectedChatRoute>
+            } 
+          />
+
           {/* 🎯 REGISTERED MESSAGES PATH NODE */}
           <Route 
             path="/messages" 
