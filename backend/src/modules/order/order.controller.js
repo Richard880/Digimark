@@ -108,31 +108,44 @@ async function createOrder(req, res) {
     await product.save({ session });
 
     // 5. Commit the new Escrow Contract order into collection log lists with schema matched naming conventions
+       // 5. Commit the new Escrow Contract order into your exact schema fields
     const [order] = await Order.create([{
       orderNumber,
       buyerId,
       sellerId: product.sellerId || product.merchantId, 
-      affiliateId: product.fromNetwork ? (affiliateId || product.affiliateId) : null,
-      productId,
-      quantity,
+      promoterId: product.fromNetwork ? (affiliateId || product.promoterId || null) : null, // Mapped to promoterId
+      
+      // Map your items array elements perfectly as required by schema rules
+      items: [{
+        productId: product._id,
+        name: product.name,
+        quantity: quantity,
+        pricePaid: product.price,
+        commissionAllocated: product.affiliateCommission || 0
+      }],
+
       financials: {
-        totalWholesaleToShop: resellerWholesaleCost, // Map exactly to schema expectations
-        totalRetailPaid: retailPricePaid,           // Map exactly to schema expectations
-        affiliateCommission,
-        resellerWholesaleCost,
-        escrowCourierFee,
-        totalAmountLocked: totalAmountToLock
+        totalWholesaleToShop: resellerWholesaleCost, 
+        totalRetailPaid: retailPricePaid,           
+        totalCommissionSplit: affiliateCommission,    // Schema field matching
+        deliveryFeePaid: escrowCourierFee            // Schema field matching
       },
+      
       escrowReleasePin: rawReleasePin,
-      orderStatus: "pending", // Fixed lowercase enum mapping strategy to satisfy validator
+      
+      // 🎯 FIXED STATUS MATCH: "PROCESSING" satisfies the Mongoose validation rule perfectly!
+      orderStatus: "PROCESSING", 
+      
       isEscrowReleased: false,
       shippingDetails: {
         subCounty: shippingDetails.subCounty,
         county: shippingDetails.county,
         phoneNumber: shippingDetails.phoneNumber,
-        fullName: shippingDetails.fullName
+        fullName: shippingDetails.fullName,
+        deliveryNotes: shippingDetails.deliveryNotes || ""
       }
     }], { session });
+
 
     await session.commitTransaction();
     session.endSession();
