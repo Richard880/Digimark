@@ -1,6 +1,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { QRCodeSVG } from "qrcode.react";
 
 import useAuth from "../../auth/hooks/useAuth";
 import MatrixTreeChart from "../../vendor-dashboard/MatrixTreeChart";
