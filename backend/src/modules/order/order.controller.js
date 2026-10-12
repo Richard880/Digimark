@@ -193,7 +193,7 @@ async function releaseEscrowViaQrScan(req, res) {
     // 1. Debit and clear funds from the buyer's locked escrow pocket balance layout container
     await Wallet.findOneAndUpdate(
       { userId: order.buyerId },
-      { \$inc: { escrowBalance: -totalEscrowAmount } },
+      { $inc: { escrowBalance: -totalEscrowAmount } },
       { session }
     );
 
@@ -201,7 +201,7 @@ async function releaseEscrowViaQrScan(req, res) {
     await Wallet.findOneAndUpdate(
       { userId: order.sellerId },
       {
-        \(inc: { balance: merchantShare },\)push: {
+        $inc: { balance: merchantShare },$push: {
           transactions: {
             transactionId: `REL-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
             amount: merchantShare,
@@ -220,7 +220,7 @@ async function releaseEscrowViaQrScan(req, res) {
       await Wallet.findOneAndUpdate(
         { userId: order.affiliateId },
         {
-          \(inc: { balance: affiliateShare },\)push: {
+          $inc: { balance: affiliateShare },$push: {
             transactions: {
               transactionId: `COM-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
               amount: affiliateShare,
@@ -283,8 +283,8 @@ async function releaseEscrowViaPinVerification(req, res) {
       return res.status(403).json({ error: "ACCESS_DENIED", reason: "Only the destination vendor account can input verification PIN codes." });
     }
 
-       // Ensure data validation boundaries pass cleanly before evaluation
-    if (order.orderStatus === "DELIVERED" || order.isEscrowReleased) {
+    // Fixed: Match the schema's lowercase tracking states
+    if (order.orderStatus === "delivered" || order.isEscrowReleased) {
       return res.status(400).json({ error: "ALREADY_FULFILLED" });
     }
 
@@ -305,14 +305,15 @@ async function releaseEscrowViaPinVerification(req, res) {
     );
 
     // 2. Allocate the wholesale amount and delivery fees straight to the merchant's fluid wallet balance
-      await Wallet.findOneAndUpdate(
+    await Wallet.findOneAndUpdate(
       { userId: order.sellerId },
       {
-        $inc: { balance: merchantShare },$push: {
+        $inc: { balance: merchantShare },
+        $push: {
           transactions: {
             transactionId: `REL-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
             amount: merchantShare,
-            type: "RECEIVE_PAYMENT",
+            type: "receive_transfer", // Fixed: Matches your wallet schema enum option
             status: "COMPLETED",
             description: `Escrow released via verbal verification PIN handshake for Order #${orderNumber}. Wholesale cost and logistics fees credited.`,
             createdAt: new Date()
@@ -327,11 +328,12 @@ async function releaseEscrowViaPinVerification(req, res) {
       await Wallet.findOneAndUpdate(
         { userId: order.affiliateId },
         {
-          $inc: { balance: affiliateShare },$push: {
+          $inc: { balance: affiliateShare },
+          $push: {
             transactions: {
               transactionId: `COM-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
               amount: affiliateShare,
-              type: "AFFILIATE_COMMISSION",
+              type: "affiliate_commission", // Fixed: Matches your wallet schema enum option
               status: "COMPLETED",
               description: `Commission split cut credited from Order #${orderNumber} network checkout share.`,
               createdAt: new Date()
@@ -342,8 +344,8 @@ async function releaseEscrowViaPinVerification(req, res) {
       );
     }
 
-    // Update status indicators and save order states
-    order.orderStatus = "DELIVERED";
+    // Update status indicators and save order states exactly matching schema lowercase expectations
+    order.orderStatus = "delivered";
     order.isEscrowReleased = true;
     await order.save({ session });
 
@@ -353,7 +355,7 @@ async function releaseEscrowViaPinVerification(req, res) {
     return res.status(200).json({
       ok: true,
       message: "🎉 Pin success! Escrow balances released and distributed securely to vendor and promoter lines.",
-      orderStatus: "DELIVERED"
+      orderStatus: "delivered"
     });
 
   } catch (error) {
