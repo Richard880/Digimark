@@ -57,6 +57,12 @@ async function createOrder(req, res) {
     const buyerId = req.user._id;
     const { productId, quantity = 1, shippingDetails, affiliateId } = req.body;
 
+    // Validate presence of required shipping elements explicitly before database parsing
+    if (!shippingDetails || !shippingDetails.subCounty || !shippingDetails.county || !shippingDetails.phoneNumber || !shippingDetails.fullName) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: "VALIDATION_ERROR", reason: "Missing required subCounty, county, phoneNumber, or fullName in shippingDetails." });
+    }
+
     // 1. Fetch product data from database within the active session
     const product = await Product.findById(productId).session(session);
     if (!product) {
@@ -86,7 +92,6 @@ async function createOrder(req, res) {
     } catch (walletError) {
       await session.abortTransaction();
       
-      // Clean Error Boundary Response matching your custom frontend interceptor pattern
       if (walletError.message === "INSUFFICIENT_FUNDS") {
         return res.status(402).json({
           reason: "INSUFFICIENT_FUNDS",
@@ -102,28 +107,33 @@ async function createOrder(req, res) {
     product.quantity -= quantity;
     await product.save({ session });
 
-    // 5. Commit the new Escrow Contract order into collection log lists
+    // 5. Commit the new Escrow Contract order into collection log lists with schema matched naming conventions
     const [order] = await Order.create([{
       orderNumber,
       buyerId,
-      sellerId: product.sellerId || product.merchantId, // Fallback fields matching your model profile index keys
+      sellerId: product.sellerId || product.merchantId, 
       affiliateId: product.fromNetwork ? (affiliateId || product.affiliateId) : null,
       productId,
       quantity,
       financials: {
-        retailPricePaid,
+        totalWholesaleToShop: resellerWholesaleCost, // Map exactly to schema expectations
+        totalRetailPaid: retailPricePaid,           // Map exactly to schema expectations
         affiliateCommission,
         resellerWholesaleCost,
         escrowCourierFee,
         totalAmountLocked: totalAmountToLock
       },
       escrowReleasePin: rawReleasePin,
-      orderStatus: "PENDING",
+      orderStatus: "pending", // Fixed lowercase enum mapping strategy to satisfy validator
       isEscrowReleased: false,
-      shippingDetails
+      shippingDetails: {
+        subCounty: shippingDetails.subCounty,
+        county: shippingDetails.county,
+        phoneNumber: shippingDetails.phoneNumber,
+        fullName: shippingDetails.fullName
+      }
     }], { session });
 
-    // Finalize data batch execution pipeline updates safely
     await session.commitTransaction();
     session.endSession();
 
@@ -172,11 +182,10 @@ async function releaseEscrowViaQrScan(req, res) {
       });
     }
 
-    if (order.orderStatus === "DELIVERED" || order.isEscrowReleased) {
+    if (order.orderStatus === "delivered" || order.isEscrowReleased) {
       return res.status(400).json({ error: "ALREADY_FULFILLED" });
     }
 
-    // 💡 REPAIRED ACCOUNTING INCENTIVE BREAKDOWN PIPELINES
     const totalEscrowAmount = order.financials.totalAmountLocked;
     const merchantShare = order.financials.resellerWholesaleCost + order.financials.escrowCourierFee;
     const affiliateShare = order.financials.affiliateCommission;
@@ -184,7 +193,7 @@ async function releaseEscrowViaQrScan(req, res) {
     // 1. Debit and clear funds from the buyer's locked escrow pocket balance layout container
     await Wallet.findOneAndUpdate(
       { userId: order.buyerId },
-      { $inc: { escrowBalance: -totalEscrowAmount } },
+      { \$inc: { escrowBalance: -totalEscrowAmount } },
       { session }
     );
 
@@ -192,12 +201,11 @@ async function releaseEscrowViaQrScan(req, res) {
     await Wallet.findOneAndUpdate(
       { userId: order.sellerId },
       {
-        $inc: { balance: merchantShare },
-        $push: {
+        \(inc: { balance: merchantShare },\)push: {
           transactions: {
             transactionId: `REL-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
             amount: merchantShare,
-            type: "RECEIVE_PAYMENT",
+            type: "receive_transfer", // Corrected to schema enum specification
             status: "COMPLETED",
             description: `Escrow released via customer QR code handshake for Order #${orderNumber}. Wholesale cost and logistics fees credited.`,
             createdAt: new Date()
@@ -212,12 +220,11 @@ async function releaseEscrowViaQrScan(req, res) {
       await Wallet.findOneAndUpdate(
         { userId: order.affiliateId },
         {
-          $inc: { balance: affiliateShare },
-          $push: {
+          \(inc: { balance: affiliateShare },\)push: {
             transactions: {
               transactionId: `COM-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
               amount: affiliateShare,
-              type: "AFFILIATE_COMMISSION",
+              type: "affiliate_commission", // Corrected to schema enum specification
               status: "COMPLETED",
               description: `Commission split cut credited from Order #${orderNumber} network checkout share.`,
               createdAt: new Date()
@@ -228,7 +235,8 @@ async function releaseEscrowViaQrScan(req, res) {
       );
     }
 
-    order.orderStatus = "DELIVERED";
+    // 4. Update the order lifecycle milestones tracking properties 
+    order.orderStatus = "delivered"; // Set to correct lowercase layout state
     order.isEscrowReleased = true;
     await order.save({ session });
 
@@ -237,17 +245,16 @@ async function releaseEscrowViaQrScan(req, res) {
 
     return res.status(200).json({
       ok: true,
-      message: `🎉 Handshake success! Escrow balances released and distributed securely to vendor and promoter lines.`,
-      orderStatus: "DELIVERED"
+      message: "💸 Escrow balances parsed and split routed to platform vendor nodes safely."
     });
+
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    console.error("❌ QR Escrow Release Pipeline Aborted:", error.message);
-    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+    console.error("❌ Escrow QR release process failed:", error.stack || error.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
   }
 }
-
 /**
  * 🔒 PATCH /api/orders/verify-release-pin
  * Handshake PIN Fallback: Allows a vendor/courier to enter the buyer's verbal pin to unlock escrow balances
