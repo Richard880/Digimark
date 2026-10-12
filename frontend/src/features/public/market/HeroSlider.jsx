@@ -4,8 +4,7 @@ import apiClient from "../../../services/apiClient";
 /**
  * 🎨 STANDALONE HERO CAROUSEL MODULE
  * Safely manages its own independent lifecycle hooks to prevent React Error #310.
- */import { useState, useEffect } from "react";
-import apiClient from "../../../services/apiClient";
+
 
 /**
  * 🎨 STANDALONE HERO CAROUSEL MODULE
