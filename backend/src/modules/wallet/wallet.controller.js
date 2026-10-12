@@ -3,6 +3,15 @@ const mongoose = require("mongoose");
 const crypto = require("crypto");
 
 /**
+ * Helper to generate an upper-case 9-character alphanumeric ID 
+ * mimicking the schema's fallback generation structure.
+ */
+function generateTxnId(prefix = "TXN") {
+  const randomChars = crypto.randomBytes(5).toString("hex").substring(0, 9).toUpperCase();
+  return `${prefix}-${randomChars}`;
+}
+
+/**
  * 🔒 GET /api/wallet/my-balance
  * Safely fetches a user's active balance metrics and accounting journal receipt lists
  */
@@ -16,7 +25,7 @@ async function getMyWalletDetails(req, res) {
     let wallet = await Wallet.findOne({ userId: req.user._id }).lean();
 
     if (!wallet) {
-      // Create a fresh structural layout balance sheet matching your schema defaults
+      // Create a fresh structural layout balance sheet matching schema defaults
       const rawWallet = await Wallet.create({
         userId: req.user._id,
         balance: 0,
@@ -47,7 +56,7 @@ async function getMyWalletDetails(req, res) {
 
 /**
  * 📲 POST /api/wallet/mpesa-topup
- * Simulates or routes directly into your Safaricom Daraja/IntaSend SDK engine to update liquid credit
+ * Routes directly into the Safaricom Daraja/IntaSend SDK engine to update liquid credit
  */
 async function handleMpesaTopUp(req, res) {
   try {
@@ -65,15 +74,16 @@ async function handleMpesaTopUp(req, res) {
     // Locate matching wallet ledger sheet profile
     const wallet = await Wallet.findOne({ userId: req.user._id });
     if (!wallet) return res.status(404).json({ error: "Wallet matrix container profile not found." });
+    if (wallet.isFrozen) return res.status(403).json({ error: "WALLET_FROZEN" });
 
-    const transactionId = `MPA${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+    const transactionId = generateTxnId("MPA");
 
-    // Append dynamic incoming ledger notification item entry logs
+    // Append dynamic incoming ledger item entry logs using valid schema definitions
     wallet.balance += numericAmount;
     wallet.transactions.push({
       transactionId,
-      type: "MPESA_DEPOSIT",
       amount: numericAmount,
+      type: "deposit", // Strictly mapped to your schema enum: "deposit"
       status: "COMPLETED",
       description: `Instant over-the-air top-up of Ksh ${numericAmount.toLocaleString()} verified successfully via STK push.`,
       createdAt: new Date()
@@ -95,16 +105,16 @@ async function handleMpesaTopUp(req, res) {
 
 /**
  * 🔄 INTERNAL SYSTEM METHOD: allocateEscrowFunds
- * This method is called directly by your order controller inside a shared ACID session context
+ * Called directly by the order controller inside a shared Mongoose ACID session context
  */
 async function allocateEscrowFunds(userId, totalCost, orderNumber, session) {
+  // Execute within the active tracking session to avoid dirty reads
   const wallet = await Wallet.findOne({ userId }).session(session);
 
-  if (!wallet || wallet.balance < totalCost) {
-    const currentBalance = wallet ? wallet.balance : 0;
-    const err = new Error("INSUFFICIENT_FUNDS");
-    err.currentBalance = currentBalance;
-    err.deficit = totalCost - currentBalance;
+  if (!wallet) {
+    const err = new Error("WALLET_NOT_FOUND");
+    err.currentBalance = 0;
+    err.deficit = totalCost;
     throw err;
   }
 
@@ -112,21 +122,31 @@ async function allocateEscrowFunds(userId, totalCost, orderNumber, session) {
     throw new Error("WALLET_FROZEN");
   }
 
-  const transactionId = `ESC${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
+  if (wallet.balance < totalCost) {
+    const err = new Error("INSUFFICIENT_FUNDS");
+    err.currentBalance = wallet.balance;
+    err.deficit = totalCost - wallet.balance;
+    throw err;
+  }
 
-  // Atomic state shifts: shift values from fluid liquidity straight into locked escrow balances
+  const transactionId = generateTxnId("ESC");
+
+  // Atomic state shifts: fluid liquidity flows directly into locked escrow balances
   wallet.balance -= totalCost;
   wallet.escrowBalance += totalCost;
 
+  // Track the flow configuration with schema-compliant data types
   wallet.transactions.push({
     transactionId,
-    type: "ESCROW_LOCK",
-    amount: -totalCost, // Negative indicates an outflow transaction line item
-    status: "ESCROW_HELD",
-    description: `Funds secured for Order ${orderNumber}. Securely held within SokoDigi escrow contracts until delivery verification PIN handshake.`,
+    amount: -totalCost, // Outflow calculation line item entry
+    type: "product_purchase", // Strictly mapped to your schema enum: "product_purchase"
+    status: "ESCROW_HELD", // Schema enum supports this state
+    referenceId: String(orderNumber),
+    description: `Funds secured for Order #${orderNumber}. Securely held within SokoDigi escrow balance blocks until delivery verification PIN handshake.`,
     createdAt: new Date()
   });
 
+  // Persist the array mutations safely inside the running session block
   await wallet.save({ session });
   return transactionId;
 }
