@@ -7,12 +7,15 @@ export default function NotificationsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState("ALL"); // ALL, ESCROW, MESSAGES
 
+  // 🚀 ENVIRONMENT CONFIG: Fallback dynamically from your environment constants
+  const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+
   // Fetch past notification history logs from your backend on mount
   useEffect(() => {
     const fetchNotificationLogs = async () => {
       try {
-        // Replace with your actual frontend API client instance or endpoints config
-        const response = await axios.get("/api/notifications", { withCredentials: true });
+        // 🎯 FIXED URL ROUTING: Swapped static relative strings with absolute base variables
+        const response = await axios.get(`${BACKEND_URL}/api/notifications`, { withCredentials: true });
         setNotifications(response.data || []);
       } catch (err) {
         console.error("Failed to compile historical notification entries:", err);
@@ -22,11 +25,12 @@ export default function NotificationsPage() {
     };
 
     fetchNotificationLogs();
-  }, []);
+  }, [BACKEND_URL]);
 
   const handleMarkAllAsRead = async () => {
     try {
-      await axios.post("/api/notifications/mark-all-read", {}, { withCredentials: true });
+      // 🎯 FIXED URL ROUTING: Fixed state adjustment request line boundaries
+      await axios.post(`${BACKEND_URL}/api/notifications/mark-all-read`, {}, { withCredentials: true });
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
     } catch (err) {
       console.error("Failed to update read states:", err);
