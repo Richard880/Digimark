@@ -3,7 +3,7 @@
  * require it without re-running server startup or hitting a circular import.
  */
 
-const Notification = require("../../models/Notification");
+const Notification = require("../src/models/Notification");
 const { EVENTS } = require("./notificationEvents");
 
 let io = null;
