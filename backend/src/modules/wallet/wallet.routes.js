@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { getMyWalletDetails, handleMpesaTopUp } = require("../controllers/wallet.controller");
+const { getMyWalletDetails, handleMpesaTopUp } = require("./wallet.controller");
 
 // 🔒 Import your existing authentication middleware
 const authenticate = require("../../middleware/authenticate"); 
