@@ -1,33 +1,31 @@
 const express = require("express");
-const authenticate = require("../../middleware/authenticate"); // Parses secure token data signatures
-const authorize = require("../../middleware/authorize");       // Restricts roles where necessary
+const authenticate = require("../../middleware/authenticate"); // Parses secure token signatures
 
 const { 
   listOrders, 
-  createOrder, // 🎯 ADDED: Imported the missing checkout controller method
-  releaseEscrowViaQrScan, 
-  releaseEscrowViaPinVerification 
+  createOrder, 
+  fulfillOrderEscrowHandshake // 🎯 NEW: Single unified dual-verification controller
 } = require("./order.controller");
 
 const router = express.Router();
 
-// 🔒 PROTECTED LOGISTICS HUB PORTAL ENDPOINTS
+// =========================================================================
+// 🛒 1. Core Order Pipeline Execution
+// =========================================================================
 
-// 🛒 1. Place a new order & lock escrow funds
-// Maps to: POST /api/orders
+// Maps to: POST /api/orders (Creates order, run ACID balances, locks escrow)
 router.post("/", authenticate, createOrder);
 
-// 📋 2. Retrieve history tracking ledger logs
-// Maps to: GET /api/orders
+// Maps to: GET /api/orders (Retrieves order logs by buyer/seller metrics)
 router.get("/", authenticate, listOrders);
 
-// 📱 3. Handshake Scan Gateway: Release buyer escrow via QR code scan
-// Maps to: PATCH /api/orders/:orderNumber/release-escrow
-router.patch("/:orderNumber/release-escrow", authenticate, releaseEscrowViaQrScan);
 
-// 🔑 4. Handshake PIN Fallback: Release seller escrow via verbal verification PIN
-// Maps to: PATCH /api/orders/verify-release-pin
-// Note: Changed from authorize("network") to authenticate because any seller/courier processing this should be verified
-router.patch("/verify-release-pin", authenticate, releaseEscrowViaPinVerification);
+// =========================================================================
+// 🚚 2. Unified Escrow Release Handshake Gateway
+// =========================================================================
+
+// Maps to: PATCH /api/orders/:orderNumber/fulfill-handshake
+// Accepts EITHER { "pin": "123456" } OR { "qrToken": "SDO-XXXXX" } in req.body
+router.patch("/:orderNumber/fulfill-handshake", authenticate, fulfillOrderEscrowHandshake);
 
 module.exports = router;
