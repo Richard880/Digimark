@@ -1,84 +1,51 @@
 require("dotenv").config({ path: require("path").resolve(__dirname, "../.env") });
 
 const http = require("http");
-const { Server } = require("socket.io"); // 🎯 INJECTED SOCKET.IO ENGINE
+const { Server } = require("socket.io");
+const jwt = require("jsonwebtoken");
+const cookie = require("cookie");
 const app = require("./app");
 const connectDatabase = require("./config/database");
+const notifications = require("./services/notificationService");
 
 const PORT = Number(process.env.PORT || 3000);
-
-// Global memory map linking active User IDs straight to live WebSocket connection channels
-const activeConnections = new Map();
-
-// Placeholder reference to share the live IO instance globally
-let ioInstance = null;
 
 async function start() {
   await connectDatabase();
   const server = http.createServer(app);
 
-  // 🎯 INITIALIZE REAL-TIME SOCKET SERVER TUNNEL
   const io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_URL || "*", // Automatically accepts your live deployed frontend layout
-      methods: ["GET", "POST"]
+      origin: process.env.CLIENT_URL, // must be an explicit origin when credentials are on ("*" is rejected by browsers)
+      methods: ["GET", "POST"],
+      credentials: true,
+    },
+  });
+  notifications.init(io);
+
+  // 🔒 Authenticate every socket from the session cookie — the client no longer gets to claim a user ID.
+  io.use((socket, next) => {
+    try {
+      const cookies = cookie.parse(socket.handshake.headers.cookie || "");
+      const token = cookies.token || socket.handshake.auth?.token; // ← adjust "token" to your cookie name
+      if (!token) return next(new Error("unauthorized"));
+      const payload = jwt.verify(token, process.env.JWT_SECRET);
+      socket.userId = String(payload.id || payload._id || payload.sub); // ← adjust to your JWT payload
+      next();
+    } catch {
+      next(new Error("unauthorized"));
     }
   });
-  ioInstance = io;
 
-  // 🔌 ESTABLISH LIVE EVENT HANDSHAKES
+  // One room per user: works across multiple tabs/devices and cleans up automatically on disconnect.
   io.on("connection", (socket) => {
-    // Let the client map its authenticated User ID to this live socket tunnel
-    socket.on("register-user", (userId) => {
-      if (userId) {
-        activeConnections.set(userId, socket.id);
-        console.log(`[Notification Engine] Mapped user session: ${userId} -> ${socket.id}`);
-      }
-    });
-
-    socket.on("disconnect", () => {
-      for (let [userId, socketId] of activeConnections.entries()) {
-        if (socketId === socket.id) {
-          activeConnections.delete(userId);
-          console.log(`[Notification Engine] Cleared session for user: ${userId}`);
-          break;
-        }
-      }
-    });
+    socket.join(notifications.roomFor(socket.userId));
   });
 
-  server.listen(PORT, () => {
-    console.log(`🚀 SokoDigi API running on http://localhost:${PORT}`);
-  });
+  server.listen(PORT, () => console.log(`🚀 SokoDigi API running on http://localhost:${PORT}`));
 }
-
-/**
- * 🎯 GLOBAL ACTION TRIGGER
- * Exported helper function called from your backend controllers to dispatch live alerts
- */
-const dispatchNotification = async (recipientId, data) => {
-  try {
-    // 1. Persist the log directly into your database using your specific relative path syntax
-    const Notification = require("../models/Notification");
-    const savedNotification = await Notification.create({ recipientId, ...data });
-
-    // 2. If the targeted buyer or supplier is actively online, push it onto their screen instantly
-    if (ioInstance) {
-      const targetSocketId = activeConnections.get(recipientId);
-      if (targetSocketId) {
-        ioInstance.to(targetSocketId).emit("incoming-notification", savedNotification);
-        console.log(`[Notification Engine] Dispatched live alert straight to socket client: ${targetSocketId}`);
-      }
-    }
-  } catch (err) {
-    console.error("❌ Critical error firing platform alert asset:", err);
-  }
-};
 
 start().catch((error) => {
   console.error("❌ Failed to start SokoDigi API:", error);
   process.exit(1);
 });
-
-// Export the driver so your M-PESA escrow controllers can access it seamlessly
-module.exports = { dispatchNotification };
