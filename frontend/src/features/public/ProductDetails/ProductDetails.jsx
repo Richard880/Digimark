@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import useAuth from "../../auth/hooks/useAuth";
-import CheckoutButton from "../../../components/CheckoutButton/CheckoutButton"; 
 
 const API_URL = import.meta.env.PROD 
   ? "" 
@@ -33,7 +31,6 @@ export default function ProductDetails() {
       const response = await fetch(`${API_URL}/api/products/${id}`);
       const data = await response.json();
       if (response.ok) {
-        // 🎯 THE FIX: Extract data.product cleanly to align with the backend lookup wrapper envelope
         if (data && data.product) {
           setProduct(data.product);
         } else {
@@ -63,6 +60,34 @@ export default function ProductDetails() {
     }
   };
 
+  const handleInitiateTraderChat = async () => {
+    if (!loggedInUser) {
+      alert("Authentication required before messaging SokoDigi traders.");
+      return;
+    }
+    try {
+      navigate(`/messages?targetUser=${product.sellerId}&initMsg=true`);
+    } catch (err) {
+      console.error("Failed to map chat traversal path context lines:", err);
+    }
+  };
+
+  // 🚀 REFRACTORED REDIRECTION HANDLER: Routes to the complete shipping data capture workspace
+  const handleProceedToCheckout = () => {
+    if (!loggedInUser) {
+      alert("Authentication required before ordering assets.");
+      return;
+    }
+    navigate("/checkout", {
+      state: {
+        productId: product._id,
+        quantity: quantity,
+        affiliateId: affiliateId,
+        product: product
+      }
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50/50">
@@ -78,20 +103,6 @@ export default function ProductDetails() {
       </div>
     );
   }
-
-  const handleInitiateTraderChat = async () => {
-  if (!loggedInUser) {
-    alert("Authentication required before messaging SokoDigi traders.");
-    return;
-  }
-  
-  try {
-    // Inject or push context route parameters directly over to your new inbox workspace
-    navigate(`/messages?targetUser=${product.sellerId}&initMsg=true`);
-  } catch (err) {
-    console.error("Failed to map chat traversal path context lines:", err);
-  }
-};
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -158,24 +169,25 @@ export default function ProductDetails() {
           </div>
 
           {/* DYNAMIC INTEGRATED ESCROW CHECKOUT ACTIONS HOOK PANEL */}
-          <div className="mt-8 border-t border-slate-100 pt-6">
-            <CheckoutButton 
-              productId={product._id} 
-              quantity={quantity} 
-              affiliateId={affiliateId}
-              onOrderSuccess={() => setQuantity(1)}
-            />
+          <div className="mt-8 border-t border-slate-100 pt-6 space-y-3">
+            <button
+              type="button"
+              onClick={handleProceedToCheckout}
+              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition shadow-sm flex items-center justify-center cursor-pointer"
+            >
+              Proceed to Escrow Checkout
+            </button>
 
-              <button
-      type="button"
-      onClick={handleInitiateTraderChat}
-      className="w-full py-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 font-bold text-xs uppercase tracking-wider transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
-    >
-      <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
-      </svg>
-      Inquire / Negotiate With Trader
-    </button>  
+            <button
+              type="button"
+              onClick={handleInitiateTraderChat}
+              className="w-full py-3.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 font-bold text-xs uppercase tracking-wider transition shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+              </svg>
+              Inquire / Negotiate With Trader
+            </button>  
           </div>
         </div>
       </div>
@@ -203,7 +215,7 @@ export default function ProductDetails() {
           )}
         </div>
 
-        {/* 🎯 FIXED: Fully balanced and safely closed list strings and block layout elements */}
+        {/* DETAILS BODY CONTAINER */}
         <div className="mt-6 text-sm text-slate-600 leading-relaxed max-w-3xl">
           {activeTab === "description" ? (
             <p>{product.description || "No specific detailed description logging provided by merchant catalog entries."}</p>
@@ -214,6 +226,7 @@ export default function ProductDetails() {
                 <li>Wholesale cost to shop base: <span className="font-mono text-slate-800 font-bold">Ksh {(product.price - (product.affiliateCommission || 0)).toLocaleString()}</span></li>
                 <li>Calculated conversion multiplier rate: <span className="text-slate-800 font-bold">{(product.metrics?.conversionRate || 0) * 100}%</span></li>
               </ul>
+
             </div>
           )}
         </div>
