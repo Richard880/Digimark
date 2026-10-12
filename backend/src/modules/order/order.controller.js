@@ -379,11 +379,149 @@ async function releaseEscrowViaPinVerification(req, res) {
   }
 }
 
+
+/**
+ * 🔒 PATCH /api/orders/:orderNumber/fulfill-handshake
+ * Unified Handshake Gateway: Accepts either a text verification PIN or a scanned QR verification payload
+ */
+async function fulfillOrderEscrowHandshake(req, res) {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { orderNumber } = req.params;
+    const { pin, qrToken } = req.body; // Front-end can supply either context parameter
+
+    if (!pin && !qrToken) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: "VALIDATION_ERROR", reason: "Either delivery verification PIN or scanned QR token is mandatory." });
+    }
+
+    if (!req.user || !req.user._id) {
+      await session.abortTransaction();
+      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    }
+
+    // 1. Fetch order data within the active transactional boundary session
+    const order = await Order.findOne({ orderNumber }).session(session);
+    if (!order) {
+      await session.abortTransaction();
+      return res.status(404).json({ error: "ORDER_NOT_FOUND" });
+    }
+
+    // 2. Lifecycle Protection: Stop processing if already paid out
+    if (order.orderStatus === "DELIVERED" || order.isEscrowReleased) {
+      await session.abortTransaction();
+      return res.status(400).json({ error: "ALREADY_FULFILLED", reason: "Funds for this order have already been split and liquidated." });
+    }
+
+    // 3. Dual-Verification Gateway Logic
+    let isVerificationValid = false;
+    let verificationMethod = "";
+
+    if (pin) {
+      // Verbal PIN handshake pathway
+      if (order.escrowReleasePin.trim() === pin.trim()) {
+        isVerificationValid = true;
+        verificationMethod = "Verbal PIN validation";
+      }
+    } else if (qrToken) {
+      // Logistics provider QR code scanning matching block
+      // In this setup, your QR token text could be the order number or a hash derived from it
+      if (qrToken.trim() === orderNumber.trim() || qrToken.trim() === order.escrowReleasePin.trim()) {
+        isVerificationValid = true;
+        verificationMethod = "Logistics QR scan handshake";
+      }
+    }
+
+    if (!isVerificationValid) {
+      await session.abortTransaction();
+      return res.status(422).json({ error: "INVALID_VERIFICATION_CREDENTIAL", reason: "Provided delivery credential does not match secure escrow tokens." });
+    }
+
+    // 4. Map dynamic accounting figures from schema properties
+    const totalEscrowAmount = order.financials.totalRetailPaid + order.financials.deliveryFeePaid;
+    const merchantShare = order.financials.totalWholesaleToShop + order.financials.deliveryFeePaid;
+    const promoterShare = order.financials.totalCommissionSplit;
+
+    // 5. Atomic Ledger Updates (Using \$inc and matching schema lowercase enums)
+    // A. Debit buyer's locked escrow balance pocket container
+    await Wallet.findOneAndUpdate(
+      { userId: order.buyerId },
+      { $inc: { escrowBalance: -totalEscrowAmount } },
+      { session }
+    );
+
+    // B. Credit shop vendor account available withdrawable balances
+    await Wallet.findOneAndUpdate(
+      { userId: order.sellerId },
+      {
+        $inc: { balance: merchantShare },
+        $push: {
+          transactions: {
+            transactionId: `REL-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
+            amount: merchantShare,
+            type: "receive_transfer",
+            status: "COMPLETED",
+            description: `Escrow released via ${verificationMethod} for Order #${orderNumber}. Wholesale cost and logistics fees credited.`,
+            createdAt: new Date()
+          }
+        }
+      },
+      { session }
+    );
+
+    // C. Credit promoter node account if an affiliate split was captured
+    if (order.promoterId && promoterShare > 0) {
+      await Wallet.findOneAndUpdate(
+        { userId: order.promoterId },
+        {
+          $inc: { balance: promoterShare },
+          $push: {
+            transactions: {
+              transactionId: `COM-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
+              amount: promoterShare,
+              type: "affiliate_commission",
+              status: "COMPLETED",
+              description: `Commission split cut credited from Order #${orderNumber} showcase checkout network split.`,
+              createdAt: new Date()
+            }
+          }
+        },
+        { session }
+      );
+    }
+
+    // 6. Finalize Order Object Properties to exactly match your uppercase Mongoose enum
+    order.orderStatus = "DELIVERED";
+    order.isEscrowReleased = true;
+    await order.save({ session });
+
+    // Commit state changes together
+    await session.commitTransaction();
+    session.endSession();
+
+    return res.status(200).json({
+      ok: true,
+      message: `💸 Handshake verified via ${verificationMethod}! Balances split and deposited safely.`,
+      status: "DELIVERED"
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
+    console.error("❌ Fulfill Escrow Handshake Failure:", error.stack || error.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
+  }
+}
+
+
 module.exports = {
   listOrders,
   createOrder,
   releaseEscrowViaQrScan,
-  releaseEscrowViaPinVerification
+  releaseEscrowViaPinVerification,
+  fulfillOrderEscrowHandshake
 };
 
 
