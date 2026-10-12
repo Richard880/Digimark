@@ -441,21 +441,23 @@ export default function Profile() {
         // ====================================================================
         // PRODUCTS FETCHING
         // ====================================================================
-        const productsResponse = await fetch(
-          `${API_URL}/api/products?shopId=${encodeURIComponent(activeTargetId)}`
-        );
+      const productsResponse = await fetch(
+  `${API_URL}/api/products?shopId=${encodeURIComponent(activeTargetId)}&status=LISTED&isShelved=true`
+);
         
         let resolvedProducts = [];
 
-        if (productsResponse.ok) {
-          const productsData = await productsResponse.json();
-
-          resolvedProducts = Array.isArray(productsData)
-            ? productsData
-            : Array.isArray(productsData?.products)
-            ? productsData.products
-            : [];
-        }
+       if (productsResponse.ok) {
+  const productsData = await productsResponse.json();
+  const rawList = Array.isArray(productsData) 
+    ? productsData 
+    : (Array.isArray(productsData?.products) ? productsData.products : []);
+  
+  // Double-check alignment: filters out items that don't match public visibility markers
+  resolvedProducts = rawList.filter(product => 
+    (product.status === "LISTED" || product.status === "active") && product.isShelved !== false
+  );
+}
 
         // Emergency validation safety net to prevent blank screens
         if (!resolvedProfile) {
@@ -649,26 +651,22 @@ export default function Profile() {
   // PRODUCT IMAGE URL
   // ==========================================================================
 
-  const getProductImageUrl = (product) => {
-    const imageUrl =
-      product?.imageUrl ||
-      product?.image ||
-      product?.thumbnail ||
-      "";
+ const getProductImageUrl = (product) => {
+  const imageUrl = product?.imageUrl || product?.image || product?.thumbnail || "";
 
-    if (
-      !imageUrl ||
-      imageUrl.startsWith("http://") ||
-      imageUrl.startsWith("https://") ||
-      imageUrl.startsWith("data:")
-    ) {
-      return imageUrl;
-    }
+  if (
+    !imageUrl ||
+    imageUrl.startsWith("http://") ||
+    imageUrl.startsWith("https://") ||
+    imageUrl.startsWith("data:")
+  ) {
+    return imageUrl; // 🎯 Returns the direct production link safely
+  }
 
-    const fileName = imageUrl.split("/").pop();
+  const fileName = imageUrl.split("/").pop();
+  return `${API_URL}/images/${fileName}`;
+};
 
-    return `${API_URL}/images/${fileName}`;
-  };
 
   // ==========================================================================
   // AVATAR URL
