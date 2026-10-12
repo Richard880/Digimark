@@ -13,7 +13,7 @@ import InboxConversationView from "../features/chats/components/InboxConversatio
 import NotificationsPage from "../features/public/notifications/NotificationsPage";
 
 // 🎯 IMPORTED NEW DEDICATED CHECKOUT WORKSPACE
-import CheckoutPage from "../features/Checkout/CheckoutPage"; 
+import CheckoutPage from "../features/public/Checkout/CheckoutPage"; 
 
 // Import your unified authentication state hook
 import useAuth from "../features/auth/hooks/useAuth";
