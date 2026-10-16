@@ -1,527 +1,299 @@
 const mongoose = require("mongoose");
-const Order = require("../../models/Order");
-const Wallet = require("../../models/Wallet");
-const Product = require("../../models/Product"); // Assumes your product model path matches this layout
 const crypto = require("crypto");
-const { allocateEscrowFunds } = require("../wallet/wallet.controller");
+const Order = require("../../models/Order");
+const Product = require("../../models/Product");
+const User = require("../../models/User");
+const {
+  holdOrderFunds,
+  releaseEscrowToVendor,
+  refundEscrowToBuyer,
+  EscrowError,
+} = require("../wallet/escrow.service");
 
-/**
- * 🛒 GET /api/orders
- * Retrieves all order logs relevant to the logged-in account (Acts as buyer or seller)
- */
+const MAX_QTY = 100;
+const MAX_PIN_ATTEMPTS = 5;
+const PIN_LOCK_MS = 15 * 60 * 1000;
+const STATUSES = ["PENDING_PAYMENT", "PROCESSING", "DISPATCHED", "DELIVERED", "CANCELLED"];
+const OPEN = ["PROCESSING", "DISPATCHED"];
+
+const fail = (code, status = 400, extra) => new EscrowError(code, status, extra);
+const isId = (v) => typeof v === "string" && /^[a-f\d]{24}$/i.test(v);
+const isStr = (v, max = 100) => typeof v === "string" && v.trim().length > 0 && v.length <= max;
+const same = (a, b) => String(a) === String(b);
+
+function sendError(res, err, tag) {
+  if (err instanceof EscrowError) {
+    const body = { error: err.code };
+    if (err.currentBalance !== undefined) {
+      body.currentBalance = err.currentBalance;
+      body.deficit = err.deficit;
+    }
+    return res.status(err.status).json(body);
+  }
+  console.error(`❌ ${tag}:`, err.stack || err.message); // log details, never send them
+  return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+}
+
+// TODO: replace with a real check against your share-link records, so a promoter
+// is only accepted if they actually shared THIS product (see design: unique share pin/url).
+async function resolvePromoter(promoterId, buyerId) {
+  if (!isId(promoterId) || same(promoterId, buyerId)) return null;
+  return (await User.exists({ _id: promoterId })) ? promoterId : null;
+}
+
+/** GET /api/orders : orders where I am buyer, seller or promoter */
 async function listOrders(req, res) {
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
-    }
+    const me = req.user?._id;
+    if (!me) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
 
-    const filter = {};
-    
-    // If they are a business account track, show items sold. Otherwise, show their purchases.
-    if (req.userCategory === "network") {
-      filter.sellerId = req.user._id;
-    } else {
-      filter.buyerId = req.user._id;
-    }
-
+    const filter = { $or: [{ buyerId: me }, { sellerId: me }, { promoterId: me }] };
     const { status } = req.query;
-    if (status && status !== "all") {
-      filter.orderStatus = status;
-    }
+    if (typeof status === "string" && STATUSES.includes(status)) filter.orderStatus = status;
 
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
+
+    // PIN fields are select:false, so they can never appear here
     const orders = await Order.find(filter)
-      .populate("buyerId", "name email phone")
+      .populate("buyerId", "name")
       .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
       .lean();
 
-    return res.status(200).json(orders);
-  } catch (error) {
-    console.error("❌ Exception inside listOrders:", error.message);
-    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+    // Promoters only see sale info, never the buyer's address or phone
+    const safe = orders.map((o) =>
+      !same(o.buyerId?._id ?? o.buyerId, me) && !same(o.sellerId, me)
+        ? { ...o, shippingDetails: undefined, buyerId: undefined }
+        : o
+    );
+    return res.status(200).json(safe);
+  } catch (err) {
+    return sendError(res, err, "listOrders");
   }
 }
 
-/**
- * 🔒 POST /api/orders
- * 🚀 PLUGGED HOOK: Creates an order, locks wallet balances into escrow, and deducts product quantity atomically
- */
+/** POST /api/orders : price & stock from DB, funds -> escrow, all-or-nothing */
 async function createOrder(req, res) {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    const buyerId = req.user?._id;
+    if (!buyerId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+
+    const { productId, promoterId, shippingDetails: sd } = req.body || {};
+    const quantity = req.body?.quantity === undefined ? 1 : req.body.quantity;
+
+    if (!isId(productId)) throw fail("INVALID_PRODUCT_ID");
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QTY) throw fail("INVALID_QUANTITY");
+    if (!sd || !isStr(sd.fullName, 80) || !/^\+?\d{9,15}$/.test(String(sd.phoneNumber || "")) ||
+        !isStr(sd.county, 40) || !isStr(sd.subCounty, 40)) {
+      throw fail("SHIPPING_DETAILS_INVALID");
     }
+    const promoter = await resolvePromoter(promoterId, buyerId);
 
-    const buyerId = req.user._id;
-    const { productId, quantity = 1, shippingDetails, affiliateId } = req.body;
-
-    // Validate presence of required shipping elements explicitly before database parsing
-    if (!shippingDetails || !shippingDetails.subCounty || !shippingDetails.county || !shippingDetails.phoneNumber || !shippingDetails.fullName) {
-      await session.abortTransaction();
-      return res.status(400).json({ error: "VALIDATION_ERROR", reason: "Missing required subCounty, county, phoneNumber, or fullName in shippingDetails." });
-    }
-
-    // 1. Fetch product data from database within the active session
-    const product = await Product.findById(productId).session(session);
-    if (!product) {
-      await session.abortTransaction();
-      return res.status(404).json({ error: "PRODUCT_NOT_FOUND", reason: "Product does not exist in inventory." });
-    }
-
-    if (product.quantity < quantity) {
-      await session.abortTransaction();
-      return res.status(400).json({ error: "INSUFFICIENT_STOCK", reason: "Not enough warehouse stock available." });
-    }
-
-    // 2. Map SokoDigi split-accounting pricing financial variables
-    const retailPricePaid = product.price * quantity;
-    const escrowCourierFee = product.deliveryFee || 0;
-    const totalAmountToLock = retailPricePaid + escrowCourierFee;
-
-    const affiliateCommission = (product.affiliateCommission || 0) * quantity;
-    const resellerWholesaleCost = retailPricePaid - affiliateCommission;
-
-    const orderNumber = `SDO-${crypto.randomBytes(4).toString("hex").toUpperCase()}`;
-    const rawReleasePin = crypto.randomInt(100000, 999999).toString();
-
-    // 3. Atomically lock wallet balance into escrow state container via the shared helper hook
-    try {
-      await allocateEscrowFunds(buyerId, totalAmountToLock, orderNumber, session);
-    } catch (walletError) {
-      await session.abortTransaction();
-      
-      if (walletError.message === "INSUFFICIENT_FUNDS") {
-        return res.status(402).json({
-          reason: "INSUFFICIENT_FUNDS",
-          error: `Insufficient wallet balance. Total required is Ksh ${totalAmountToLock.toLocaleString()}.`,
-          currentBalance: walletError.currentBalance,
-          deficit: walletError.deficit
-        });
+    const order = await mongoose.connection.transaction(async (session) => {
+      // Atomic stock reservation: check + decrement in ONE operation (no oversell race)
+      const product = await Product.findOneAndUpdate(
+        { _id: productId, quantity: { $gte: quantity }, isActive: { $ne: false } },
+        { $inc: { quantity: -quantity } },
+        { new: true, session }
+      );
+      if (!product) {
+        const exists = await Product.exists({ _id: productId }).session(session);
+        throw exists ? fail("INSUFFICIENT_STOCK", 409) : fail("PRODUCT_NOT_FOUND", 404);
       }
-      throw walletError;
-    }
 
-    // 4. Deduct the warehouse catalog stock
-    product.quantity -= quantity;
-    await product.save({ session });
+      const sellerId = product.sellerId || product.merchantId;
+      const delivery = product.deliveryFee || 0;
+      if (!sellerId) throw fail("PRODUCT_HAS_NO_SELLER", 500);
+      if (!Number.isSafeInteger(product.price) || product.price <= 0 ||
+          !Number.isSafeInteger(delivery) || delivery < 0) throw fail("PRODUCT_PRICE_INVALID", 500);
 
-    // 5. Commit the new Escrow Contract order into collection log lists with schema matched naming conventions
-       // 5. Commit the new Escrow Contract order into your exact schema fields
-    const [order] = await Order.create([{
-      orderNumber,
-      buyerId,
-      sellerId: product.sellerId || product.merchantId, 
-      promoterId: product.fromNetwork ? (affiliateId || product.promoterId || null) : null, // Mapped to promoterId
-      
-      // Map your items array elements perfectly as required by schema rules
-      items: [{
-        productId: product._id,
-        name: product.name,
-        quantity: quantity,
-        pricePaid: product.price,
-        commissionAllocated: product.affiliateCommission || 0
-      }],
+      const amount = product.price * quantity + delivery;
+      const orderId = new mongoose.Types.ObjectId();
 
-      financials: {
-        totalWholesaleToShop: resellerWholesaleCost, 
-        totalRetailPaid: retailPricePaid,           
-        totalCommissionSplit: affiliateCommission,    // Schema field matching
-        deliveryFeePaid: escrowCourierFee            // Schema field matching
-      },
-      
-      escrowReleasePin: rawReleasePin,
-      
-      // 🎯 FIXED STATUS MATCH: "PROCESSING" satisfies the Mongoose validation rule perfectly!
-      orderStatus: "PROCESSING", 
-      
-      isEscrowReleased: false,
-      shippingDetails: {
-        subCounty: shippingDetails.subCounty,
-        county: shippingDetails.county,
-        phoneNumber: shippingDetails.phoneNumber,
-        fullName: shippingDetails.fullName,
-        deliveryNotes: shippingDetails.deliveryNotes || ""
-      }
-    }], { session });
+      // Single source of truth for fees: the escrow service
+      const hold = await holdOrderFunds(
+        { orderId, buyerId, vendorId: sellerId, affiliateId: promoter, amount },
+        session
+      );
 
-
-    await session.commitTransaction();
-    session.endSession();
+      const [created] = await Order.create(
+        [{
+          _id: orderId,
+          buyerId,
+          sellerId,
+          promoterId: hold.affiliateBonus > 0 ? promoter : null,
+          items: [{
+            productId: product._id,
+            name: product.name,
+            quantity,
+            pricePaid: product.price,
+            commissionAllocated: hold.affiliateBonus,
+          }],
+          shippingDetails: {
+            fullName: sd.fullName.trim(),
+            phoneNumber: sd.phoneNumber,
+            county: sd.county.trim(),
+            subCounty: sd.subCounty.trim(),
+            deliveryNotes: isStr(sd.deliveryNotes, 300) ? sd.deliveryNotes.trim() : "",
+          },
+          financials: {
+            totalRetailPaid: amount,
+            totalWholesaleToShop: hold.vendorNet,
+            totalCommissionSplit: hold.affiliateBonus,
+            platformFee: hold.platformFee,
+            deliveryFeePaid: delivery,
+          },
+          orderStatus: "PROCESSING", // safe: funds are held in this same transaction
+        }],
+        { session }
+      );
+      return created;
+    });
 
     return res.status(201).json({
       ok: true,
-      message: "🎉 Escrow transaction initialised and funds locked successfully!",
       order: {
         orderNumber: order.orderNumber,
-        totalAmountLocked: order.financials.totalAmountLocked,
-        deliveryReleasePin: rawReleasePin
-      }
+        totalAmountLocked: order.financials.totalRetailPaid,
+        deliveryReleasePin: order.escrowReleasePin, // shown to the buyer only
+      },
     });
-
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error("❌ Order Creation Pipeline Aborted:", error.stack || error.message);
-    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
+  } catch (err) {
+    return sendError(res, err, "createOrder");
   }
 }
 
-/**
- * 🔒 PATCH /api/orders/:orderNumber/release-escrow
- * Handshake Scan Gateway: Moves held wholesale cuts out of escrow and into available shop balances
- */
-async function releaseEscrowViaQrScan(req, res) {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
+/** GET /api/orders/:orderNumber/pin : buyer only */
+async function getDeliveryPin(req, res) {
   try {
+    const buyerId = req.user?._id;
+    if (!buyerId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
     const { orderNumber } = req.params;
+    if (!isStr(orderNumber, 30)) throw fail("INVALID_ORDER_NUMBER");
 
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
-    }
+    const order = await Order.findOne({
+      orderNumber: orderNumber.toUpperCase(),
+      buyerId,
+      isEscrowReleased: false,
+      orderStatus: { $in: OPEN },
+    }).select("+escrowReleasePin orderNumber");
+    if (!order) throw fail("ORDER_NOT_FOUND", 404);
 
-    const order = await Order.findOne({ orderNumber }).session(session);
-    if (!order) {
-      return res.status(404).json({ error: "ORDER_NOT_FOUND" });
-    }
-
-    if (order.buyerId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ 
-        error: "ACCESS_DENIED", 
-        reason: "Fulfillment Violation: Only the verified buyer can authorize escrow cash releases." 
-      });
-    }
-
-    if (order.orderStatus === "delivered" || order.isEscrowReleased) {
-      return res.status(400).json({ error: "ALREADY_FULFILLED" });
-    }
-
-    const totalEscrowAmount = order.financials.totalAmountLocked;
-    const merchantShare = order.financials.resellerWholesaleCost + order.financials.escrowCourierFee;
-    const affiliateShare = order.financials.affiliateCommission;
-
-    // 1. Debit and clear funds from the buyer's locked escrow pocket balance layout container
-    await Wallet.findOneAndUpdate(
-      { userId: order.buyerId },
-      { $inc: { escrowBalance: -totalEscrowAmount } },
-      { session }
-    );
-
-    // 2. Allocate the wholesale amount and delivery fees straight to the merchant's fluid wallet balance
-    await Wallet.findOneAndUpdate(
-      { userId: order.sellerId },
-      {
-        $inc: { balance: merchantShare },$push: {
-          transactions: {
-            transactionId: `REL-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
-            amount: merchantShare,
-            type: "receive_transfer", // Corrected to schema enum specification
-            status: "COMPLETED",
-            description: `Escrow released via customer QR code handshake for Order #${orderNumber}. Wholesale cost and logistics fees credited.`,
-            createdAt: new Date()
-          }
-        }
-      },
-      { session }
-    );
-
-    // 3. Allocate profit cut margins to the network promoter marketer wallet if an affiliate tracking ID is logged
-    if (order.affiliateId && affiliateShare > 0) {
-      await Wallet.findOneAndUpdate(
-        { userId: order.affiliateId },
-        {
-          $inc: { balance: affiliateShare },$push: {
-            transactions: {
-              transactionId: `COM-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
-              amount: affiliateShare,
-              type: "affiliate_commission", // Corrected to schema enum specification
-              status: "COMPLETED",
-              description: `Commission split cut credited from Order #${orderNumber} network checkout share.`,
-              createdAt: new Date()
-            }
-          }
-        },
-        { session }
-      );
-    }
-
-    // 4. Update the order lifecycle milestones tracking properties 
-    order.orderStatus = "delivered"; // Set to correct lowercase layout state
-    order.isEscrowReleased = true;
-    await order.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
-
-    return res.status(200).json({
+    return res.json({
       ok: true,
-      message: "💸 Escrow balances parsed and split routed to platform vendor nodes safely."
+      pin: order.escrowReleasePin,
+      qrPayload: `sokodigi:order:${order.orderNumber}:${order.escrowReleasePin}`,
     });
-
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error("❌ Escrow QR release process failed:", error.stack || error.message);
-    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
-  }
-}
-/**
- * 🔒 PATCH /api/orders/verify-release-pin
- * Handshake PIN Fallback: Allows a vendor/courier to enter the buyer's verbal pin to unlock escrow balances
- */
-async function releaseEscrowViaPinVerification(req, res) {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const { orderNumber, providedPin } = req.body;
-
-    if (!orderNumber || !providedPin) {
-      return res.status(400).json({ error: "ORDER_NUMBER_AND_PIN_MANDATORY" });
-    }
-
-    if (!req.user || !req.user._id) {
-      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
-    }
-
-    const order = await Order.findOne({ orderNumber }).session(session);
-    if (!order) {
-      return res.status(404).json({ error: "ORDER_NOT_FOUND" });
-    }
-
-    if (order.sellerId.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ error: "ACCESS_DENIED", reason: "Only the destination vendor account can input verification PIN codes." });
-    }
-
-    // Fixed: Match the schema's lowercase tracking states
-    if (order.orderStatus === "delivered" || order.isEscrowReleased) {
-      return res.status(400).json({ error: "ALREADY_FULFILLED" });
-    }
-
-    if (order.escrowReleasePin.trim() !== providedPin.trim()) {
-      return res.status(422).json({ error: "INVALID_RELEASE_PIN" });
-    }
-
-    // 💡 REPAIRED ACCOUNTING INCENTIVE BREAKDOWN PIPELINES
-    const totalEscrowAmount = order.financials.totalAmountLocked;
-    const merchantShare = order.financials.resellerWholesaleCost + order.financials.escrowCourierFee;
-    const affiliateShare = order.financials.affiliateCommission;
-
-    // 1. Debit and clear funds from the buyer's locked escrow pocket balance layout container
-    await Wallet.findOneAndUpdate(
-      { userId: order.buyerId },
-      { $inc: { escrowBalance: -totalEscrowAmount } },
-      { session }
-    );
-
-    // 2. Allocate the wholesale amount and delivery fees straight to the merchant's fluid wallet balance
-    await Wallet.findOneAndUpdate(
-      { userId: order.sellerId },
-      {
-        $inc: { balance: merchantShare },
-        $push: {
-          transactions: {
-            transactionId: `REL-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
-            amount: merchantShare,
-            type: "receive_transfer", // Fixed: Matches your wallet schema enum option
-            status: "COMPLETED",
-            description: `Escrow released via verbal verification PIN handshake for Order #${orderNumber}. Wholesale cost and logistics fees credited.`,
-            createdAt: new Date()
-          }
-        }
-      },
-      { session, new: true }
-    );
-
-    // 3. Allocate profit cut margins to the network promoter marketer wallet if an affiliate tracking ID is logged
-    if (order.affiliateId && affiliateShare > 0) {
-      await Wallet.findOneAndUpdate(
-        { userId: order.affiliateId },
-        {
-          $inc: { balance: affiliateShare },
-          $push: {
-            transactions: {
-              transactionId: `COM-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
-              amount: affiliateShare,
-              type: "affiliate_commission", // Fixed: Matches your wallet schema enum option
-              status: "COMPLETED",
-              description: `Commission split cut credited from Order #${orderNumber} network checkout share.`,
-              createdAt: new Date()
-            }
-          }
-        },
-        { session }
-      );
-    }
-
-    // Update status indicators and save order states exactly matching schema lowercase expectations
-    order.orderStatus = "delivered";
-    order.isEscrowReleased = true;
-    await order.save({ session });
-
-    await session.commitTransaction();
-    session.endSession();
-
-    return res.status(200).json({
-      ok: true,
-      message: "🎉 Pin success! Escrow balances released and distributed securely to vendor and promoter lines.",
-      orderStatus: "delivered"
-    });
-
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error("❌ PIN Escrow Release Pipeline Aborted:", error.stack || error.message);
-    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
+  } catch (err) {
+    return sendError(res, err, "getDeliveryPin");
   }
 }
 
-
 /**
- * 🔒 PATCH /api/orders/:orderNumber/fulfill-handshake
- * Unified Handshake Gateway: Accepts either a text verification PIN or a scanned QR verification payload
+ * Seller confirms delivery with the buyer's PIN or scanned QR.
+ * ONE handler for every release route (orderNumber from params or body).
  */
-async function fulfillOrderEscrowHandshake(req, res) {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
+async function completeDelivery(req, res) {
   try {
+    const sellerId = req.user?._id;
+    if (!sellerId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+
+    const orderNumber = req.params?.orderNumber ?? req.body?.orderNumber;
+    const { pin, qrToken, providedPin } = req.body || {};
+    if (!isStr(orderNumber, 30)) throw fail("INVALID_ORDER_NUMBER");
+
+    let submitted = null;
+    const rawPin = pin ?? providedPin;
+    if (typeof rawPin === "string") {
+      submitted = rawPin.trim();
+    } else if (typeof qrToken === "string") {
+      const m = /^sokodigi:order:([A-Za-z0-9-]{1,30}):(\d{6})$/.exec(qrToken.trim());
+      if (!m || m[1].toUpperCase() !== orderNumber.toUpperCase()) throw fail("INVALID_QR", 422);
+      submitted = m[2];
+    }
+    if (!/^\d{6}$/.test(submitted || "")) throw fail("INVALID_PIN_FORMAT");
+
+    // Only this order's seller can find it; anyone else just gets "not found"
+    const order = await Order.findOne({ orderNumber: orderNumber.toUpperCase(), sellerId })
+      .select("+escrowReleasePin +pinAttempts +pinLockedUntil");
+    if (!order) throw fail("ORDER_NOT_FOUND", 404);
+    if (order.isEscrowReleased || order.orderStatus === "DELIVERED") throw fail("ALREADY_FULFILLED", 409);
+    if (!OPEN.includes(order.orderStatus)) throw fail("ORDER_NOT_DELIVERABLE", 409);
+    if (order.pinLockedUntil && order.pinLockedUntil > new Date()) throw fail("TOO_MANY_ATTEMPTS", 429);
+
+    const a = Buffer.from(submitted);
+    const b = Buffer.from(order.escrowReleasePin);
+    if (!(a.length === b.length && crypto.timingSafeEqual(a, b))) {
+      // Runs OUTSIDE the transaction so the failed attempt is always recorded
+      const u = await Order.findOneAndUpdate({ _id: order._id }, { $inc: { pinAttempts: 1 } }, { new: true })
+        .select("+pinAttempts");
+      if (u.pinAttempts >= MAX_PIN_ATTEMPTS) {
+        await Order.updateOne({ _id: order._id },
+          { $set: { pinAttempts: 0, pinLockedUntil: new Date(Date.now() + PIN_LOCK_MS) } });
+      }
+      throw fail("INVALID_RELEASE_PIN", 422);
+    }
+
+    const result = await mongoose.connection.transaction(async (session) => {
+      // The status flip is the lock: only one request can ever win this
+      const claimed = await Order.findOneAndUpdate(
+        { _id: order._id, isEscrowReleased: false, orderStatus: { $in: OPEN } },
+        { $set: { orderStatus: "DELIVERED", isEscrowReleased: true, deliveredAt: new Date(), pinAttempts: 0 } },
+        { session }
+      );
+      if (!claimed) throw fail("ALREADY_FULFILLED", 409);
+      return releaseEscrowToVendor(order._id, session); // pays vendor + promoter + platform
+    });
+
+    return res.status(200).json({ ok: true, status: "DELIVERED", releasedToVendor: result.releasedToVendor });
+  } catch (err) {
+    return sendError(res, err, "completeDelivery");
+  }
+}
+
+/** PATCH /api/orders/:orderNumber/cancel : seller (until delivered) or buyer (before dispatch) */
+async function cancelOrder(req, res) {
+  try {
+    const me = req.user?._id;
+    if (!me) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
     const { orderNumber } = req.params;
-    const { pin, qrToken } = req.body; // Front-end can supply either context parameter
+    if (!isStr(orderNumber, 30)) throw fail("INVALID_ORDER_NUMBER");
 
-    if (!pin && !qrToken) {
-      await session.abortTransaction();
-      return res.status(400).json({ error: "VALIDATION_ERROR", reason: "Either delivery verification PIN or scanned QR token is mandatory." });
-    }
+    const order = await Order.findOne({
+      orderNumber: orderNumber.toUpperCase(),
+      $or: [{ buyerId: me }, { sellerId: me }],
+    });
+    if (!order) throw fail("ORDER_NOT_FOUND", 404);
 
-    if (!req.user || !req.user._id) {
-      await session.abortTransaction();
-      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
-    }
-
-    // 1. Fetch order data within the active transactional boundary session
-    const order = await Order.findOne({ orderNumber }).session(session);
-    if (!order) {
-      await session.abortTransaction();
-      return res.status(404).json({ error: "ORDER_NOT_FOUND" });
-    }
-
-    // 2. Lifecycle Protection: Stop processing if already paid out
-    if (order.orderStatus === "DELIVERED" || order.isEscrowReleased) {
-      await session.abortTransaction();
-      return res.status(400).json({ error: "ALREADY_FULFILLED", reason: "Funds for this order have already been split and liquidated." });
-    }
-
-    // 3. Dual-Verification Gateway Logic
-    let isVerificationValid = false;
-    let verificationMethod = "";
-
-    if (pin) {
-      // Verbal PIN handshake pathway
-      if (order.escrowReleasePin.trim() === pin.trim()) {
-        isVerificationValid = true;
-        verificationMethod = "Verbal PIN validation";
-      }
-    } else if (qrToken) {
-      // Logistics provider QR code scanning matching block
-      // In this setup, your QR token text could be the order number or a hash derived from it
-      if (qrToken.trim() === orderNumber.trim() || qrToken.trim() === order.escrowReleasePin.trim()) {
-        isVerificationValid = true;
-        verificationMethod = "Logistics QR scan handshake";
-      }
-    }
-
-    if (!isVerificationValid) {
-      await session.abortTransaction();
-      return res.status(422).json({ error: "INVALID_VERIFICATION_CREDENTIAL", reason: "Provided delivery credential does not match secure escrow tokens." });
-    }
-
-    // 4. Map dynamic accounting figures from schema properties
-    const totalEscrowAmount = order.financials.totalRetailPaid + order.financials.deliveryFeePaid;
-    const merchantShare = order.financials.totalWholesaleToShop + order.financials.deliveryFeePaid;
-    const promoterShare = order.financials.totalCommissionSplit;
-
-    // 5. Atomic Ledger Updates (Using \$inc and matching schema lowercase enums)
-    // A. Debit buyer's locked escrow balance pocket container
-    await Wallet.findOneAndUpdate(
-      { userId: order.buyerId },
-      { $inc: { escrowBalance: -totalEscrowAmount } },
-      { session }
-    );
-
-    // B. Credit shop vendor account available withdrawable balances
-    await Wallet.findOneAndUpdate(
-      { userId: order.sellerId },
-      {
-        $inc: { balance: merchantShare },
-        $push: {
-          transactions: {
-            transactionId: `REL-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
-            amount: merchantShare,
-            type: "receive_transfer",
-            status: "COMPLETED",
-            description: `Escrow released via ${verificationMethod} for Order #${orderNumber}. Wholesale cost and logistics fees credited.`,
-            createdAt: new Date()
-          }
-        }
-      },
-      { session }
-    );
-
-    // C. Credit promoter node account if an affiliate split was captured
-    if (order.promoterId && promoterShare > 0) {
-      await Wallet.findOneAndUpdate(
-        { userId: order.promoterId },
-        {
-          $inc: { balance: promoterShare },
-          $push: {
-            transactions: {
-              transactionId: `COM-${crypto.randomBytes(3).toString("hex").toUpperCase()}`,
-              amount: promoterShare,
-              type: "affiliate_commission",
-              status: "COMPLETED",
-              description: `Commission split cut credited from Order #${orderNumber} showcase checkout network split.`,
-              createdAt: new Date()
-            }
-          }
-        },
+    const allowed = same(order.sellerId, me) ? OPEN : ["PROCESSING"];
+    await mongoose.connection.transaction(async (session) => {
+      const claimed = await Order.findOneAndUpdate(
+        { _id: order._id, isEscrowReleased: false, orderStatus: { $in: allowed } },
+        { $set: { orderStatus: "CANCELLED", cancelledAt: new Date() } },
         { session }
       );
-    }
-
-    // 6. Finalize Order Object Properties to exactly match your uppercase Mongoose enum
-    order.orderStatus = "DELIVERED";
-    order.isEscrowReleased = true;
-    await order.save({ session });
-
-    // Commit state changes together
-    await session.commitTransaction();
-    session.endSession();
-
-    return res.status(200).json({
-      ok: true,
-      message: `💸 Handshake verified via ${verificationMethod}! Balances split and deposited safely.`,
-      status: "DELIVERED"
+      if (!claimed) throw fail("ORDER_NOT_CANCELLABLE", 409);
+      await refundEscrowToBuyer(order._id, session);
+      for (const it of order.items) {
+        await Product.updateOne({ _id: it.productId }, { $inc: { quantity: it.quantity } }, { session });
+      }
     });
-
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    console.error("❌ Fulfill Escrow Handshake Failure:", error.stack || error.message);
-    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR", message: error.message });
+    return res.json({ ok: true, status: "CANCELLED" });
+  } catch (err) {
+    return sendError(res, err, "cancelOrder");
   }
 }
-
 
 module.exports = {
   listOrders,
   createOrder,
-  releaseEscrowViaQrScan,
-  releaseEscrowViaPinVerification,
-  fulfillOrderEscrowHandshake
+  getDeliveryPin,
+  completeDelivery,
+  cancelOrder,
+  // Old names kept so your existing routes keep working. All use the same safe handler.
+  releaseEscrowViaQrScan: completeDelivery,
+  releaseEscrowViaPinVerification: completeDelivery,
+  fulfillOrderEscrowHandshake: completeDelivery,
 };
-
-
