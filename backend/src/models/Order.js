@@ -1,95 +1,94 @@
 const mongoose = require("mongoose");
+const crypto = require("crypto");
+
+const int = (extra = {}) => ({
+  type: Number,
+  min: 0,
+  validate: { validator: Number.isSafeInteger, message: "Amount must be a whole number" },
+  ...extra,
+});
 
 const orderSchema = new mongoose.Schema(
   {
-orderNumber: {
-  type: String,
-  required: true,
-  unique: true,
-  uppercase: true,
-  index: true,
-  default: () => `SDO-${Math.random().toString(36).substr(2, 7).toUpperCase()}`
-},
-
-// 🎯 NEW: 6-Digit Alpha-Numeric or Numeric Secure Unlock Pin for Desktop Fallbacks
-escrowReleasePin: {
-  type: String,
-  required: true,
-  index: true,
-  // Auto-generates a crisp, unguessable 6-digit uppercase code string
-  default: () => Math.floor(100000 + Math.random() * 900000).toString()
-},
-
-    buyerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+    orderNumber: {
+      type: String,
       required: true,
-      index: true
+      unique: true,
+      uppercase: true,
+      immutable: true,
+      default: () => `SDO-${crypto.randomBytes(5).toString("hex").toUpperCase()}`,
     },
-    sellerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+
+    // 6-digit delivery PIN. Hidden from every query by default.
+    // Read it ONLY in the buyer's PIN endpoint: .select("+escrowReleasePin")
+    escrowReleasePin: {
+      type: String,
       required: true,
-      index: true
+      select: false,
+      immutable: true,
+      default: () => String(crypto.randomInt(100000, 1000000)),
     },
-    // The optional marketer who drove the sale via their in-app shared showcase store link
-    promoterId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-      index: true
-    },
+    pinAttempts: { type: Number, default: 0, select: false },
+    pinLockedUntil: { type: Date, default: null, select: false },
+
+    buyerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
+    sellerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
+    // Marketer who drove the sale (passed to escrow as affiliateId)
+    promoterId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, immutable: true },
+
     items: [
       {
-        productId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "Product",
-          required: true
-        },
+        productId: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
         name: { type: String, required: true },
-        quantity: { type: Number, required: true, min: 1 },
-        pricePaid: { type: Number, required: true }, // Snapshots the customer retail price at checkout time
-        commissionAllocated: { type: Number, default: 0 } // Snapshots affiliate commission split tier
-      }
+        quantity: { type: Number, required: true, min: 1, validate: Number.isInteger },
+        pricePaid: int({ required: true }), // price from DB at checkout, never from the client
+        commissionAllocated: int({ default: 0 }),
+      },
     ],
-    // =========================================================================
-    // 🚚 SHIPPING & LOGISTICS INFRASTRUCTURE LINES
-    // =========================================================================
+
     shippingDetails: {
-      fullName: { type: String, required: true, trim: true },
-      phoneNumber: { type: String, required: true, trim: true },
-      county: { type: String, required: true, trim: true }, // e.g., Kisumu, Nairobi, Mombasa
-      subCounty: { type: String, required: true, trim: true },
-      deliveryNotes: { type: String, trim: true, default: "" } // Pick-up station details or physical addresses
+      fullName: { type: String, required: true, trim: true, maxlength: 80 },
+      phoneNumber: { type: String, required: true, trim: true, match: /^\+?\d{9,15}$/ },
+      county: { type: String, required: true, trim: true, maxlength: 40 },
+      subCounty: { type: String, required: true, trim: true, maxlength: 40 },
+      deliveryNotes: { type: String, trim: true, default: "", maxlength: 300 },
     },
 
-
-    // =========================================================================
-    // 💰 FINANCIAL MATRIX METRICS
-    // =========================================================================
+    // Invariant (enforced below):
+    // totalRetailPaid = totalWholesaleToShop + totalCommissionSplit + platformFee
     financials: {
-      totalRetailPaid: { type: Number, required: true, min: 0 },
-      totalCommissionSplit: { type: Number, required: true, default: 0 },
-      totalWholesaleToShop: { type: Number, required: true, min: 0 },
-      deliveryFeePaid: { type: Number, required: true, default: 0 }
+      totalRetailPaid: int({ required: true }),       // everything the buyer paid = escrow amount
+      totalWholesaleToShop: int({ required: true }),  // seller's net
+      totalCommissionSplit: int({ required: true, default: 0 }), // promoter's 5%
+      platformFee: int({ required: true, default: 0 }),          // Sokodigi's 1%
+      deliveryFeePaid: int({ default: 0 }),           // informational: included in retail, paid to seller
     },
+
     orderStatus: {
       type: String,
       enum: ["PENDING_PAYMENT", "PROCESSING", "DISPATCHED", "DELIVERED", "CANCELLED"],
-      default: "PROCESSING",
-      index: true
+      default: "PENDING_PAYMENT",
+      index: true,
     },
-    isEscrowReleased: {
-      type: Boolean,
-      default: false,
-      index: true
-    }
+    // Set to true ONLY inside the same transaction that releases escrow.
+    // EscrowAccount.status is the source of truth.
+    isEscrowReleased: { type: Boolean, default: false },
+    deliveredAt: Date,
+    cancelledAt: Date,
   },
   { timestamps: true }
 );
 
-// High-speed compound performance optimization index layers
+orderSchema.pre("validate", function (next) {
+  const f = this.financials;
+  if (f && f.totalRetailPaid !== f.totalWholesaleToShop + f.totalCommissionSplit + f.platformFee) {
+    return next(new Error("FINANCIAL_SPLIT_MISMATCH"));
+  }
+  next();
+});
+
 orderSchema.index({ sellerId: 1, orderStatus: 1 });
 orderSchema.index({ buyerId: 1, createdAt: -1 });
+orderSchema.index({ promoterId: 1, createdAt: -1 });
 
 module.exports = mongoose.models.Order || mongoose.model("Order", orderSchema);
