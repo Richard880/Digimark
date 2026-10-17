@@ -1,21 +1,22 @@
 const mongoose = require("mongoose");
 
+// Money and stock are whole numbers. The controller enforces this too; this is the safety net.
+const whole = { validator: Number.isInteger, message: "{PATH} must be a whole number" };
+
 const productSchema = new mongoose.Schema(
   {
-    productCode: { type: String, required: true, unique: true, index: true },
-    sellerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    // 🎯 NEW FALLBACK KEY: Linked directly to our updated backend aggregation pipelines
-    merchantId: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, 
-    
-    name: { type: String, required: true, trim: true, index: true },
-    brandName: { type: String, trim: true, default: "" },
-    
-    // =========================================================================
-    // 🏷️ LOCKED HIERARCHICAL TAXONOMY STRUCTURE
-    // =========================================================================
-    category: { 
-      type: String, 
-      trim: true, 
+    productCode: { type: String, required: true, unique: true, immutable: true },
+
+    sellerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, immutable: true },
+    // Legacy alias of sellerId (the order controller reads either)
+    merchantId: { type: mongoose.Schema.Types.ObjectId, ref: "User", immutable: true },
+
+    name: { type: String, required: true, trim: true, maxlength: 120 },
+    brandName: { type: String, trim: true, default: "", maxlength: 60 },
+
+    category: {
+      type: String,
+      trim: true,
       lowercase: true,
       enum: [
         "phones-gadgets",
@@ -24,101 +25,57 @@ const productSchema = new mongoose.Schema(
         "home-appliances",
         "beauty-personal-care",
         "ankara-art",
-        "general"
+        "general",
       ],
       default: "general",
-      index: true 
     },
-    subCategory: {
-      type: String,
-      trim: true,
-      lowercase: true,
-      default: "general"
-    },
-    
-    // =========================================================================
-    // 💰 REINFORCED PRICE & MULTI-LEVEL SPLIT COMMISSION MATRIX
-    // =========================================================================
-    price: { type: Number, required: true, min: 0 }, 
-    
-    wholesalePrice: {
-      type: Number,
-      required: true,
-      default: 0,
-      min: 0
-    },
-    // 🎯 NEW FALLBACK KEY: Maps seamlessly to our MarketHub data redaction guard layers
-    resellerWholesaleCost: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-    
-    affiliateCommission: {
-      type: Number,
-      required: true,
-      default: 0,
-      min: 0,
-      validate: {
-        validator: function (value) {
-          const availableMargin = this.price - this.wholesalePrice;
-          return value <= availableMargin;
-        },
-        message: "COMMISSION_MARGIN_OVERFLOW: Commission offered cannot exceed total shop profit margins."
-      }
-    },
+    subCategory: { type: String, trim: true, lowercase: true, default: "general", maxlength: 40 },
 
-    // =========================================================================
-    // 📦 INVENTORY & METRICS CONTROLS
-    // =========================================================================
-    // =========================================================================
-    // 📦 INVENTORY & METRICS CONTROLS
-    // =========================================================================
-    quantity: { type: Number, default: 0, min: 0 },
-    deliveryFee: { type: Number, default: 0, min: 0 },
-    description: { type: String, trim: true, default: "" },
-    imageUrl: { type: String, default: "" },
-    
-    // 🎯 FIXED OVERFLOW: Expanded enum configurations to support your UI status toggles
-    status: { 
-      type: String, 
-      enum: ["DRAFT", "READY", "LISTED", "ACTIVE", "UNLISTED", "ARCHIVED"], 
-      default: "ACTIVE", // Swapped default to matching ACTIVE state 
-      index: true 
+    // Retail price in whole shillings
+    price: { type: Number, required: true, min: 1, validate: whole },
+
+    // Server-computed from price (config/fees.js). Never trust client values.
+    // wholesalePrice = price - affiliateCommission - platform fee = seller's net.
+    wholesalePrice: { type: Number, required: true, default: 0, min: 0, validate: whole },
+    resellerWholesaleCost: { type: Number, default: 0, min: 0, validate: whole },
+    affiliateCommission: { type: Number, required: true, default: 0, min: 0, validate: whole },
+
+    // NOTE: min only runs on save(). Stock safety comes from the atomic $gte filter in createOrder.
+    quantity: { type: Number, default: 0, min: 0, validate: whole },
+    deliveryFee: { type: Number, default: 0, min: 0, validate: whole },
+    description: { type: String, trim: true, default: "", maxlength: 2000 },
+    imageUrl: { type: String, default: "", maxlength: 500 },
+
+    // ACTIVE is legacy and treated as LISTED. DRAFT/READY/ARCHIVED are never public.
+    status: {
+      type: String,
+      enum: ["DRAFT", "READY", "LISTED", "ACTIVE", "UNLISTED", "ARCHIVED"],
+      default: "LISTED",
     },
-    // 🎯 VISIBILITY FLAGS: Synchronizes with the dashboard toggle-shelf buttons
-    isShelved: { type: Boolean, default: true, index: true },
+    isShelved: { type: Boolean, default: true },
     isPremiumVendor: { type: Boolean, default: false },
     likesCount: { type: Number, default: 0, min: 0 },
 
-    // =========================================================================
-    // 🧠 BEHAVIORAL INTENT-DRIVEN SMART METRICS (For Algorithmic Sorting)
-    // =========================================================================
+    // Written by the system only (never from request bodies)
     metrics: {
       conversionRate: { type: Number, default: 0, min: 0, max: 1 },
       referralCount: { type: Number, default: 0, min: 0 },
-      escrowDisputeRate: { type: Number, default: 0, min: 0, max: 1 }
-    }
+      escrowDisputeRate: { type: Number, default: 0, min: 0, max: 1 },
+    },
   },
   { timestamps: true }
 );
 
-// High-speed performance compound indexing strategies
-productSchema.index({ status: 1, createdAt: -1 });
-productSchema.index({ sellerId: 1, createdAt: -1 });
-productSchema.index({ category: 1, price: 1 });
-// 🎯 NEW ALGORITHMIC INDEX: Optimizes MarketHub ranking queries
-productSchema.index({ isShelved: 1, category: 1, "metrics.conversionRate": -1 });
+// Indexes: only the ones real queries use
+productSchema.index({ isShelved: 1, status: 1, quantity: 1 });            // public feed
+productSchema.index({ sellerId: 1, status: 1, createdAt: -1 });           // seller inventory
+productSchema.index({ category: 1, price: 1 });                           // category browsing
+productSchema.index({ isShelved: 1, category: 1, "metrics.conversionRate": -1 }); // ranking
 
-// Atomic calculation pre-save helper
-productSchema.pre("save", async function () {
-  if (this.wholesalePrice === 0 && this.price > 0) {
-    this.wholesalePrice = this.price - this.affiliateCommission;
-  }
-  
+// Keep the legacy alias columns in sync (does NOT touch prices)
+productSchema.pre("save", function () {
   this.resellerWholesaleCost = this.wholesalePrice;
   if (!this.merchantId) this.merchantId = this.sellerId;
 });
 
-
-module.exports = mongoose.model("Product", productSchema);
+module.exports = mongoose.models.Product || mongoose.model("Product", productSchema);
