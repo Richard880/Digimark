@@ -1,6 +1,6 @@
 // services/matrixService.js
 const mongoose = require("mongoose");
-const User = require("../models/User"); // must be the SAME User file auth.service.js loads
+const User = require("../src/models/User"); // must be the SAME User file auth.service.js loads
 
 const MAX_DIRECT = 10; // direct slots per member
 const MAX_DEPTH = 4;   // levels counted from the sponsor
