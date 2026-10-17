@@ -40,14 +40,16 @@ function cleanUrl(v) {
     return null;
   }
 
-  // Only images hosted in YOUR Cloudinary account are accepted
-function cleanImageUrl(v) {
+// Accepts only images uploaded to YOUR Cloudinary account's products folder
+function cleanImageUrl(v, folder = "sokodigi/products") {
   if (v === "") return "";
   const u = cleanUrl(v);
   if (u === null) return null;
   const { hostname, pathname } = new URL(u);
-  const ok = hostname === "res.cloudinary.com" && pathname.startsWith(`/${process.env.CLOUDINARY_CLOUD_NAME}/`);
-  return ok ? u : null;
+  const cloud = (process.env.CLOUDINARY_CLOUD_NAME || "").replace(/[^\w-]/g, "");
+  if (hostname !== "res.cloudinary.com" || !cloud) return null;
+  const re = new RegExp(`^/${cloud}/image/upload/(v\\d+/)?${folder}/[\\w-]{1,80}\\.(jpg|jpeg|png|webp)$`);
+  return re.test(pathname) ? u : null;
 }
 }
 
