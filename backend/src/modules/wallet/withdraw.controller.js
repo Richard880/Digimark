@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const Wallet = require("../../models/Wallet");
 const Withdrawal = require("../../models/Withdrawal");
 const { darajaFetch, getAccessToken, normalizePhone, safeEq } = require("./wallet.controller");
+const UserProfile = require("../../models/UserProfile.js");
 
 const REQUIRED_ENV = [
   "MPESA_B2C_SHORTCODE", "MPESA_INITIATOR_NAME", "MPESA_INITIATOR_PASSWORD",
@@ -172,7 +173,8 @@ async function requestWithdrawal(req, res) {
       return res.status(400).json({ error: "INVALID_AMOUNT", min: MIN_WITHDRAW, max: MAX_WITHDRAW });
     }
     // Always the phone saved on the account, never one from the request
-    const phone = normalizePhone(req.user.phone);
+    const profile = await UserProfile.findOne({ userId }).select("phoneNumber").lean();
+    const phone = normalizePhone(profile?.phoneNumber);
     if (!phone) return res.status(400).json({ error: "PAYOUT_PHONE_NOT_SET" });
 
     // Retry of a request we already handled: return it, send nothing
