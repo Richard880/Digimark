@@ -206,7 +206,7 @@ if (category === null || !CATEGORIES.includes(category) || subCategory === null)
   return res.status(400).json({ ok: false, error: "INVALID_CATEGORY", allowed: CATEGORIES });
 }
 const description = b.description === undefined ? "" : str(b.description, 2000);
-const imageUrl = b.imageUrl === undefined ? "" : cleanImageUrl(b.imageUrl). Set CLOUDINARY_CLOUD_NAME;
+const imageUrl = b.imageUrl === undefined ? "" : cleanImageUrl(b.imageUrl);
 if (description === null) return bad(res, "INVALID_DESCRIPTION");
 if (imageUrl === null) return bad(res, "INVALID_IMAGE_URL");
 
