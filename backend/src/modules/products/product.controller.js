@@ -198,7 +198,7 @@ if (description === null) return bad(res, "INVALID_DESCRIPTION");
 if (imageUrl === null) return bad(res, "INVALID_IMAGE_URL");
 
     // Brand comes from the verified profile only, never from the request
-    const brandName = req.user.brand?.name || req.user.brandName || req.user.displayName || "SokoDigi Merchant";
+   
     const prof = await UserProfile.findOne({ userId: req.user._id }).select("brandName").lean();
     const brandName = prof?.brandName || "SokoDigi Merchant";
     
