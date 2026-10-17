@@ -1,108 +1,81 @@
 const mongoose = require("mongoose");
+const { Schema } = mongoose;
 
-const userSchema = new mongoose.Schema(
+const MAX_DIRECT = 10;
+const ADMIN_ROLES = ["super_admin", "admin"];
+
+const userSchema = new Schema(
   {
-    firebaseUid: {
-      type: String,
-      required: true,
-      unique: true,
-      index: true,
-      immutable: true,
-      trim: true,
-    },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-      index: true,
-    },
-    role: {
-      type: String,
-      enum: ["super_admin", "admin", "member", "user"],
-      default: "user",
-      index: true,
-    },
-    accountType: {
-      type: String,
-      enum: ["member", "user"],
-      default: "user",
-      index: true,
-    },
-    membershipStatus: {
-      type: String,
-      enum: ["pending", "active", "suspended", "cancelled"],
-      default: "pending",
-      index: true,
-    },
-    isActive: { type: Boolean, default: true, index: true },
+    firebaseUid: { type: String, required: true, unique: true, immutable: true, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true, maxlength: 254 },
+
+    // Privileges. NEVER set from a request body.
+    role: { type: String, enum: ["super_admin", "admin", "member", "user"], default: "user" },
+    accountType: { type: String, enum: ["member", "user"], default: "user" }, // kept in sync by the hook
+    accountCategory: { type: String, enum: ["retail", "network"], required: true, default: "retail" },
+
+    // pending = registered but fee not paid. Only "active" members may sell or earn.
+    membershipStatus: { type: String, enum: ["pending", "active", "suspended", "cancelled"], default: "pending" },
+
+    isActive: { type: Boolean, default: true }, // admin kill switch (false = account disabled)
     emailVerified: { type: Boolean, default: false },
     lastLoginAt: { type: Date, default: null },
 
-    // ==========================================
-    // 🎯 🛡️ NEW DUAL-TRACK & MATRIX FIELDS
-    // ==========================================
-    accountCategory: {
-      type: String,
-      enum: ["retail", "network"],
-      required: true,
-      default: "retail",
-      index: true,
-    },
-    // The direct sales sponsor (Who brought them into SokoDigi)
-    sponsorId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-      index: true,
-    },
-    // The structural tree parent (Where the matrix engine auto-placed them)
-    parentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-      index: true,
-    },
-    // Immediate child legs underneath this node (max 10 based on MAX_DIRECT)
-    referrals: {
-      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-      default: [],
-    },
-    // High-Performance Materialized Path Array (All ancestors up to the corporate root node)
-    // Turns recursive tree scanning lookups into single database queries
-    pathFromRoot: {
-      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-      default: [],
-      index: true,
-    },
+    // Commission gate. Written ONLY by the activity engine, never by requests.
+    commissionEligible: { type: Boolean, default: false },
+    eligibilityCheckedAt: { type: Date, default: null },
+
+    // Matrix. Set once by auth.service (sponsor at signup, parent at paid activation).
+    sponsorId: { type: Schema.Types.ObjectId, ref: "User", default: null }, // who recruited them
+    parentId: { type: Schema.Types.ObjectId, ref: "User", default: null },  // where the matrix placed them
+    // Slots are claimed with an atomic $expr-guarded $push. Never $push here from anywhere else.
+    referrals: { type: [{ type: Schema.Types.ObjectId, ref: "User" }], default: [] },
+    // All ancestors, root first. Powers downline and commission queries.
+    pathFromRoot: { type: [{ type: Schema.Types.ObjectId, ref: "User" }], default: [] },
   },
   { timestamps: true }
 );
 
-// =========================================================================
-// 🔒 DATA INTEGRITY VALIDATION GUARD (Pre-Save Middleware Hook)
-// =========================================================================
-// =========================================================================
-// 🔒 DATA INTEGRITY VALIDATION GUARD (Pre-Save Middleware Hook)
-// =========================================================================
-// 🎯 THE FIX: Changed from function(next) to an async function without parameters.
-userSchema.pre("save", async function () {
-  // If user is a standard retail shopper, force-wipe any matrix tracking properties
+// Indexes (unique ones above already create theirs)
+userSchema.index({ sponsorId: 1 });
+userSchema.index({ parentId: 1 });
+userSchema.index({ pathFromRoot: 1 }); // multikey
+userSchema.index({ accountCategory: 1, membershipStatus: 1, commissionEligible: 1 });
+
+// Backup guard. The REAL slot protection is the atomic filter in claimSlot().
+userSchema.pre("save", function () {
+  const self = String(this._id);
+
   if (this.accountCategory === "retail") {
     this.sponsorId = null;
     this.parentId = null;
     this.referrals = [];
     this.pathFromRoot = [];
+    this.commissionEligible = false;
   }
 
-  // Enforce structural boundary rules for Network Members
-  if (this.accountCategory === "network" && this.referrals.length > 10) {
-    // 🎯 THE FIX: Throwing a native Error replaces next(error) cleanly inside an async hook block
-    throw new Error("MATRIX_INTEGRITY_VIOLATION: Referrals array cannot exceed MAX_DIRECT (10 legs).");
+  if (this.sponsorId && String(this.sponsorId) === self) throw new Error("MATRIX_INTEGRITY_VIOLATION: self-sponsor");
+  if (this.parentId && String(this.parentId) === self) throw new Error("MATRIX_INTEGRITY_VIOLATION: self-parent");
+  if (this.referrals.length > MAX_DIRECT) {
+    throw new Error("MATRIX_INTEGRITY_VIOLATION: referrals cannot exceed 10 legs");
   }
 
-  // 🎯 THE FIX: Omit next() entirely. Mongoose automatically continues when this async function finishes!
+  // role/accountType follow the category (admins keep their own role)
+  if (!ADMIN_ROLES.includes(this.role)) {
+    const r = this.accountCategory === "network" ? "member" : "user";
+    this.role = r;
+    this.accountType = r;
+  }
 });
 
-module.exports = mongoose.model("User", userSchema);
+// Safety net: never serialize internals to a browser
+userSchema.set("toJSON", {
+  transform: (_doc, ret) => {
+    delete ret.firebaseUid;
+    delete ret.pathFromRoot;
+    delete ret.__v;
+    return ret;
+  },
+});
+
+module.exports = mongoose.models.User || mongoose.model("User", userSchema);
