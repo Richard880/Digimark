@@ -16,6 +16,9 @@ const userSchema = new Schema(
 
     // pending = registered but fee not paid. Only "active" members may sell or earn.
     membershipStatus: { type: String, enum: ["pending", "active", "suspended", "cancelled"], default: "pending" },
+    plan: { type: String, enum: ["phase1", "phase2", "phase3", "phase4"], default: null },
+membershipStartedAt: { type: Date, default: null },
+membershipExpiresAt: { type: Date, default: null },
 
     isActive: { type: Boolean, default: true }, // admin kill switch (false = account disabled)
     emailVerified: { type: Boolean, default: false },
