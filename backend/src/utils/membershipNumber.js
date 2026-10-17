@@ -1,26 +1,28 @@
 const Counter = require("../models/Counter");
 
-async function generateMembershipNumber() {
-  try {
-    const counter = await Counter.findOneAndUpdate(
-      { key: "membership" },
-      { $inc: { value: 1 } },
-      // 🎯 FIX: Added the missing "s" to setDefaultsOnInsert so Mongoose handles missing collections safely
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
-    
-    // Safely fallback if counter structure hasn't fully propagated yet
-    const currentValue = counter && counter.value ? counter.value : 1;
+const BASE = 1000;
 
-    const number = 1000 + currentValue;
-    return `SDK-${String(number).padStart(6, "0")}`;
-    
-  } catch (error) {
-    console.error("❌ Counter generation failed:", error.message);
-    // Safe emergency fallback so the user registration process doesn't throw a 500 error if DB lags
-    const randomFallback = Math.floor(100000 + Math.random() * 900000);
-    return `SDK-${randomFallback}`;
+async function nextValue() {
+  const counter = await Counter.findOneAndUpdate(
+    { key: "membership" },
+    { $inc: { value: 1 } },
+    { new: true, upsert: true }
+  );
+  if (!counter || !Number.isInteger(counter.value)) throw new Error("COUNTER_INVALID");
+  return counter.value;
+}
+
+async function generateMembershipNumber() {
+  let value;
+  try {
+    value = await nextValue();
+  } catch (e) {
+    // Two requests created the counter at the same moment: the loser just retries once
+    if (e.code === 11000) value = await nextValue();
+    else throw e;
   }
+  // Never invent a number on failure. Better to fail the request than issue a duplicate ID.
+  return `SDK-${String(BASE + value).padStart(6, "0")}`;
 }
 
 module.exports = generateMembershipNumber;
