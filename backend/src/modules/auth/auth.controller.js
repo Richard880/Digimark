@@ -125,7 +125,8 @@ async function syncCurrentUser(req, res) {
         break;
       }
     }
-    userData.profilePhoto = photo || (fu.picture ? cleanUrl(fu.picture) : null);
+   
+    userData.profilePhoto = photo; // explicit uploads only
 
     const result = await synchronizeFirebaseUser({
       firebaseUid: fu.uid,
@@ -133,6 +134,7 @@ async function syncCurrentUser(req, res) {
       emailVerified: Boolean(fu.email_verified),
       displayName: typeof fu.name === "string" ? fu.name.slice(0, 100) : "",
       userData,
+      defaultPhoto: fu.picture ? cleanUrl(fu.picture) : null
     });
 
     return res.json({ user: result.user, profile: result.profile });
