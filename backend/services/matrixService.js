@@ -1,226 +1,157 @@
 // services/matrixService.js
 const mongoose = require("mongoose");
-const User = require("../models/User");
+const User = require("../models/User"); // must be the SAME User file auth.service.js loads
 
-const MAX_DIRECT = 10;
-const MAX_DEPTH = 4;
+const MAX_DIRECT = 10; // direct slots per member
+const MAX_DEPTH = 4;   // levels counted from the sponsor
+
+const sizeOf = (refs) => (Array.isArray(refs) ? refs.length : 0);
+
+const emptyGenerations = () => {
+  const g = {};
+  for (let i = 1; i <= MAX_DEPTH; i++) g[`level_${i}`] = 0;
+  return g;
+};
+
+const emptyMetrics = () => ({
+  ok: true,
+  summary: { totalDownline: 0, activeDownline: 0, inactiveDownline: 0, activityDensityPercentage: 0 },
+  spilloverMetrics: { totalSpillovers: 0, spilloverRatePercentage: 0 },
+  generations: emptyGenerations(),
+  legBalanceMatrix: {},
+});
 
 /**
- * High-performance Asynchronous BFS Traversal forced-matrix auto-placement engine
- * Locates the absolute next available structural parent row node balancing the network.
- * Explicitly ignores "retail" category accounts.
- * @param {mongoose.Types.ObjectId} sponsorObjectId 
- * @returns {Promise<{ok: boolean, parentId?: mongoose.Types.ObjectId, level?: number, reason?: string}>}
+ * Breadth-first forced-matrix placement, one DATABASE query per level (max 4).
+ * Advisory only: the real slot is claimed atomically in auth.service placeInMatrix().
+ * @returns {Promise<{ok: boolean, parentId?: ObjectId, level?: number, reason?: string}>}
  */
 async function findMlmPlacement(sponsorObjectId) {
-  const rootUser = await User.findById(sponsorObjectId);
-  if (!rootUser) return { ok: false, reason: "SPONSOR_NOT_FOUND" };
-  if (rootUser.accountCategory !== "network") {
-    return { ok: false, reason: "TARGET_SPONSOR_NOT_A_NETWORK_MEMBER" };
-  }
+  if (!mongoose.isValidObjectId(sponsorObjectId)) return { ok: false, reason: "SPONSOR_NOT_FOUND" };
 
-  // Level 1 Immediate Check
-  if (rootUser.referrals.length < MAX_DIRECT) {
-    return { ok: true, parentId: rootUser._id, level: 1 };
-  }
+  const sponsor = await User.findById(sponsorObjectId)
+    .select("accountCategory membershipStatus referrals")
+    .lean();
+  if (!sponsor) return { ok: false, reason: "SPONSOR_NOT_FOUND" };
+  if (sponsor.accountCategory !== "network") return { ok: false, reason: "TARGET_SPONSOR_NOT_A_NETWORK_MEMBER" };
+  if (sponsor.membershipStatus !== "active") return { ok: false, reason: "SPONSOR_NOT_ACTIVE" };
 
-  // Traversal array tracking hierarchy queue nodes
-  const queue = [];
-  rootUser.referrals.forEach((rid) => queue.push({ id: rid, depth: 2 }));
+  let frontier = [sponsor]; // members at the current level, in left-to-right order
 
-  while (queue.length > 0) {
-    const { id, depth } = queue.shift();
-    const currentMember = await User.findById(id);
-    if (!currentMember || currentMember.accountCategory !== "network") continue;
+  for (let depth = 1; depth <= MAX_DEPTH; depth++) {
+    const open = frontier.find((n) => sizeOf(n.referrals) < MAX_DIRECT);
+    if (open) return { ok: true, parentId: open._id, level: depth };
+    if (depth === MAX_DEPTH) break;
 
-    if (depth > MAX_DEPTH) continue;
+    const childIds = frontier.flatMap((n) => n.referrals || []);
+    if (!childIds.length) break;
 
-    if (currentMember.referrals.length < MAX_DIRECT) {
-      return { ok: true, parentId: currentMember._id, level: depth };
-    }
-
-    currentMember.referrals.forEach((cid) => {
-      queue.push({ id: cid, depth: depth + 1 });
-    });
+    const rows = await User.find({ _id: { $in: childIds }, accountCategory: "network" })
+      .select("referrals")
+      .lean();
+    const byId = new Map(rows.map((r) => [String(r._id), r]));
+    frontier = childIds.map((id) => byId.get(String(id))).filter(Boolean); // keeps the order
   }
 
   return { ok: false, reason: "COMMUNITY_FULL" };
 }
 
 /**
- * Resolves ancestral upline node positions for placement calculations
- * @param {mongoose.Types.ObjectId} userObjectId 
- * @param {number} maxSuggestions 
- * @returns {Promise<Array>}
+ * Walks up the sponsor chain and lists ancestors that still have free slots.
+ * If exposed through a route, only show it to the signed-in member about their OWN chain.
  */
 async function calculateUplineSuggestions(userObjectId, maxSuggestions = 12) {
-  const validSponsor = await User.findById(userObjectId);
-  if (!validSponsor || validSponsor.accountCategory !== "network") return [];
+  if (!mongoose.isValidObjectId(userObjectId)) return [];
+  const limit = Math.min(Math.max(1, maxSuggestions | 0), 20);
+
+  let node = await User.findById(userObjectId).select("accountCategory referrals sponsorId").lean();
+  if (!node || node.accountCategory !== "network") return [];
 
   const suggestions = [];
-  let currentAncestor = validSponsor;
-
-  while (currentAncestor && suggestions.length < maxSuggestions) {
-    if (currentAncestor.referrals.length < MAX_DIRECT) {
-      suggestions.push({
-        userId: currentAncestor._id,
-        level: "upline",
-        free: MAX_DIRECT - currentAncestor.referrals.length
-      });
+  const seen = new Set(); // protects against a corrupted loop in the chain
+  while (node && suggestions.length < limit && !seen.has(String(node._id))) {
+    seen.add(String(node._id));
+    const used = sizeOf(node.referrals);
+    if (used < MAX_DIRECT) {
+      suggestions.push({ userId: node._id, level: "upline", free: MAX_DIRECT - used });
     }
-    if (!currentAncestor.sponsorId) break;
-    currentAncestor = await User.findById(currentAncestor.sponsorId);
+    if (!node.sponsorId) break;
+    node = await User.findById(node.sponsorId).select("accountCategory referrals sponsorId").lean();
   }
-
   return suggestions;
 }
 
 /**
- * 🎯 High-Performance Matrix Metrics Engine
- * Aggregates downline metrics up to MAX_DEPTH inside a single database pass
- * Backward-compatible wrapper dropping version-locked restrictExpression features
- * @param {mongoose.Types.ObjectId|string} rootUserId - Target node to build performance metrics for
+ * Downline statistics for ONE member, up to MAX_DEPTH levels.
+ * Uses each member's stored ancestor path (pathFromRoot), so it never builds a giant document.
+ * rootUserId MUST be req.user._id, never a value from the URL or query string.
  */
 async function getMatrixMetrics(rootUserId) {
   try {
-    if (!rootUserId) {
-      return { ok: false, error: "USER_ID_MANDATORY" };
-    }
+    if (!rootUserId) return { ok: false, error: "USER_ID_MANDATORY" };
+    if (!mongoose.isValidObjectId(rootUserId)) return { ok: false, error: "INVALID_USER_ID" };
 
-    if (!mongoose.isValidObjectId(rootUserId)) {
-      return { ok: false, error: "INVALID_USER_ID" };
-    }
+    const anchorId = new mongoose.Types.ObjectId(String(rootUserId));
+    const anchor = await User.findOne({ _id: anchorId, accountCategory: "network" })
+      .select("referrals")
+      .lean();
+    if (!anchor) return emptyMetrics();
 
-    // Cast the variable explicitly to handle string vs ObjectId structural variance on Vercel nodes
-    const anchorId = new mongoose.Types.ObjectId(rootUserId.toString());
-
-    // 1. Single database pass using graph traversal matching only network node boundaries
-    const downlineTree = await User.aggregate([
-      { 
-        $match: { 
-          _id: anchorId, 
-          accountCategory: "network" 
-        } 
-      },
+    const idx = { $indexOfArray: ["$pathFromRoot", anchorId] };
+    const members = await User.aggregate([
+      { $match: { pathFromRoot: anchorId, accountCategory: "network" } },
+      { $addFields: { level: { $subtract: [{ $size: "$pathFromRoot" }, idx] } } },
+      { $match: { level: { $gte: 1, $lte: MAX_DEPTH } } },
       {
-        $graphLookup: {
-          from: "users",
-          startWith: "\$referrals",
-          connectFromField: "referrals",
-          connectToField: "_id",
-          as: "rawMatrixDownline",
-          maxDepth: MAX_DEPTH - 1, // 0-indexed boundary mapping
-          depthField: "generationDepth"
-        }
+        $project: {
+          level: 1, membershipStatus: 1, sponsorId: 1, parentId: 1,
+          // which of my direct legs this member sits under (a direct child is its own leg)
+          leg: { $ifNull: [{ $arrayElemAt: ["$pathFromRoot", { $add: [idx, 1] }] }, "$_id"] },
+        },
       },
-      {
-        // 🎯 THE COMPATIBILITY CURE: Standard filtering block supported across all old and new Mongo servers
-        $addFields: {
-          matrixDownline: {
-            $filter: {
-              input: "$rawMatrixDownline",
-              as: "node",
-            cond: { $eq: ["$$node.accountCategory", "network"] }
-
-            }
-          }
-        }
-      },
-      {
-        // Flush temporary arrays out of the response payload memory map
-        $project: { rawMatrixDownline: 0 }
-      }
     ]);
 
-    // Return an empty structure layout gracefully instead of dropping an exception if user downline matches zero records
-    if (!downlineTree || downlineTree.length === 0) {
-      const emptyGenerations = {};
-      for (let i = 1; i <= MAX_DEPTH; i++) {
-        emptyGenerations[`level_${i}`] = 0;
-      }
-      return {
-        ok: true,
-        summary: { totalDownline: 0, activeDownline: 0, inactiveDownline: 0, activityDensityPercentage: 0 },
-        spilloverMetrics: { totalSpillovers: 0, spilloverRatePercentage: 0 },
-        generations: emptyGenerations,
-        legBalanceMatrix: {}
-      };
-    }
+    const generations = emptyGenerations();
+    const legBalanceMatrix = {};
+    (anchor.referrals || []).forEach((id, i) => {
+      legBalanceMatrix[String(id)] = { legLabel: `Leg Position ${i + 1}`, totalCount: 0, activeCount: 0 };
+    });
 
-    // Safely unpack index 0 envelope reference container
-    const rootDoc = downlineTree[0];
-    const members = rootDoc.matrixDownline || [];
-    const directChildren = (rootDoc.referrals || []).map(id => id.toString());
-
-    // 2. Initializing Accumulators
-    let totalDownline = members.length;
     let activeDownline = 0;
     let totalSpillovers = 0;
 
-    const generations = {};
-    for (let i = 1; i <= MAX_DEPTH; i++) {
-      generations[`level_${i}`] = 0;
+    for (const m of members) {
+      const active = m.membershipStatus === "active";
+      if (active) activeDownline++;
+      generations[`level_${m.level}`]++;
+
+      if (m.sponsorId && m.parentId && String(m.sponsorId) !== String(m.parentId)) totalSpillovers++;
+
+      const leg = legBalanceMatrix[String(m.leg)];
+      if (leg) {
+        leg.totalCount++;
+        if (active) leg.activeCount++;
+      }
     }
 
-    const legBalanceMatrix = {};
-    directChildren.forEach((childId, index) => {
-      legBalanceMatrix[childId] = {
-        legLabel: `Leg Position ${index + 1}`,
-        totalCount: 0,
-        activeCount: 0
-      };
-    });
-
-    // 3. Metric Aggregation Loop
-    members.forEach((member) => {
-      if (member.isActive || member.membershipStatus === "active") activeDownline++;
-
-      const exactLevel = member.generationDepth + 1;
-      if (generations[`level_${exactLevel}`] !== undefined) {
-        generations[`level_${exactLevel}`]++;
-      }
-
-      // Spillover Evaluation: placement parentId is different from direct referral sponsorId
-      if (member.sponsorId && member.parentId && member.sponsorId.toString() !== member.parentId.toString()) {
-        totalSpillovers++;
-      }
-
-      // Leg Balance Sorting via ancestral index tracing maps
-      if (member.pathFromRoot && member.pathFromRoot.length > 0) {
-        const anchorIndex = member.pathFromRoot.findIndex(id => id.toString() === anchorId.toString());
-        if (anchorIndex !== -1 && member.pathFromRoot[anchorIndex + 1]) {
-          const matchingLegId = member.pathFromRoot[anchorIndex + 1].toString();
-          if (legBalanceMatrix[matchingLegId]) {
-            legBalanceMatrix[matchingLegId].totalCount++;
-            if (member.isActive || member.membershipStatus === "active") legBalanceMatrix[matchingLegId].activeCount++;
-          }
-        }
-      }
-    });
-
+    const total = members.length;
+    const pct = (n) => (total > 0 ? parseFloat(((n / total) * 100).toFixed(2)) : 0);
     return {
       ok: true,
       summary: {
-        totalDownline,
+        totalDownline: total,
         activeDownline,
-        inactiveDownline: totalDownline - activeDownline,
-        activityDensityPercentage: totalDownline > 0 ? parseFloat(((activeDownline / totalDownline) * 100).toFixed(2)) : 0
+        inactiveDownline: total - activeDownline,
+        activityDensityPercentage: pct(activeDownline),
       },
-      spilloverMetrics: {
-        totalSpillovers,
-        spilloverRatePercentage: totalDownline > 0 ? parseFloat(((totalSpillovers / totalDownline) * 100).toFixed(2)) : 0
-      },
+      spilloverMetrics: { totalSpillovers, spilloverRatePercentage: pct(totalSpillovers) },
       generations,
-      legBalanceMatrix
+      legBalanceMatrix,
     };
   } catch (error) {
-    console.error("❌ Matrix Engine Analytics Fault:", error.message);
-    return { ok: false, error: "METRICS_COMPUTATION_CRASHED", reason: error.message };
+    console.error("❌ Matrix Engine Analytics Fault:", error.stack || error.message);
+    return { ok: false, error: "METRICS_COMPUTATION_CRASHED" };
   }
 }
 
-module.exports = {
-  findMlmPlacement,
-  calculateUplineSuggestions,
-  getMatrixMetrics
-};
+module.exports = { findMlmPlacement, calculateUplineSuggestions, getMatrixMetrics, MAX_DIRECT, MAX_DEPTH };
