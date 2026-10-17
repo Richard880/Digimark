@@ -3,7 +3,7 @@ const User = require("../../models/User");
 const UserProfile = require("../../models/UserProfile.js");
 const Wallet = require("../../models/Wallet");
 const matrixService = require("../../../services/matrixService");
-const generateMembershipNumber = require("../../utils/membershipNumber");
+// const generateMembershipNumber = require("../../utils/membershipNumber");
 
 const MAX_DIRECT_REFERRALS = 10;
 const ROOT_EMAIL = (process.env.COMPANY_ROOT_EMAIL || "admin@sokodigi.com").toLowerCase();
