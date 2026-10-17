@@ -4,6 +4,7 @@ const Product = require("../../models/Product");
 const Order = require("../../models/Order");
 const ShareLink = require("../../models/ShareLink");
 const { PLATFORM_BP, AFFILIATE_BP } = require("../config/fees");
+const CATEGORIES = Product.schema.path("category").enumValues;
 
 // =========================================================================
 // CONFIG & HELPERS
@@ -185,13 +186,16 @@ async function createProduct(req, res) {
     const status = normalizeStatus(b.status || "LISTED");
     if (!VALID_PRODUCT_STATUSES.includes(status)) return bad(res, "INVALID_PRODUCT_STATUS");
 
-    const category = b.category === undefined ? "general" : str(b.category, 40);
-    const subCategory = b.subCategory === undefined ? "" : str(b.subCategory, 40);
-    const description = b.description === undefined ? "" : str(b.description, 2000);
-    const imageUrl = b.imageUrl === undefined ? "" : cleanUrl(b.imageUrl);
-    if (category === null || subCategory === null) return bad(res, "INVALID_CATEGORY");
-    if (description === null) return bad(res, "INVALID_DESCRIPTION");
-    if (imageUrl === null) return bad(res, "INVALID_IMAGE_URL");
+   const catRaw = b.category === undefined ? "general" : str(b.category, 40);
+const category = catRaw === null ? null : (catRaw || "general").toLowerCase();
+const subCategory = b.subCategory === undefined ? "" : str(b.subCategory, 40);
+if (category === null || !CATEGORIES.includes(category) || subCategory === null) {
+  return res.status(400).json({ ok: false, error: "INVALID_CATEGORY", allowed: CATEGORIES });
+}
+const description = b.description === undefined ? "" : str(b.description, 2000);
+const imageUrl = b.imageUrl === undefined ? "" : cleanUrl(b.imageUrl);
+if (description === null) return bad(res, "INVALID_DESCRIPTION");
+if (imageUrl === null) return bad(res, "INVALID_IMAGE_URL");
 
     // Brand comes from the verified profile only, never from the request
     const brandName = req.user.brand?.name || req.user.brandName || req.user.displayName || "SokoDigi Merchant";
@@ -199,14 +203,16 @@ async function createProduct(req, res) {
     const doc = {
       sellerId: req.user._id,
       merchantId: req.user._id,
-      name, brandName,
-      category: category.toLowerCase() || "general",
-      subCategory: subCategory.toLowerCase(),
+      name,
+      brandName,
+      category,
+      subCategory: subCategory.toLowerCase() || "general",
       price, quantity, deliveryFee, description, imageUrl, status,
       isShelved: status === "LISTED",
       ...feeFields(price), // client-supplied commission is ignored
       metrics: { conversionRate: 0, referralCount: 0, escrowDisputeRate: 0 },
     };
+      
 
     let product;
     for (let i = 0; i < 3 && !product; i++) {
@@ -241,8 +247,11 @@ async function updateProduct(req, res) {
 
     for (const [field, max] of [["name", 120], ["description", 2000], ["category", 40], ["subCategory", 40]]) {
       if (b[field] === undefined) continue;
-      const v = str(b[field], max);
+           const v = str(b[field], max);
       if (v === null || (field === "name" && !v)) return bad(res, `INVALID_${field.toUpperCase()}`);
+      if (field === "category" && !CATEGORIES.includes(v.toLowerCase())) {
+        return res.status(400).json({ ok: false, error: "INVALID_CATEGORY", allowed: CATEGORIES });
+      }
       set[field] = field === "category" || field === "subCategory" ? v.toLowerCase() : v;
     }
     if (b.imageUrl !== undefined) {
