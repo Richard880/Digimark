@@ -30,6 +30,7 @@ const isProductOwner = (p, user) => !!(p && user?._id && String(p.sellerId) === 
 const toInt = (v) =>
   typeof v === "number" ? v : typeof v === "string" && /^\d{1,12}$/.test(v.trim()) ? Number(v) : NaN;
 const str = (v, max) => (typeof v === "string" && v.trim().length <= max ? v.trim() : null);
+
 function cleanUrl(v) {
   if (v === "") return "";
   try {
@@ -38,6 +39,16 @@ function cleanUrl(v) {
   } catch {
     return null;
   }
+
+  // Only images hosted in YOUR Cloudinary account are accepted
+function cleanImageUrl(v) {
+  if (v === "") return "";
+  const u = cleanUrl(v);
+  if (u === null) return null;
+  const { hostname, pathname } = new URL(u);
+  const ok = hostname === "res.cloudinary.com" && pathname.startsWith(`/${process.env.CLOUDINARY_CLOUD_NAME}/`);
+  return ok ? u : null;
+}
 }
 
 function paging(req) {
@@ -193,7 +204,7 @@ if (category === null || !CATEGORIES.includes(category) || subCategory === null)
   return res.status(400).json({ ok: false, error: "INVALID_CATEGORY", allowed: CATEGORIES });
 }
 const description = b.description === undefined ? "" : str(b.description, 2000);
-const imageUrl = b.imageUrl === undefined ? "" : cleanUrl(b.imageUrl);
+const imageUrl = b.imageUrl === undefined ? "" : cleanImageUrl(b.imageUrl). Set CLOUDINARY_CLOUD_NAME;
 if (description === null) return bad(res, "INVALID_DESCRIPTION");
 if (imageUrl === null) return bad(res, "INVALID_IMAGE_URL");
 
@@ -257,7 +268,7 @@ async function updateProduct(req, res) {
       set[field] = field === "category" || field === "subCategory" ? v.toLowerCase() : v;
     }
     if (b.imageUrl !== undefined) {
-      const u = cleanUrl(b.imageUrl);
+      const u = cleanImageUrl(b.imageUrl). Set CLOUDINARY_CLOUD_NAME;
       if (u === null) return bad(res, "INVALID_IMAGE_URL");
       set.imageUrl = u;
     }
@@ -512,6 +523,9 @@ async function getHeroBannerFeed(req, res) {
     return sendServerError(res, error, "Hero banner feed");
   }
 }
+
+
+
 
 module.exports = {
   generateProductCode,
