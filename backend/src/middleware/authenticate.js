@@ -47,8 +47,11 @@ function build({ loadUser, checkRevoked }) {
       req.user = user;
       // Only PAID, active members count as marketers. Pending applicants stay "retail"
       // until the fee is paid. Cancelled members keep wallet access as retail.
-      req.userCategory =
-        user.accountCategory === "network" && user.membershipStatus === "active" ? "network" : "retail";
+      const paid =
+  user.membershipStatus === "active" &&
+  (!user.membershipExpiresAt || user.membershipExpiresAt > new Date());
+req.userCategory = user.accountCategory === "network" && paid ? "network" : "retail";
+     
       req.isPendingMember = user.accountCategory === "network" && user.membershipStatus === "pending";
     } catch (err) {
       return failResponse(res, err);
