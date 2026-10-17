@@ -166,7 +166,7 @@ async function synchronizeFirebaseUser({
   let profile = await UserProfile.findOne({ userId: user._id });
 
   if (!profile) {
-    const membershipNumber = user.accountCategory === "network" ? await generateMembershipNumber() : undefined;
+   const membershipNumber = undefined; // issued at activation
     try {
       profile = await UserProfile.create({
         userId: user._id,
