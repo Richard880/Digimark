@@ -1,57 +1,70 @@
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_BYTES = 5 * 1024 * 1024;
 const TIMEOUT_MS = 60_000;
-const FOLDERS = { products: "sokodigi/products", profiles: "sokodigi/profiles" };
+
+const API_URL = import.meta.env.PROD
+  ? ""
+  : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
 
 /**
- * Uploads an image to Cloudinary with an unsigned preset.
- * Returns the secure https URL. Throws Error("UPLOAD_FAILED") for any failure,
- * and logs the real reason to the console only.
+ * Signed upload: the backend authorizes each upload, then the browser sends the file straight to Cloudinary.
+ * @param {File} file
+ * @param {"products"|"profiles"} folderType
+ * @param {() => Promise<string>} getIdToken  e.g. () => auth.currentUser.getIdToken()
+ * @returns {Promise<string>} secure https URL
  */
-export async function uploadImageToCloudinary(fileObject, folderType = "products") {
-  const fail = (...details) => {
+export async function uploadImageToCloudinary(file, folderType = "products", getIdToken) {
+  const fail = (userMessage, ...details) => {
     console.error("Cloudinary upload failed:", ...details);
-    throw new Error("UPLOAD_FAILED");
+    throw new Error(userMessage);
   };
 
-  if (!fileObject) throw new Error("No image file was selected.");
-  if (!ALLOWED_TYPES.includes(fileObject.type)) throw new Error("Please choose a JPG, PNG or WebP image.");
-  if (fileObject.size > MAX_BYTES) throw new Error("Image must be smaller than 5 MB.");
-
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
-  if (!cloudName || !uploadPreset) fail("Missing VITE_CLOUDINARY_* environment variables");
-
-  const body = new FormData();
-  body.append("file", fileObject);
-  body.append("upload_preset", uploadPreset);
-  body.append("folder", FOLDERS[folderType] || FOLDERS.products); // the preset enforces the real folder
+  if (!file) throw new Error("No image file was selected.");
+  if (!ALLOWED_TYPES.includes(file.type)) throw new Error("Please choose a JPG, PNG or WebP image.");
+  if (file.size > MAX_BYTES) throw new Error("Image must be smaller than 5 MB.");
+  if (typeof getIdToken !== "function") fail("UPLOAD_FAILED", "getIdToken callback missing");
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    // 1. Ask our backend for a one-time permit
+    const token = await getIdToken();
+    if (!token) fail("Please sign in again.", "No auth token");
+
+    const signRes = await fetch(`${API_URL}/api/upload/sign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ folderType }),
+      signal: ctrl.signal,
+    });
+    if (signRes.status === 403) fail("Only active Sokodigi members can upload product photos.", "403 from /sign");
+    if (signRes.status === 429) fail("Too many uploads. Please wait a minute.", "429 from /sign");
+    if (!signRes.ok) fail("UPLOAD_FAILED", "sign status", signRes.status);
+    const s = await signRes.json();
+
+    // 2. Send the file with exactly the parameters the server signed
+    const body = new FormData();
+    body.append("file", file);
+    body.append("api_key", s.apiKey);
+    body.append("signature", s.signature);
+    for (const [k, v] of Object.entries(s.uploadParams)) body.append(k, String(v));
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${s.cloudName}/image/upload`, {
       method: "POST",
       body,
       signal: ctrl.signal,
     });
-    const text = await res.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      fail("Non-JSON response", res.status);
-    }
-    if (!res.ok) fail(res.status, data?.error?.message);
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data) fail("UPLOAD_FAILED", res.status, data?.error?.message);
 
-    const url = data?.secure_url;
+    const url = data.secure_url;
     if (typeof url !== "string" || !url.startsWith("https://res.cloudinary.com/")) {
-      fail("Unexpected URL in response", url);
+      fail("UPLOAD_FAILED", "Unexpected URL", url);
     }
-    return url; // the absolute URL: the backend accepts only this form
+    return url;
   } catch (err) {
-    if (err.message === "UPLOAD_FAILED") throw err;
-    return fail(err.name === "AbortError" ? "Timed out" : err.message);
+    if (err.name === "AbortError") fail("UPLOAD_FAILED", "Timed out");
+    throw err;
   } finally {
     clearTimeout(timer);
   }
