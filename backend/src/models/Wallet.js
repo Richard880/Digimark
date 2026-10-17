@@ -45,6 +45,8 @@ const walletSchema = new mongoose.Schema(
             "send_transfer",
             "matrix_subscription",
             "withdrawal",
+            "platform_revenue",
+            "breakage",
           ],
         },
         status: {
