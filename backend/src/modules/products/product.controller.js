@@ -270,7 +270,7 @@ async function updateProduct(req, res) {
       set[field] = field === "category" || field === "subCategory" ? v.toLowerCase() : v;
     }
     if (b.imageUrl !== undefined) {
-      const u = cleanImageUrl(b.imageUrl). Set CLOUDINARY_CLOUD_NAME;
+      const u = cleanImageUrl(b.imageUrl);
       if (u === null) return bad(res, "INVALID_IMAGE_URL");
       set.imageUrl = u;
     }
