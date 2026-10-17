@@ -5,4 +5,4 @@ const counterSchema = new mongoose.Schema({
   value: { type: Number, default: 0 },
 }, { timestamps: true });
 
-module.exports = mongoose.model("Counter", counterSchema);
+module.exports = mongoose.models.Counter || mongoose.model("Counter", counterSchema);
