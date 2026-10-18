@@ -17,8 +17,8 @@ const userSchema = new Schema(
     // pending = registered but fee not paid. Only "active" members may sell or earn.
     membershipStatus: { type: String, enum: ["pending", "active", "suspended", "cancelled"], default: "pending" },
     plan: { type: String, enum: ["phase1", "phase2", "phase3", "phase4"], default: null },
-membershipStartedAt: { type: Date, default: null },
-membershipExpiresAt: { type: Date, default: null },
+    membershipStartedAt: { type: Date, default: null },
+    membershipExpiresAt: { type: Date, default: null },
 
     isActive: { type: Boolean, default: true }, // admin kill switch (false = account disabled)
     emailVerified: { type: Boolean, default: false },
@@ -30,17 +30,22 @@ membershipExpiresAt: { type: Date, default: null },
     lastActiveDay: { type: String, default: null },
     activityScore: { type: Number, default: 0, min: 0, max: 5 },
 
-    // Matrix. Set once by auth.service (sponsor at signup, parent at paid activation).
-    userSchema.index({ sponsorId: 1, membershipStartedAt: 1 });
-    userSchema.index({ accountCategory: 1, membershipStatus: 1, eligibilityCheckedAt: 1 });// who recruited them
+    // Matrix fields (These must be declared as key-value pairs inside the object)
+    sponsorId: { type: Schema.Types.ObjectId, ref: "User", default: null }, // who recruited them
     parentId: { type: Schema.Types.ObjectId, ref: "User", default: null },  // where the matrix placed them
+    
     // Slots are claimed with an atomic $expr-guarded $push. Never $push here from anywhere else.
     referrals: { type: [{ type: Schema.Types.ObjectId, ref: "User" }], default: [] },
+    
     // All ancestors, root first. Powers downline and commission queries.
     pathFromRoot: { type: [{ type: Schema.Types.ObjectId, ref: "User" }], default: [] },
   },
   { timestamps: true }
 );
+
+// Database Matrix Indexes (Placed safely OUTSIDE the configuration object down here)
+userSchema.index({ sponsorId: 1, membershipStartedAt: 1 });
+userSchema.index({ accountCategory: 1, membershipStatus: 1, eligibilityCheckedAt: 1 });
 
 // Indexes (unique ones above already create theirs)
 userSchema.index({ sponsorId: 1 });
