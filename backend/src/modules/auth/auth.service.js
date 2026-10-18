@@ -8,6 +8,7 @@ const matrixService = require("../../../services/matrixService");
 const MAX_DIRECT_REFERRALS = 10;
 const ROOT_EMAIL = (process.env.COMPANY_ROOT_EMAIL || "admin@sokodigi.com").toLowerCase();
 const NETWORK_REQUIRED = ["firstName", "lastName", "phoneNumber", "username", "brandName"];
+const ROOT_FILTER = { $or: [{ membershipExpiresAt: null }, { membershipExpiresAt: { $gt: new Date() } }] };
 
 // Deliberate errors: the controller turns { code, status } into a clean response
 class AppError extends Error {
@@ -216,4 +217,55 @@ async function synchronizeFirebaseUser({
   return { user: freshUser, profile };
 }
 
-module.exports = { synchronizeFirebaseUser, placeInMatrix };
+
+
+/** Retail buyer -> pending network member. Sponsor is a USERNAME (never an id or email). */
+async function upgradeToNetwork(userId, f) {
+  const user = await User.findById(userId).select("accountCategory isActive").lean();
+  if (!user || !user.isActive) throw new AppError("ACCOUNT_NOT_ELIGIBLE", 403);
+  if (user.accountCategory === "network") throw new AppError("ALREADY_A_MARKETER", 409);
+
+  const profile = await UserProfile.findOne({ userId }).select("phoneNumber username").lean();
+  if (!profile || !profile.phoneNumber) throw new AppError("REQUIRED_PHONENUMBER", 400);
+  const username = profile.username || f.username;
+  if (!username) throw new AppError("REQUIRED_USERNAME", 400);
+  if (!profile.username && (await UserProfile.exists({ username }))) throw new AppError("USERNAME_TAKEN", 409);
+
+  const root = await User.findOne({ email: ROOT_EMAIL, accountCategory: "network" }).select("_id").lean();
+  if (!root) throw new AppError("NETWORK_NOT_OPEN", 503);
+
+  let sponsorId = root._id;
+  if (f.sponsor) {
+    const sp = await UserProfile.findOne({ username: f.sponsor }).select("userId").lean();
+    const su = sp && (await User.findOne({
+      _id: sp.userId, accountCategory: "network", membershipStatus: "active", isActive: true, ...ROOT_FILTER,
+    }).select("_id").lean());
+    if (!su) throw new AppError("INVALID_SPONSOR", 400); // no silent fallback to the company
+    sponsorId = su._id;
+  }
+
+  await mongoose.connection.transaction(async (session) => {
+    const r = await User.updateOne(
+      { _id: userId, accountCategory: "retail", role: "user" }, // admins can never be converted
+      { $set: {
+          accountCategory: "network", accountType: "member", role: "member",
+          membershipStatus: "pending", sponsorId, parentId: null, pathFromRoot: [], referrals: [],
+      } },
+      { session }
+    );
+    if (r.matchedCount === 0) throw new AppError("ALREADY_A_MARKETER", 409);
+    await UserProfile.updateOne(
+      { userId },
+      { $set: {
+          username, brandName: f.brandName, brandCategory: f.brandCategory,
+          address: f.address, "location.county": f.county,
+      } },
+      { session, runValidators: true }
+    );
+  });
+  return { membershipStatus: "pending" };
+}
+
+module.exports = { synchronizeFirebaseUser, placeInMatrix, upgradeToNetwork };
+
+
