@@ -5,7 +5,9 @@ const Wallet = require("../src/models/Wallet");
 const MembershipPayment = require("../src/models/MembershipPayment");
 const generateMembershipNumber = require("../src/utils/membershipNumber");
 const { placeInMatrix } = require("../src/modules/auth/auth.service");
+const C = require("../src/modules/config/activity");
 const { PLANS, LEVELS, ROLLUP_MAX_STEPS, PERIOD_DAYS, RENEW_WINDOW_DAYS } = require("../src/modules/config/plans");
+
 
 const PLATFORM_ID = process.env.PLATFORM_WALLET_USER_ID;
 if (!PLATFORM_ID) throw new Error("Missing env PLATFORM_WALLET_USER_ID");
@@ -171,6 +173,7 @@ async function payMembership({ userId, planKey, idempotencyKey }) {
 
       const $set = { membershipStatus: "active", plan: planKey, membershipExpiresAt: periodEnd };
       if (isActivation) $set.membershipStartedAt = now;
+      if (isActivation && C.GRACE_DAYS > 0) $set.commissionEligible = true; // grace period; the daily sweep takes over later
       await User.updateOne({ _id: userId }, { $set }, { session });
 
       if (isActivation) {
