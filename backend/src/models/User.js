@@ -31,7 +31,8 @@ membershipExpiresAt: { type: Date, default: null },
     activityScore: { type: Number, default: 0, min: 0, max: 5 },
 
     // Matrix. Set once by auth.service (sponsor at signup, parent at paid activation).
-    sponsorId: { type: Schema.Types.ObjectId, ref: "User", default: null }, // who recruited them
+    userSchema.index({ sponsorId: 1, membershipStartedAt: 1 });
+    userSchema.index({ accountCategory: 1, membershipStatus: 1, eligibilityCheckedAt: 1 });// who recruited them
     parentId: { type: Schema.Types.ObjectId, ref: "User", default: null },  // where the matrix placed them
     // Slots are claimed with an atomic $expr-guarded $push. Never $push here from anywhere else.
     referrals: { type: [{ type: Schema.Types.ObjectId, ref: "User" }], default: [] },
