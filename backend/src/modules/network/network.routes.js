@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 const authenticate = require("../../middleware/authenticate");
 const User = require("../../models/User");
 const UserProfile = require("../../models/UserProfile");
-const matrixService = require("../../services/matrixService");
+const matrixService = require("../../../services/matrixService");
 
 const router = express.Router();
 
