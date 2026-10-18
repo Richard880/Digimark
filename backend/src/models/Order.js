@@ -87,6 +87,8 @@ orderSchema.pre("validate", function (next) {
   next();
 });
 
+orderSchema.index({ sellerId: 1, deliveredAt: 1 });
+orderSchema.index({ buyerId: 1, deliveredAt: 1 });
 orderSchema.index({ sellerId: 1, orderStatus: 1 });
 orderSchema.index({ buyerId: 1, createdAt: -1 });
 orderSchema.index({ promoterId: 1, createdAt: -1 });
