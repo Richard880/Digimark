@@ -10,5 +10,6 @@ const perUser = (limit) =>
 router.get("/plans", listPlans);
 router.get("/me", authenticate, myMembership);
 router.post("/pay", authenticate.strict, perUser(3), pay);
+router.get("/activity", authenticate, perUser(20), myActivity);
 
 module.exports = router;
