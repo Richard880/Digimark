@@ -66,14 +66,45 @@ export async function registerBuyer({ email, password, firstName, lastName, user
   return syncAccount({ firstName, lastName, username, phoneNumber, accountCategory: "retail" });
 }
 
-// ---- Marketer, step 1: create the login and ask them to verify ----
-export async function startMarketerSignup({ email, password, ...profileFields }) {
-  await createUserWithEmailAndPassword(auth, email.trim(), password);
-  await sendEmailVerification(auth.currentUser);
-  // Everything except the password, kept only for this browser tab
-  sessionStorage.setItem(PENDING_KEY, JSON.stringify({ ...profileFields, accountCategory: "network" }));
-  return { needsVerification: true };
+// add to SERVER_ERRORS:
+//   ALREADY_A_MARKETER: "This account is already a marketer account.",
+//   REQUIRED_USERNAME: "Please choose a username.",
+//   ACCOUNT_NOT_ELIGIBLE: "This account can't be upgraded right now.",
+
+async function authedJson(path, method, payload) {
+  const user = auth.currentUser;
+  if (!user) throw Object.assign(new Error("NOT_SIGNED_IN"), { code: "NOT_SIGNED_IN" });
+  const token = await user.getIdToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || "REQUEST_FAILED"), { code: data.error, field: data.field });
+  return data;
 }
+
+export const patchProfile = (patch) => authedJson("/api/profiles/me", "PATCH", patch);
+export const becomeMarketer = (payload) => authedJson("/api/auth/become-marketer", "POST", payload);
+
+// Where to send someone after login or signup
+export function destinationFor(user) {
+  if (!user) return "home";
+  if (user.accountCategory !== "network") return "home"; // buyer
+  if (user.membershipStatus === "suspended") return "suspended";
+  const lapsed = user.membershipExpiresAt && new Date(user.membershipExpiresAt) <= new Date();
+  if (user.membershipStatus === "pending" || lapsed) return "membership"; // pay or renew
+  return "dashboard"; // active marketer
+}
+// ---- Marketer, step 1: create the login and ask them to verify ----
+// export async function startMarketerSignup({ email, password, ...profileFields }) {
+//   await createUserWithEmailAndPassword(auth, email.trim(), password);
+//   await sendEmailVerification(auth.currentUser);
+//   // Everything except the password, kept only for this browser tab
+//   sessionStorage.setItem(PENDING_KEY, JSON.stringify({ ...profileFields, accountCategory: "network" }));
+//   return { needsVerification: true };
+// }
 
 export async function resendVerification() {
   if (!auth.currentUser) throw Object.assign(new Error("NOT_SIGNED_IN"), { code: "NOT_SIGNED_IN" });
@@ -81,18 +112,18 @@ export async function resendVerification() {
 }
 
 // ---- Marketer, step 2: after they click the email link ----
-export async function finishMarketerSignup() {
-  const user = auth.currentUser;
-  if (!user) throw Object.assign(new Error("NOT_SIGNED_IN"), { code: "NOT_SIGNED_IN" });
-  await user.reload();
-  if (!user.emailVerified) throw Object.assign(new Error("EMAIL_NOT_VERIFIED"), { code: "EMAIL_NOT_VERIFIED" });
-  await user.getIdToken(true); // refresh so the token carries email_verified = true
-  const saved = JSON.parse(sessionStorage.getItem(PENDING_KEY) || "null");
-  if (!saved) throw Object.assign(new Error("SIGNUP_DETAILS_LOST"), { code: "SIGNUP_DETAILS_LOST" });
-  const result = await syncAccount(saved);
-  sessionStorage.removeItem(PENDING_KEY);
-  return result;
-}
+// export async function finishMarketerSignup() {
+//   const user = auth.currentUser;
+//   if (!user) throw Object.assign(new Error("NOT_SIGNED_IN"), { code: "NOT_SIGNED_IN" });
+//   await user.reload();
+//   if (!user.emailVerified) throw Object.assign(new Error("EMAIL_NOT_VERIFIED"), { code: "EMAIL_NOT_VERIFIED" });
+//   await user.getIdToken(true); // refresh so the token carries email_verified = true
+//   const saved = JSON.parse(sessionStorage.getItem(PENDING_KEY) || "null");
+//   if (!saved) throw Object.assign(new Error("SIGNUP_DETAILS_LOST"), { code: "SIGNUP_DETAILS_LOST" });
+//   const result = await syncAccount(saved);
+//   sessionStorage.removeItem(PENDING_KEY);
+//   return result;
+// }
 
 // ---- Login / logout / reset ----
 export async function login(email, password) {
