@@ -1,6 +1,9 @@
 const admin = require("../config/firebaseAdmin");
 const User = require("../models/User");
 
+const ActivityDay = require("../models/ActivityDay");
+const { dayKey } = require("../modules/config/activity");
+
 function bearerToken(req) {
   const m = /^Bearer\s+(\S+)$/i.exec(req.get("Authorization") || "");
   return m ? m[1] : null;
