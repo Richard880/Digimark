@@ -6,7 +6,7 @@ const UserProfile = require("../../models/UserProfile.js");
 const User = require("../../models/User");
 
 const matrixService = require("../../../services/matrixService"); 
-const { syncCurrentUser } = require("./auth.controller");
+const { syncCurrentUser, becomeMarketer } = require("./auth.controller");
 
 const router = express.Router();
 
@@ -93,5 +93,6 @@ router.get("/me", authenticate, async (req, res) => {
  * 🔒 Synchronization entry gateway for onboarding new users across both tracks
  */
 router.post("/sync", authenticate, syncCurrentUser);
+router.post("/become-marketer", authenticate.strict, becomeMarketer);
 
 module.exports = router;
