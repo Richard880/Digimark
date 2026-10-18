@@ -27,6 +27,8 @@ membershipExpiresAt: { type: Date, default: null },
     // Commission gate. Written ONLY by the activity engine, never by requests.
     commissionEligible: { type: Boolean, default: false },
     eligibilityCheckedAt: { type: Date, default: null },
+    lastActiveDay: { type: String, default: null },
+    activityScore: { type: Number, default: 0, min: 0, max: 5 },
 
     // Matrix. Set once by auth.service (sponsor at signup, parent at paid activation).
     sponsorId: { type: Schema.Types.ObjectId, ref: "User", default: null }, // who recruited them
