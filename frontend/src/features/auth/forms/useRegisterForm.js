@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import { auth } from "../../../firebase";
 import { syncAccount, patchProfile, friendlyError } from "../authApi";
-import { uploadImageToCloudinary } from "../../../utils/uploadImageToCloudinary";
+import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_RE = /^(?:\+?254|0)[17]\d{8}$/;
