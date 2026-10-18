@@ -56,6 +56,18 @@ function build({ loadUser, checkRevoked }) {
 req.userCategory = user.accountCategory === "network" && paid ? "network" : "retail";
      
       req.isPendingMember = user.accountCategory === "network" && user.membershipStatus === "pending";
+
+            // One tiny write per member per day. Never lets a request fail over analytics.
+      if (user.accountCategory === "network") {
+        const today = dayKey(new Date());
+        if (user.lastActiveDay !== today) {
+          await Promise.all([
+            ActivityDay.updateOne({ userId: user._id, day: today }, { $setOnInsert: { createdAt: new Date() } }, { upsert: true }),
+            User.updateOne({ _id: user._id }, { $set: { lastActiveDay: today } }),
+          ]).catch(() => {});
+        }
+      }
+      
     } catch (err) {
       return failResponse(res, err);
     }
