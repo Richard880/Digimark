@@ -1,4 +1,5 @@
 const { synchronizeFirebaseUser } = require("./auth.service");
+const admin = require("../../config/firebaseAdmin");
 
 // Adjust to the values your app really uses
 const ACCOUNT_CATEGORIES = ["retail", "network"];
@@ -143,4 +144,41 @@ async function syncCurrentUser(req, res) {
   }
 }
 
-module.exports = { syncCurrentUser };
+// POST /api/auth/become-marketer   (authenticate.strict)
+async function becomeMarketer(req, res) {
+  try {
+    const b = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+
+    // Ask Firebase directly: the token's email_verified flag can be stale for up to an hour
+    const fb = await admin.auth().getUser(req.firebaseUser.uid);
+    if (!fb.emailVerified) return res.status(403).json({ error: "EMAIL_NOT_VERIFIED" });
+
+    const brandName = clean(b.brandName, 2, 60);
+    const brandCategory = clean(b.brandCategory, 2, 40);
+    const county = clean(b.county, 2, 40);
+    const address = clean(b.address, 5, 200);
+    for (const [k, v] of [["brandName", brandName], ["brandCategory", brandCategory], ["county", county], ["address", address]]) {
+      if (!v) throw new InputError(k);
+    }
+
+    let username;
+    if (b.username !== undefined && b.username !== "") {
+      username = typeof b.username === "string" ? b.username.trim().toLowerCase() : "";
+      if (!/^[a-z0-9_]{3,20}$/.test(username)) throw new InputError("username");
+    }
+    let sponsor;
+    if (b.sponsor !== undefined && b.sponsor !== "") {
+      sponsor = typeof b.sponsor === "string" ? b.sponsor.trim().toLowerCase() : "";
+      if (!/^[a-z0-9_]{3,20}$/.test(sponsor)) throw new InputError("sponsor");
+    }
+
+    const r = await upgradeToNetwork(req.user._id, { brandName, brandCategory, county, address, username, sponsor });
+    return res.json({ ok: true, ...r, nextStep: "PAY_MEMBERSHIP" });
+  } catch (err) {
+    return sendError(res, err);
+  }
+}
+
+module.exports = { syncCurrentUser, becomeMarketer };
+
+
