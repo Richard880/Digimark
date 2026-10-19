@@ -1,61 +1,43 @@
-import React from "react";
+import { useEffect } from "react";
 
 export default function AvatarMenuModal({ isOpen, onClose, currentImageUrl, onUploadClick, isOwnProfile }) {
+  // Hooks stay above the early return
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
-  // 🎯 THE CORS FIX: If the URL is an absolute Cloudinary link, rewrite it to your Vercel proxy route.
-  // This avoids origin-switching problems and keeps asset tracking within your deployment domain context.
-  const cleanImageUrl = currentImageUrl?.startsWith("https://cloudinary.com")
-    ? currentImageUrl.replace("https://cloudinary.com", "/cloudinary-assets")
-    : currentImageUrl;
+  const hasImage = typeof currentImageUrl === "string" && currentImageUrl.startsWith("https://");
+  const row = "w-full py-3.5 text-sm font-bold hover:bg-slate-50 transition block border-none bg-transparent cursor-pointer";
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200">
-      {/* Click outside to close container track */}
-      <div className="absolute inset-0" onClick={onClose} />
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+      <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
 
-      <div className="relative bg-white rounded-2xl w-full max-w-xs overflow-hidden shadow-xl border border-slate-100 transform scale-100 transition-transform duration-200 text-center animate-fade-in">
+      <div role="dialog" aria-modal="true" aria-label="Profile picture options"
+        className="relative bg-white rounded-2xl w-full max-w-xs overflow-hidden shadow-xl border border-slate-100 text-center">
         <div className="py-2 divide-y divide-slate-100">
-          
-          {/* OPTION 1: VIEW PICTURE LIGHTBOX (Always visible if a picture exists) */}
-          <button
-            type="button"
-            onClick={() => {
-              if (cleanImageUrl) {
-                window.open(cleanImageUrl, "_blank");
-              } else {
-                alert("No active profile avatar uploaded yet.");
-              }
-              onClose();
-            }}
-            className="w-full py-3.5 text-sm font-bold text-slate-800 hover:bg-slate-50 transition active:bg-slate-100 block border-none bg-transparent cursor-pointer"
-          >
-            View Profile Picture
-          </button>
+          {hasImage ? (
+            <button type="button" className={`${row} text-slate-800`}
+              onClick={() => { window.open(currentImageUrl, "_blank", "noopener,noreferrer"); onClose(); }}>
+              View Profile Picture
+            </button>
+          ) : (
+            <p className="py-3.5 text-xs font-semibold text-slate-400">No profile picture yet.</p>
+          )}
 
-          {/* OPTION 2: UPLOAD NEW IMAGE (Strictly restricted to the verified account owner) */}
           {isOwnProfile && (
-            <button
-              type="button"
-              onClick={() => {
-                onUploadClick();
-                onClose();
-              }}
-              className="w-full py-3.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50/50 transition active:bg-emerald-50 block border-none bg-transparent cursor-pointer"
-            >
-              Upload New Photo
+            <button type="button" className={`${row} text-emerald-700`}
+              onClick={() => { onUploadClick(); onClose(); }}>
+              {hasImage ? "Upload New Photo" : "Upload a Photo"}
             </button>
           )}
 
-          {/* CANCEL TRIGGER BUTTON */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full py-3.5 text-sm font-medium text-slate-400 hover:bg-slate-50 transition active:bg-slate-100 block border-none bg-transparent cursor-pointer"
-          >
-            Cancel
-          </button>
-          
+          <button type="button" onClick={onClose} className={`${row} font-medium text-slate-400`}>Cancel</button>
         </div>
       </div>
     </div>
