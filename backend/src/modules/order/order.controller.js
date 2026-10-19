@@ -2,7 +2,8 @@ const mongoose = require("mongoose");
 const crypto = require("crypto");
 const Order = require("../../models/Order");
 const Product = require("../../models/Product");
-const User = require("../../models/User");
+const ShareLink = require("../../models/ShareLink");
+const { notify } = require("../../services/notification.service");
 const {
   holdOrderFunds,
   releaseEscrowToVendor,
@@ -36,9 +37,12 @@ function sendError(res, err, tag) {
 
 // TODO: replace with a real check against your share-link records, so a promoter
 // is only accepted if they actually shared THIS product (see design: unique share pin/url).
-async function resolvePromoter(promoterId, buyerId) {
-  if (!isId(promoterId) || same(promoterId, buyerId)) return null;
-  return (await User.exists({ _id: promoterId })) ? promoterId : null;
+// A promoter counts only if THEY created a share link for THIS product
+async function resolvePromoter(shareCode, productId, buyerId) {
+  if (typeof shareCode !== "string" || !/^[A-Za-z0-9_-]{8,32}$/.test(shareCode)) return null;
+  const link = await ShareLink.findOne({ code: shareCode, productId }).lean();
+  if (!link || same(link.promoterId, buyerId)) return null;
+  return link.promoterId;
 }
 
 /** GET /api/orders : orders where I am buyer, seller or promoter */
@@ -56,7 +60,7 @@ async function listOrders(req, res) {
 
     // PIN fields are select:false, so they can never appear here
     const orders = await Order.find(filter)
-      .populate("buyerId", "name")
+      
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -64,10 +68,8 @@ async function listOrders(req, res) {
 
     // Promoters only see sale info, never the buyer's address or phone
     const safe = orders.map((o) =>
-      !same(o.buyerId?._id ?? o.buyerId, me) && !same(o.sellerId, me)
-        ? { ...o, shippingDetails: undefined, buyerId: undefined }
-        : o
-    );
+  same(o.buyerId, me) || same(o.sellerId, me) ? o : { ...o, shippingDetails: undefined, buyerId: undefined }
+);
     return res.status(200).json(safe);
   } catch (err) {
     return sendError(res, err, "listOrders");
@@ -80,7 +82,10 @@ async function createOrder(req, res) {
     const buyerId = req.user?._id;
     if (!buyerId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
 
-    const { productId, promoterId, shippingDetails: sd } = req.body || {};
+   const { productId, shareCode, shippingDetails: sd } = req.body || {};
+// ...
+
+    
     const quantity = req.body?.quantity === undefined ? 1 : req.body.quantity;
 
     if (!isId(productId)) throw fail("INVALID_PRODUCT_ID");
@@ -89,7 +94,7 @@ async function createOrder(req, res) {
         !isStr(sd.county, 40) || !isStr(sd.subCounty, 40)) {
       throw fail("SHIPPING_DETAILS_INVALID");
     }
-    const promoter = await resolvePromoter(promoterId, buyerId);
+    const promoter = await resolvePromoter(shareCode, productId, buyerId);
 
     const order = await mongoose.connection.transaction(async (session) => {
       // Atomic stock reservation: check + decrement in ONE operation (no oversell race)
@@ -114,7 +119,7 @@ async function createOrder(req, res) {
 
       // Single source of truth for fees: the escrow service
       const hold = await holdOrderFunds(
-        { orderId, buyerId, vendorId: sellerId, affiliateId: promoter, amount },
+       { orderId, buyerId, vendorId: sellerId, affiliateId: promoter, amount, feeBase: product.price * quantity },
         session
       );
 
