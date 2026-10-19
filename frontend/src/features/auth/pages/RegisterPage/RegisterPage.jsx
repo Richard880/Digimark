@@ -4,6 +4,10 @@ import AuthCard from "../../components/AuthCard";
 import RegisterForm from "../../components/RegisterForm";
 import MarketerSetup from "../../components/MarketerSetup/MarketerSetup";
 import "./registerPage.css";
+import ROUTES from "../../../../constants/routes";
+// ...
+navigate(ROUTES.HOME)        // buyers
+navigate(ROUTES.MEMBERSHIP)  // marketers, after the brand setup step
 
 // Map these to your real routes
 const ROUTES = { home: "/", membership: "/membership" };
