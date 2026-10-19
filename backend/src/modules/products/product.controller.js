@@ -5,6 +5,8 @@ const Order = require("../../models/Order");
 const ShareLink = require("../../models/ShareLink");
 const { PLATFORM_BP, AFFILIATE_BP } = require("../config/fees");
 const CATEGORIES = Product.schema.path("category").enumValues;
+const User = require("../../models/User");
+const UserProfile = require("../../models/UserProfile");
 
 // =========================================================================
 // CONFIG & HELPERS
@@ -526,7 +528,36 @@ async function getHeroBannerFeed(req, res) {
   }
 }
 
+// GET /api/products/shared            -> the signed-in marketer's own shared products
+// GET /api/products/shared?username=  -> a public shop's shared products
+async function getSharedProducts(req, res) {
+  try {
+    let promoterId;
+    if (req.query.username !== undefined) {
+      const uname = String(req.query.username).toLowerCase().trim();
+      if (!/^[a-z0-9_]{3,20}$/.test(uname)) return bad(res, "INVALID_USERNAME");
+      const prof = await UserProfile.findOne({ username: uname, publicProfile: true }).select("userId").lean();
+      const owner = prof && (await User.findOne({
+        _id: prof.userId, accountCategory: "network", membershipStatus: "active", isActive: true,
+        $or: [{ membershipExpiresAt: null }, { membershipExpiresAt: { $gt: new Date() } }],
+      }).select("_id").lean());
+      if (!owner) return res.json({ ok: true, products: [] });
+      promoterId = owner._id;
+    } else {
+      if (!req.user?._id) return bad(res, "AUTHENTICATION_REQUIRED", 401);
+      promoterId = req.user._id;
+    }
 
+    const links = await ShareLink.find({ promoterId }).sort({ createdAt: -1 }).limit(50).lean();
+    const products = await Product.find({ _id: { $in: links.map((l) => l.productId) }, ...VISIBLE, quantity: { $gt: 0 } })
+      .select("productCode name brandName category price quantity deliveryFee imageUrl")
+      .lean();
+    const codes = new Map(links.map((l) => [String(l.productId), l.code]));
+    return res.json({ ok: true, products: products.map((p) => ({ ...p, shareCode: codes.get(String(p._id)) })) });
+  } catch (error) {
+    return sendServerError(res, error, "Shared products");
+  }
+}
 
 
 module.exports = {
@@ -543,4 +574,5 @@ module.exports = {
   shareProduct,
   toggleProductShelf,
   getHeroBannerFeed,
+  getSharedProducts
 };
