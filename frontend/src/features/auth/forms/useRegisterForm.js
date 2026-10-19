@@ -76,18 +76,18 @@ const { refreshProfile } = useAuth();
       });
 
       // The photo needs a database user first (the signed upload checks it), so it goes last
-      let photoFailed = false;
+     let photoFailed = false;
       if (photoFile) {
         try {
           const url = await uploadImageToCloudinary(photoFile, "profiles", () => auth.currentUser.getIdToken());
           await patchProfile({ profilePhoto: url });
         } catch (err) {
           console.error("Profile photo upload failed:", err);
-          photoFailed = true; // never block the account over a photo
+          photoFailed = true;
         }
       }
-      onRegistered?.({ category: v.accountCategory, photoFailed });
-      await refreshProfile(); // load the new account into the app state (and the photo, if any)
+      await refreshProfile().catch(() => {});
+      onRegistered?.({ category: v.accountCategory, photoFailed }); // load the new account into the app state (and the photo, if any)
     } catch (err) {
       setAuthError(friendlyError(err));
     } finally {
