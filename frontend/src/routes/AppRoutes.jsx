@@ -1,155 +1,107 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout/MainLayout";
 
-// Core View Component Injections
 import HomePage from "../features/public/home/HomePage";
-import MarketHub from "../features/public/market/MarketHub"; 
+import MarketHub from "../features/public/market/MarketHub";
 import ProductDetails from "../features/public/ProductDetails/ProductDetails";
-import MyShopDashboard from "../features/vendor-dashboard/MyShopDashboard"; 
+import MyShopDashboard from "../features/vendor-dashboard/MyShopDashboard";
 import MyTeamDirectory from "../features/vendor-dashboard/MyTeamDirectory";
-import Profile from "../features/public/Profile/Profile"; 
+import Profile from "../features/public/Profile/Profile";
 import Wallet from "../features/public/wallet/Wallet";
 import InboxConversationView from "../features/chats/components/InboxConversationView";
 import NotificationsPage from "../features/public/notifications/NotificationsPage";
+import CheckoutPage from "../features/public/Checkout/CheckoutPage";
+import RegisterPage from "../features/auth/pages/RegisterPage/RegisterPage";
+import MembershipPage from "../features/membership/MembershipPage";
 
-// 🎯 IMPORTED NEW DEDICATED CHECKOUT WORKSPACE
-import CheckoutPage from "../features/public/Checkout/CheckoutPage"; 
-
-// Import your unified authentication state hook
 import useAuth from "../features/auth/hooks/useAuth";
-
-// Import your unified routing constants
 import ROUTES from "../constants/routes";
 
-/**
- * 🛡️ MERCHANT ROUTE GUARD
- * Intercepts out-of-bounds user categories and redirects them away from the shop panels.
- */
-function ProtectedVendorRoute({ children }) {
-  const { auth } = useAuth();
+function Screen({ children }) {
+  return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-center">{children}</div>;
+}
 
-  if (auth?.loading) {
+/**
+ * Signed in AND has a Sokodigi account. Wallet, checkout, messages, notifications.
+ * Client-side guards are only convenience: the server enforces every rule again.
+ */
+function RequireAuth({ children }) {
+  const { auth, refreshProfile } = useAuth();
+
+  if (auth.loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <p className="text-sm font-semibold text-slate-500 animate-pulse">
-            Verifying account permissions...
-          </p>
+      <Screen>
+        <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+      </Screen>
+    );
+  }
+  if (auth.loadError) {
+    return (
+      <Screen>
+        <div>
+          <p className="text-sm font-semibold text-slate-600 mb-3">Couldn't reach Sokodigi. Check your connection.</p>
+          <button
+            type="button"
+            onClick={() => refreshProfile()}
+            className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 cursor-pointer"
+          >
+            Try again
+          </button>
         </div>
-      </div>
+      </Screen>
     );
   }
-
-  const userCategory = auth?.profile?.accountCategory || auth?.user?.accountCategory || "retail";
-  const isAuthenticated = auth?.authenticated || !!auth?.currentUser;
-
-  if (!isAuthenticated || userCategory !== "network") {
-    console.warn(`[Routing Deflection] Diverted user tier "${userCategory}" away from merchant views.`);
-    return <Navigate to={ROUTES.MARKETPLACE} replace />;
-  }
-
+  if (!auth.authenticated) return <Navigate to={ROUTES.HOME} replace />;
   return children;
 }
 
 /**
- * 🛡️ STANDARD AUTH GUARD FOR SECURED ROUTES
- * Bounces unauthenticated guests back to the homepage if they try to access internal workflows.
+ * Marketer pages. Active, paid members only, unless allowPending (the membership page itself).
+ * auth.destination comes from the provider: "dashboard" | "membership" | "suspended" | "home".
  */
-function ProtectedChatRoute({ children }) {
+function RequireMarketer({ children, allowPending = false }) {
+  return (
+    <RequireAuth>
+      <MarketerCheck allowPending={allowPending}>{children}</MarketerCheck>
+    </RequireAuth>
+  );
+}
+
+function MarketerCheck({ children, allowPending }) {
   const { auth } = useAuth();
-  const isAuthenticated = auth?.authenticated || !!auth?.currentUser;
-
-  if (auth?.loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
-  }
-
+  if (auth.user?.accountCategory !== "network") return <Navigate to={ROUTES.MARKETPLACE} replace />;
+  if (auth.destination === "suspended") return <Navigate to={ROUTES.HOME} replace />;
+  if (!allowPending && auth.destination !== "dashboard") return <Navigate to={ROUTES.MEMBERSHIP} replace />;
   return children;
 }
 
-/**
- * 🗺️ Global Routing Orchestration Matrix
- */
 export default function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        
-        {/* ==========================================================================
-           1. PRIMARY PUBLIC CORE LAYOUT TREE (Shares navbar, footer & landing themes)
-           ========================================================================== */}
         <Route path={ROUTES.HOME} element={<MainLayout />}>
+          {/* Public */}
           <Route index element={<HomePage />} />
           <Route path={ROUTES.MARKETPLACE} element={<MarketHub />} />
           <Route path={ROUTES.PRODUCT_DETAILS} element={<ProductDetails />} />
           <Route path={ROUTES.PUBLIC_PROFILE} element={<Profile />} />
-          
-          {/* 🎯 REGISTERED ESCROW CHECKOUT NODE */}
-          <Route 
-            path="/checkout" 
-            element={
-              <ProtectedChatRoute>
-                <CheckoutPage />
-              </ProtectedChatRoute>
-            } 
-          />
+          <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
 
-          {/* 🎯 REGISTERED MESSAGES PATH NODE */}
-          <Route 
-            path="/messages" 
-            element={
-              <ProtectedChatRoute>
-                <InboxConversationView />
-              </ProtectedChatRoute>
-            } 
-          />
+          {/* Any signed-in account (buyers and marketers) */}
+          <Route path={ROUTES.CHECKOUT} element={<RequireAuth><CheckoutPage /></RequireAuth>} />
+          <Route path={ROUTES.MESSAGES} element={<RequireAuth><InboxConversationView /></RequireAuth>} />
+          <Route path={ROUTES.NOTIFICATIONS} element={<RequireAuth><NotificationsPage /></RequireAuth>} />
+          <Route path={ROUTES.WALLET} element={<RequireAuth><Wallet /></RequireAuth>} />
 
-          {/* 🎯 REGISTERED DEDICATED NOTIFICATIONS PANEL NODE */}
-          <Route 
-            path="/notifications" 
-            element={
-              <ProtectedChatRoute>
-                <NotificationsPage />
-              </ProtectedChatRoute>
-            } 
-          />
-
-          <Route 
-            path="/my-team" 
-            element={
-              <ProtectedVendorRoute>
-                <MyTeamDirectory />
-              </ProtectedVendorRoute>
-            } 
-          />
-
-          <Route path="/wallet" element={<ProtectedVendorRoute><Wallet /></ProtectedVendorRoute>} />
+          {/* Marketers: the membership page is open to pending and lapsed members too */}
+          <Route path={ROUTES.MEMBERSHIP} element={<RequireMarketer allowPending><MembershipPage /></RequireMarketer>} />
+          <Route path={ROUTES.MY_TEAM} element={<RequireMarketer><MyTeamDirectory /></RequireMarketer>} />
         </Route>
 
-        {/* ==========================================================================
-           2. ISOLATED MERCHANT SYSTEM (Secured via Client-Side Deflection Guard)
-           ========================================================================== */}
-        <Route 
-          path={ROUTES.MEMBER_DASHBOARD} 
-          element={
-            <ProtectedVendorRoute>
-              <MyShopDashboard />
-            </ProtectedVendorRoute>
-          } 
-        />
+        {/* Merchant dashboard (outside the public layout) */}
+        <Route path={ROUTES.MEMBER_DASHBOARD} element={<RequireMarketer><MyShopDashboard /></RequireMarketer>} />
 
-        {/* ==========================================================================
-           3. UNIVERSAL EXPLICIT FALLBACK REDIRECT
-           ========================================================================== */}
         <Route path={ROUTES.NOT_FOUND} element={<Navigate to={ROUTES.HOME} replace />} />
-        
       </Routes>
     </BrowserRouter>
   );
