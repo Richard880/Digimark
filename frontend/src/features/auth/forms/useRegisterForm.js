@@ -86,6 +86,7 @@ export default function useRegisterForm({ onRegistered } = {}) {
         }
       }
       onRegistered?.({ category: v.accountCategory, photoFailed });
+      await refreshProfile(); // load the new account into the app state (and the photo, if any)
     } catch (err) {
       setAuthError(friendlyError(err));
     } finally {
