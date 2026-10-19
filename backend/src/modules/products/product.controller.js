@@ -451,7 +451,7 @@ async function shareProduct(req, res) {
     if (!visible) return bad(res, "PRODUCT_NOT_AVAILABLE_FOR_SHARING", 404);
 
     const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
-    const base = `${frontendUrl}/product/${product._id}`;
+    const base = `${frontendUrl}/product-details/${product._id}`;
 
     // Sharing your own product earns no bonus: return the plain link
     if (String(product.sellerId) === String(req.user._id)) {
