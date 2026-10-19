@@ -77,6 +77,31 @@ req.userCategory = user.accountCategory === "network" && paid ? "network" : "ret
 
 const authenticate = build({ loadUser: true, checkRevoked: false });          // normal routes
 authenticate.strict = build({ loadUser: true, checkRevoked: true });          // money & role-changing routes
-authenticate.tokenOnly = build({ loadUser: false, checkRevoked: false });     // /sync only
+authenticate.tokenOnly = build({ loadUser: false, checkRevoked: false }); // /sync only
+
+const isPaid = (u) =>
+  u.accountCategory === "network" &&
+  u.membershipStatus === "active" &&
+  (!u.membershipExpiresAt || u.membershipExpiresAt > new Date());
+
+// Public routes: fills in req.user when a valid token is sent. Never rejects.
+authenticate.optional = async (req, _res, next) => {
+  req.user = null;
+  req.userCategory = "guest";
+  const token = bearerToken(req);
+  if (!token) return next();
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    const user = await User.findOne({ firebaseUid: decoded.uid });
+    if (user && user.isActive && user.membershipStatus !== "suspended") {
+      req.firebaseUser = decoded;
+      req.user = user;
+      req.userCategory = isPaid(user) ? "network" : "retail";
+    }
+  } catch {
+    /* a bad or expired token on a public page just means "guest" */
+  }
+  return next();
+};
 
 module.exports = authenticate;
