@@ -11,5 +11,6 @@ router.use("/orders", require("../modules/order/order.routes"));
 router.use("/wallet", require("../modules/wallet/wallet.routes"));
 router.use("/membership", require("../modules/membership/membership.routes"));
 router.use("/internal", require("./internal.routes"));
+router.use("/search", require("./search.routes"));
 
 module.exports = router;
