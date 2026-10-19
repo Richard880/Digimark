@@ -1,104 +1,39 @@
 const express = require("express");
-const authenticate = require("../../middleware/authenticate"); // Parses token data variables
-const authorize = require("../../middleware/authorize");       // Verifies category rights
+const rateLimit = require("express-rate-limit");
+const authenticate = require("../../middleware/authenticate");
 
-const { 
-  listProducts,
-  getPublicStoreProducts, // 🎯 Included public catalog feed stream handler
-  getProductById,
-  createProduct, 
-  updateProduct, 
-  updateProductStatus,    // 🎯 NEW: Imported status toggle controller
-  purgeProductAsset,      // 🎯 NEW: Imported permanent asset purge controller
-  shareProduct,       
-  toggleProductShelf,
-  getSmartDiscoveries,
-  getHeroBannerFeed
+const {
+  listProducts, getPublicStoreProducts, getProductById, createProduct, updateProduct,
+  updateProductStatus, purgeProductAsset, shareProduct, toggleProductShelf,
+  getSmartDiscoveries, getHeroBannerFeed, getSharedProducts,
 } = require("./product.controller");
 
 const router = express.Router();
 
-// =========================================================================
-// 🎯 CRITICAL: Route ordering matters! Express matches routes in order.
-// 
-// Rules:
-// 1. Static paths FIRST (e.g., /public-store, /discovery, /share)
-// 2. Parameterized specific paths SECOND (e.g., /:id/toggle-shelf, /:id/status)
-// 3. Generic wildcard paths LAST (e.g., /:id)
-// 
-// If wildcard /:id comes before /:id/toggle-shelf, Express will match
-// /:id first and never reach the more specific route!
-// =========================================================================
+const perUser = (limit) =>
+  rateLimit({ windowMs: 60 * 1000, limit, keyGenerator: (req) => String(req.user._id), message: { error: "TOO_MANY_REQUESTS" } });
+const perIp = (limit) => rateLimit({ windowMs: 60 * 1000, limit, message: { error: "TOO_MANY_REQUESTS" } });
 
-// =========================================================================
-// 🛒 1. PUBLIC READ-ONLY ENDPOINTS (Static paths, no auth required)
-// =========================================================================
+// Order matters: fixed paths FIRST, then /:id last, or "/:id" swallows them.
 
-// GET /api/products
-// List products - filters by sellerId and status based on query params
-router.get("/", listProducts);
+/* Public reads. Optional login: signed-in users get commission data (marketers) and their own unlisted stock (owners). */
+router.get("/", perIp(120), authenticate.optional, listProducts);
+router.get("/public-store", perIp(120), authenticate.optional, getPublicStoreProducts);
+router.get("/discovery", perIp(120), authenticate.optional, getSmartDiscoveries);
+router.get("/hero-banner", perIp(120), getHeroBannerFeed);
+router.get("/shared", perIp(120), authenticate.optional, getSharedProducts);
 
-// GET /api/products/public-store
-// Public storefront products (no auth required)
-router.get("/public-store", getPublicStoreProducts);
+/* Marketer actions (the controllers enforce "active marketer" themselves) */
+router.post("/", authenticate, perUser(20), createProduct);
+router.post("/share", authenticate, perUser(30), shareProduct);
+router.post("/:id/share", authenticate, perUser(30), shareProduct);
+router.patch("/:id/toggle-shelf", authenticate, perUser(60), toggleProductShelf);
+router.patch("/:id/status", authenticate, perUser(60), updateProductStatus);
 
-// GET /api/products/discovery
-// Smart discovery feeds (trending, best-sellers, fresh-drops, top-products)
-router.get("/discovery", getSmartDiscoveries);
-
-
-// =========================================================================
-// 📤 2. PUBLIC WRITE ENDPOINTS (Static paths with specific action)
-// =========================================================================
-
-// POST /api/products/share
-// Generate shareable product link (requires auth)
-router.post("/share", authenticate, shareProduct);
-
-
-// =========================================================================
-// 🔒 3. VENDOR-ONLY ENDPOINTS (Requires "network" authorization)
-// =========================================================================
-
-// POST /api/products
-// Create new product (requires auth + network role)
-router.post("/", authenticate, authorize("network"), createProduct);
-
-
-// =========================================================================
-// ⚠️ CRITICAL SECTION: PARAMETERIZED PATHS BEFORE WILDCARD
-// 
-// These MUST come BEFORE the wildcard /:id routes!
-// Otherwise /:id will match first and these specific paths won't work.
-// =========================================================================
-
-// PATCH /api/products/:id/toggle-shelf
-// Toggle product visibility on/off shelf (requires auth + network role)
-router.patch("/:id/toggle-shelf", authenticate, authorize("network"), toggleProductShelf);
-
-// PATCH /api/products/:id/status
-// Update product status (LISTED/UNLISTED/ACTIVE) (requires auth + network role)
-// 🎯 This is the endpoint used by the dashboard to show/hide products
-router.patch("/:id/status", authenticate, authorize("network"), updateProductStatus);
-
-
-// =========================================================================
-// 🔍 4. GENERIC WILDCARD ENDPOINTS (Must always sit at the bottom!)
-// =========================================================================
-
-// GET /api/products/:id
-// Get single product by ID (public read, no auth required)
-router.get("/:id", getProductById);
-
-// PUT /api/products/:id
-// Update product fields (requires auth + network role)
-router.put("/:id", authenticate, authorize("network"), updateProduct);
-
-// Mount the path right above your regular list routing hooks:
-router.get("/hero-banner", getHeroBannerFeed);
-
-// DELETE /api/products/:id
-// Delete product permanently (requires auth + network role)
-router.delete("/:id", authenticate, authorize("network"), purgeProductAsset);
+/* Single product (wildcard last) */
+router.get("/:id", perIp(120), authenticate.optional, getProductById);
+router.put("/:id", authenticate, perUser(30), updateProduct);
+router.patch("/:id", authenticate, perUser(30), updateProduct);
+router.delete("/:id", authenticate, perUser(20), purgeProductAsset);
 
 module.exports = router;
