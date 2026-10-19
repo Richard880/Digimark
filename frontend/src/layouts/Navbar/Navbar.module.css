@@ -114,6 +114,19 @@
   background: #f0f6f1;
 }
 
+
+.sokodigi-nav a.nav-link-active {
+  color: #ffffff;
+  background: #075b43;
+  box-shadow: 0 3px 8px rgba(7, 91, 67, 0.12);
+}
+
+.sokodigi-nav a.nav-link-active:hover {
+  color: #ffffff;
+  background: #034b37;
+}
+
+
 /* Keep current route visually active without changing route logic.
    React Router adds this class automatically to active NavLinks only.
    Existing Link elements remain fully compatible. */
