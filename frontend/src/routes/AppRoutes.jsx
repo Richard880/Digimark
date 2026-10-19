@@ -92,6 +92,7 @@ export default function AppRoutes() {
           <Route path={ROUTES.MESSAGES} element={<RequireAuth><InboxConversationView /></RequireAuth>} />
           <Route path={ROUTES.NOTIFICATIONS} element={<RequireAuth><NotificationsPage /></RequireAuth>} />
           <Route path={ROUTES.WALLET} element={<RequireAuth><Wallet /></RequireAuth>} />
+          <Route path={ROUTES.MY_PROFILE} element={<RequireAuth><Profile /></RequireAuth>} />
 
           {/* Marketers: the membership page is open to pending and lapsed members too */}
           <Route path={ROUTES.MEMBERSHIP} element={<RequireMarketer allowPending><MembershipPage /></RequireMarketer>} />
