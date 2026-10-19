@@ -2,9 +2,20 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import useAuth from "../../auth/hooks/useAuth";
 
+import { useParams, useSearchParams } from "react-router-dom";
+
 const API_URL = import.meta.env.PROD 
   ? "" 
   : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/\$/, "");
+
+
+
+const { id } = useParams();
+const [search] = useSearchParams();
+useEffect(() => {
+  const ref = search.get("ref");
+  if (ref && /^[A-Za-z0-9_-]{8,32}$/.test(ref)) sessionStorage.setItem(`sokodigi_ref_${id}`, ref);
+}, [id, search]);
 
 export default function ProductDetails() {
   const { id } = useParams();
