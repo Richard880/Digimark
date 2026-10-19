@@ -16,6 +16,8 @@ export default function NotificationsPage() {
         // 🎯 FIXED URL ROUTING: Swapped static relative strings with absolute base variables
         const response = await axios.get(`${BACKEND_URL}/api/notifications`, { withCredentials: true });
         setNotifications(response.data || []);
+        const { data } = await apiClient.get("/notifications");
+         setNotifications(Array.isArray(data) ? data : data.notifications || []);
       } catch (err) {
         console.error("Failed to compile historical notification entries:", err);
       } finally {
