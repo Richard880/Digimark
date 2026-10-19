@@ -147,13 +147,56 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate, so
           )}
         </Link>
 
-        <nav className={`${styles["sokodigi-nav"]} ${isOpen ? styles["menu-expanded"] : ""}`}>
-          <Link to={ROUTES.HOME} onClick={closeMenu}>Home</Link>
-          <Link to={ROUTES.MARKETPLACE} onClick={closeMenu}>MarketHub</Link>
-          {signedIn && <Link to={ROUTES.MESSAGES} onClick={closeMenu}>💬 Messages</Link>}
-          {isMarketer && <Link to={ROUTES.MEMBER_DASHBOARD} onClick={closeMenu}>Dashboard</Link>}
-          {needsMembership && <Link to={ROUTES.MEMBERSHIP} onClick={closeMenu}>Membership</Link>}
-        </nav>
+       
+<nav
+  className={`${styles["sokodigi-nav"]} ${
+    isOpen ? styles["menu-expanded"] : ""
+  }`}
+  aria-label="Main navigation"
+>
+  <Link
+    to={ROUTES.HOME}
+    onClick={closeMenu}
+    className={
+      location.pathname === ROUTES.HOME
+        ? styles["nav-link-active"]
+        : ""
+    }
+  >
+    Home
+  </Link>
+
+  <Link
+    to={ROUTES.MARKETPLACE}
+    onClick={closeMenu}
+    className={
+      location.pathname === ROUTES.MARKETPLACE
+        ? styles["nav-link-active"]
+        : ""
+    }
+  >
+    MarketHub
+  </Link>
+
+  {signedIn && (
+    <Link to={ROUTES.MESSAGES} onClick={closeMenu}>
+      Messages
+    </Link>
+  )}
+
+  {isMarketer && (
+    <Link to={ROUTES.MEMBER_DASHBOARD} onClick={closeMenu}>
+      Dashboard
+    </Link>
+  )}
+
+  {needsMembership && (
+    <Link to={ROUTES.MEMBERSHIP} onClick={closeMenu}>
+      Membership
+    </Link>
+  )}
+</nav>
+
 
         <div className={styles["nav-actions-block"]}>
           <div className={`${styles["nav-search-wrapper"]} ${showSearchInput ? styles["active-input"] : ""}`}>
