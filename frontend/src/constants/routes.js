@@ -8,7 +8,7 @@ const ROUTES = {
   PRODUCT_DETAILS: "/product-details/:id",
   PUBLIC_PROFILE: "/profile/:username", // a marketer's shop page (matches the backend's username lookup)
   REGISTER: "/register",                // referral links: /register?sponsor=<username>
-
+  MY_PROFILE: "/profile",
   /* Any signed-in account (buyers and marketers) */
   CHECKOUT: "/checkout",
   WALLET: "/wallet",
