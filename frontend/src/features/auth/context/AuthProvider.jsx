@@ -70,14 +70,13 @@ function AuthProvider({ children }) {
   }, [hydrate]);
 
   // login(email, password) or login({ email, password })
-  const login = useCallback(async (a, b) => {
-    const email = typeof a === "object" ? a.email : a;
-    const password = typeof a === "object" ? a.password : b;
-    const data = await apiLogin(email, password); // signs in, then the idempotent sync
-    ++seq.current; // anything still loading is now stale
-    setAuth(build(firebaseAuth.currentUser, data));
-    return { user: data.user, destination: destinationFor(data.user) };
-  }, []);
+const login = useCallback(async (a, b) => {
+  const creds = typeof a === "object" ? a : { email: a, password: b };
+  const data = await apiLogin(creds.email, creds.password, !!creds.rememberMe);
+  ++seq.current; // anything still loading is now stale
+  setAuth(build(firebaseAuth.currentUser, data));
+  return { user: data.user, destination: destinationFor(data.user) };
+}, []);
 
   const logout = useCallback(async () => {
     ++seq.current;
