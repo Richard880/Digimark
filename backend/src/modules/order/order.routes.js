@@ -7,6 +7,10 @@ const {
   fulfillOrderEscrowHandshake // 🎯 NEW: Single unified dual-verification controller
 } = require("./order.controller");
 
+
+router.get("/:orderNumber/pin", authenticate, getDeliveryPin);                          // buyer only
+router.patch("/:orderNumber/fulfill-handshake", authenticate.strict, completeDelivery); // seller only
+router.patch("/:orderNumber/cancel", authenticate.strict, cancelOrder);
 const router = express.Router();
 
 // =========================================================================
