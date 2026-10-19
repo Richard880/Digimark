@@ -1,5 +1,7 @@
 const { synchronizeFirebaseUser } = require("./auth.service");
 const admin = require("../../config/firebaseAdmin");
+const User = require("../../models/User");
+const UserProfile = require("../../models/UserProfile");
 
 // Adjust to the values your app really uses
 const ACCOUNT_CATEGORIES = ["retail", "network"];
@@ -179,6 +181,26 @@ async function becomeMarketer(req, res) {
   }
 }
 
-module.exports = { syncCurrentUser, becomeMarketer };
+
+
+// GET /api/auth/me (authenticate.tokenOnly): read-only, never creates anything
+async function getMe(req, res) {
+  try {
+    const user = await User.findOne({ firebaseUid: req.firebaseUser.uid })
+      .select("-firebaseUid -pathFromRoot -referrals -sponsorId -parentId -__v")
+      .lean();
+    if (!user) return res.json({ ok: true, synced: false });
+    if (!user.isActive || user.membershipStatus === "suspended") {
+      return res.status(403).json({ error: "ACCOUNT_DISABLED" });
+    }
+    const profile = await UserProfile.findOne({ userId: user._id }).lean();
+    return res.json({ ok: true, synced: true, user, profile });
+  } catch (e) {
+    console.error("❌ getMe:", e.stack || e.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+}
+
+module.exports = { syncCurrentUser, becomeMarketer, getMe };
 
 
