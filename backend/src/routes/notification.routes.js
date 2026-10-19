@@ -1,39 +1,53 @@
 const express = require("express");
-const router = express.Router();
+const mongoose = require("mongoose");
+const rateLimit = require("express-rate-limit");
+const authenticate = require("../middleware/authenticate");
 const Notification = require("../models/Notification");
 
-// 🎯 FIXES GET /api/notifications (404)
-router.get("/", async (req, res) => {
+const router = express.Router();
+
+const perUser = (limit) =>
+  rateLimit({ windowMs: 60 * 1000, limit, keyGenerator: (req) => String(req.user._id), message: { error: "TOO_MANY_REQUESTS" } });
+const fail = (res, e, tag) => {
+  console.error(`❌ ${tag}:`, e.stack || e.message);
+  return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+};
+
+// Everything is scoped to the signed-in user. No userId is ever read from the request.
+router.get("/", authenticate, perUser(60), async (req, res) => {
   try {
-    // If you have authentication middleware setup (like req.user.id), replace "test-user-id" with req.user.id
-    const userId = req.user?.id || req.query.userId || "test-user-id"; 
-    
-    const logs = await Notification.find({ recipientId: userId })
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 30));
+    const logs = await Notification.find({ recipientId: req.user._id })
       .sort({ createdAt: -1 })
-      .limit(50);
-      
-    return res.status(200).json(logs);
-  } catch (err) {
-    console.error("Failed to read notification schemas:", err);
-    return res.status(500).json({ error: "Internal ledger processing crash." });
-  }
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .select("-metadata -actorId -__v")
+      .lean();
+    return res.json(logs);
+  } catch (e) { return fail(res, e, "notifications list"); }
 });
 
-// 🎯 FIXES POST /api/notifications/mark-all-read (404)
-router.post("/mark-all-read", async (req, res) => {
+// For the navbar badge
+router.get("/unread-count", authenticate, perUser(120), async (req, res) => {
   try {
-    const userId = req.user?.id || req.body.userId || "test-user-id";
-    
-    await Notification.updateMany(
-      { recipientId: userId, isRead: false },
-      { $set: { isRead: true } }
-    );
-    
-    return res.status(200).json({ success: true, status: "All notifications updated cleanly." });
-  } catch (err) {
-    console.error("Failed to update notification logs:", err);
-    return res.status(500).json({ error: "Failed to update logs." });
-  }
+    return res.json({ count: await Notification.countDocuments({ recipientId: req.user._id, isRead: false }) });
+  } catch (e) { return fail(res, e, "unread count"); }
+});
+
+router.post("/mark-all-read", authenticate, perUser(20), async (req, res) => {
+  try {
+    await Notification.updateMany({ recipientId: req.user._id, isRead: false }, { $set: { isRead: true } });
+    return res.json({ ok: true });
+  } catch (e) { return fail(res, e, "mark all read"); }
+});
+
+router.patch("/:id/read", authenticate, perUser(60), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ error: "INVALID_ID" });
+    await Notification.updateOne({ _id: req.params.id, recipientId: req.user._id }, { $set: { isRead: true } });
+    return res.json({ ok: true });
+  } catch (e) { return fail(res, e, "mark read"); }
 });
 
 module.exports = router;
