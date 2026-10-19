@@ -4,6 +4,9 @@ import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/
 import { auth } from "../../../firebase";
 import { syncAccount, patchProfile, friendlyError } from "../authApi";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
+import useAuth from "../hooks/useAuth";
+// ...inside useRegisterForm:
+const { refreshProfile } = useAuth();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_RE = /^(?:\+?254|0)[17]\d{8}$/;
