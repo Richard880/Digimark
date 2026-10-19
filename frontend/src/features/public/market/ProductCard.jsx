@@ -1,146 +1,349 @@
+
+import { useEffect, useState } from "react";
 import apiClient from "../../../services/apiClient";
 
-export default function ProductCard({ product, onClick }) {
-  const productId = product._id || product.id;
-  
-  // Format target display image path
-  const imageUrl = product.imageUrl?.startsWith("http")
-    ? product.imageUrl
-    : `${apiClient.defaults.baseURL.replace(/\/api\/?$/, "")}${product.imageUrl || ""}`;
+function formatKsh(value) {
+  return `KSh ${Number(value || 0).toLocaleString("en-KE")}`;
+}
 
-  // Fallback math parameters mirroring our dynamic multi-level accounting matrix
-  const retailPrice = Number(product.price || 0);
-  const originalPrice = Number(product.originalPrice || 0); // 🎯 Added for promotion tracking
-  const commission = Number(product.affiliateCommission || 0);
-  const stockCount = Number(product.quantity || 0);
+function resolveImageUrl(imageUrl) {
+  if (typeof imageUrl !== "string" || !imageUrl.trim()) {
+    return "";
+  }
 
-  // Calculate dynamic savings percentage drop if product is on sale
-  const hasOffer = originalPrice > retailPrice;
-  const discountPercent = hasOffer ? Math.round(((originalPrice - retailPrice) / originalPrice) * 100) : 0;
+  const source = imageUrl.trim();
+
+  if (/^(https?:\/\/|data:)/i.test(source)) {
+    return source;
+  }
+
+  const baseURL = apiClient.defaults.baseURL;
+
+  if (!baseURL) return source;
+
+  try {
+    const base = new URL(baseURL, window.location.origin);
+    const basePath = base.pathname.replace(/\/api\/?$/, "").replace(/\/$/, "");
+    const imagePath = source.startsWith("/")
+      ? source
+      : `/${source}`;
+
+    return `${base.origin}${basePath}${imagePath}`;
+  } catch {
+    return source;
+  }
+}
+
+function CartIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 4h2l2.2 10.1a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 2-1.6L21 8H6"
+      />
+      <circle cx="10" cy="20" r="1" />
+      <circle cx="18" cy="20" r="1" />
+    </svg>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"
+      />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function ImagePlaceholder() {
+  return (
+    <div
+      className="flex h-full w-full flex-col items-center justify-center gap-3 text-[#075b43]"
+      aria-label="Product image unavailable"
+    >
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          className="h-8 w-8"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 8h18l-2 12H5L3 8Zm5 0 4-5 4 5M9 12v4m6-4v4"
+          />
+        </svg>
+      </div>
+      <span className="text-[11px] font-semibold text-slate-400">
+        Product image unavailable
+      </span>
+    </div>
+  );
+}
+
+export default function ProductCard({
+  product,
+  onClick,
+  onAddToBasket,
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  const productId = product?._id || product?.id;
+  const imageUrl = resolveImageUrl(product?.imageUrl);
+
+  const retailPrice = Number(product?.price || 0);
+  const originalPrice = Number(product?.originalPrice || 0);
+  const commission = Number(product?.affiliateCommission || 0);
+  const stockCount = Number(product?.quantity || 0);
+  const deliveryFee = Number(product?.deliveryFee || 0);
+
+  const hasOffer =
+    originalPrice > retailPrice && originalPrice > 0;
+
+  const discountPercent = hasOffer
+    ? Math.round(
+        ((originalPrice - retailPrice) / originalPrice) * 100
+      )
+    : 0;
+
+  const hasStock = stockCount > 0;
+  const rating = Number(product?.rating);
+  const reviewCount = Number(
+    product?.reviewCount ?? product?.reviewsCount ?? 0
+  );
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [imageUrl]);
+
+  const handleViewProduct = () => {
+    if (productId != null) {
+      onClick?.(productId);
+    }
+  };
+
+  const handleAddToBasket = () => {
+    if (!hasStock || !onAddToBasket) return;
+    onAddToBasket(product);
+  };
 
   return (
-    <div className="group bg-white border border-slate-200/80 rounded-3xl overflow-hidden shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col h-full w-full relative">
-      
-      {/* 🟢 TOP ACTION BADGES */}
-      <div className="absolute top-4 left-4 right-4 z-10 flex items-center justify-between pointer-events-none gap-2">
-        {/* Marketplace Identity Label Tag */}
-        <span className="bg-slate-900/80 backdrop-blur-xs text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border border-white/10 shrink-0">
-          SokoDigi
-        </span>
-        
-        <div className="flex items-center gap-1.5">
-          {/* 🎯 FIXED: Dynamic Offer / Promo Capsule Ribbon */}
+    <article className="group relative flex h-full w-full flex-col overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_3px_12px_rgba(16,49,34,0.035)] transition duration-300 hover:-translate-y-1 hover:border-emerald-900/15 hover:shadow-[0_15px_35px_rgba(16,49,34,0.10)]">
+
+      {/* PRODUCT IMAGE AND BADGES */}
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-br from-[#f6faf6] to-[#edf5ee] p-4">
+
+        <div className="absolute left-3 top-3 z-10 flex max-w-[calc(100%-24px)] items-center justify-between gap-2">
+          <span className="rounded-full border border-white/80 bg-white/95 px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#075b43] shadow-sm">
+            SokoDigi
+          </span>
+        </div>
+
+        <div className="absolute right-3 top-3 z-10 flex flex-col items-end gap-2">
           {hasOffer && (
-            <span className="bg-rose-600 text-white text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border border-rose-500 shadow-xs animate-pulse">
-              🔥 {discountPercent}% OFF
+            <span className="rounded-full bg-rose-600 px-2.5 py-1.5 text-[9px] font-extrabold tracking-wide text-white shadow-sm">
+              {discountPercent}% OFF
             </span>
           )}
 
-          {/* Real-time Inventory Shell Readout Tag */}
-          <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border shrink-0 ${
-            stockCount > 0 
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200/60" 
-              : "bg-red-50 text-red-700 border-red-200/60"
-          }`}>
-            ● {stockCount > 0 ? "In Stock" : "Out of Stock"}
+          <span
+            className={`rounded-full border px-2.5 py-1 text-[9px] font-bold ${
+              hasStock
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-red-200 bg-red-50 text-red-700"
+            }`}
+          >
+            {hasStock ? "In stock" : "Out of stock"}
           </span>
         </div>
-      </div>
 
-      {/* 🖼️ HERO IMAGE CONTAINER GRAPHIC */}
-      <div className="relative aspect-[4/3] w-full bg-slate-50 overflow-hidden border-b border-slate-100 flex items-center justify-center p-4">
-        <img 
-          src={imageUrl} 
-          alt={product.name} 
-          className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500" 
-          crossOrigin="anonymous"
-          loading="lazy"
-        />
+        {imageUrl && !imageFailed ? (
+          <img
+            src={imageUrl}
+            alt={product?.name || "Marketplace product"}
+            loading="lazy"
+            onError={() => setImageFailed(true)}
+            className="h-full w-full object-contain p-3 transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <ImagePlaceholder />
+        )}
 
-        {/* 🔥 HIGH-CONTRAST FLOATING COMMISSION FLOATER */}
+        {/* AFFILIATE COMMISSION */}
         {commission > 0 && (
-          <div className="absolute bottom-3 right-3 bg-amber-400 border-2 border-white text-slate-950 font-black rounded-full h-14 w-14 shadow-md flex flex-col items-center justify-center text-center p-1 leading-none transform translate-y-1 group-hover:translate-y-0 transition-transform duration-300">
-            <span className="text-[7px] uppercase tracking-tighter opacity-80 font-bold">Earn</span>
-            <span className="text-[11px] font-black mt-0.5">KSh {commission.toLocaleString()}</span>
+          <div className="absolute bottom-3 right-3 flex items-center gap-2 rounded-full border border-emerald-100 bg-white/95 py-2 pl-2.5 pr-3 shadow-md backdrop-blur-sm">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-[#08784d]">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="h-4 w-4"
+                aria-hidden="true"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M12 2v20m5-15H9a3 3 0 0 0 0 6h6a3 3 0 0 1 0 6H6"
+                />
+              </svg>
+            </span>
+
+            <span>
+              <span className="block text-[8px] font-bold uppercase tracking-wide text-slate-400">
+                Earn per sale
+              </span>
+              <span className="block text-xs font-black text-[#075b43]">
+                {formatKsh(commission)}
+              </span>
+            </span>
           </div>
         )}
       </div>
 
-      {/* 📄 PRODUCT SUMMARY TEXT ENTITIES */}
-      <div className="p-5 flex flex-col flex-1 gap-3">
-        <div>
-          <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-0.5">
-            {product.brandName || "SokoDigi Seller"}
-          </span>
-          <h3 className="text-base font-black text-slate-800 line-clamp-1 group-hover:text-emerald-600 transition-colors">
-            {product.name}
+      {/* PRODUCT INFORMATION */}
+      <div className="flex flex-1 flex-col gap-3 p-4 sm:p-5">
+
+        <div className="min-w-0">
+          <p className="truncate text-[10px] font-bold uppercase tracking-[0.13em] text-emerald-700">
+            {product?.brandName || "SokoDigi Seller"}
+          </p>
+
+          <h3
+            title={product?.name || "Marketplace product"}
+            className="mt-1.5 line-clamp-1 text-[15px] font-extrabold tracking-tight text-slate-800 transition-colors group-hover:text-[#08784d]"
+          >
+            {product?.name || "Untitled product"}
           </h3>
-          <p className="text-xs text-slate-400 line-clamp-1 mt-0.5 font-medium">
-            {product.description || "Premium verified community listing asset."}
+
+          <p className="mt-1.5 line-clamp-2 min-h-9 text-xs leading-[18px] text-slate-500">
+            {product?.description ||
+              "Discover this product from the SokoDigi marketplace community."}
           </p>
         </div>
 
-        {/* ⭐⭐⭐⭐⭐ RATING REPLICAS METRICS CONTAINER */}
-        <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-1.5 w-max border border-slate-100">
-          <div className="flex text-amber-400 text-xs tracking-tighter">★★★★★</div>
-          <span className="text-[10px] font-bold text-slate-500">(4.8)</span>
-          <span className="text-slate-300 text-xs">|</span>
-          <span className="text-[10px] font-bold text-slate-500 capitalize">{product.category || "General"}</span>
-        </div>
+        {/* CATEGORY AND REAL RATING, WHEN AVAILABLE */}
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="max-w-full truncate rounded-lg border border-emerald-900/[0.07] bg-emerald-50/70 px-2.5 py-1.5 text-[10px] font-bold capitalize text-[#075b43]">
+            {product?.category || "General"}
+          </span>
 
-        {/* 🎯 FIXED: Clean consumer pricing panel (Removed explicit rows grid matrix block) */}
-        <div className="flex items-baseline gap-2 bg-slate-50/50 rounded-2xl border border-slate-100 px-4 py-3 mt-1.5">
-          <div className="flex flex-col">
-            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tight block">Selling Price</span>
-            <div className="flex items-baseline gap-2 mt-0.5">
-              <span className="text-base font-black text-slate-900 tracking-tight">
-                KSh {retailPrice.toLocaleString()}
+          {Number.isFinite(rating) && rating > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-600">
+              <span className="text-amber-500" aria-hidden="true">
+                ★
               </span>
-              {hasOffer && (
-                <span className="text-xs font-bold text-slate-400 line-through tracking-tight">
-                  KSh {originalPrice.toLocaleString()}
+              {rating.toFixed(1)}
+              {reviewCount > 0 && (
+                <span className="font-medium text-slate-400">
+                  ({reviewCount})
                 </span>
               )}
-            </div>
+            </span>
+          )}
+        </div>
+
+        {/* PRICING PANEL */}
+        <div className="rounded-2xl border border-emerald-900/[0.07] bg-[#f7faf7] px-3.5 py-3">
+          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500">
+            Selling price
+          </p>
+
+          <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="text-xl font-black tracking-tight text-[#075b43]">
+              {formatKsh(retailPrice)}
+            </span>
+
+            {hasOffer && (
+              <span className="text-xs font-semibold text-slate-400 line-through">
+                {formatKsh(originalPrice)}
+              </span>
+            )}
+          </div>
+
+          {hasOffer && (
+            <p className="mt-1 text-[10px] font-semibold text-emerald-700">
+              You save {formatKsh(originalPrice - retailPrice)}
+            </p>
+          )}
+        </div>
+
+        {/* STOCK AND DELIVERY */}
+        <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <div className="min-w-0">
+            <p className="text-[9px] font-semibold text-slate-400">
+              Availability
+            </p>
+            <p className="mt-1 truncate text-[11px] font-extrabold text-slate-700">
+              {stockCount.toLocaleString("en-KE")} units
+            </p>
+          </div>
+
+          <div className="min-w-0 text-right">
+            <p className="text-[9px] font-semibold text-slate-400">
+              Delivery fee
+            </p>
+            <p className="mt-1 truncate text-[11px] font-extrabold text-slate-700">
+              {formatKsh(deliveryFee)}
+            </p>
           </div>
         </div>
 
-        {/* 📦 LOWER METADATA REGISTRY ENTRIES FOOTER ROW */}
-        <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1 text-[10px] font-bold text-slate-400">
-          <div className="flex items-center gap-1.5">
-            <span>Available:</span>
-            <span className="text-slate-700 font-extrabold">{stockCount} units</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span>Delivery:</span>
-            <span className="text-slate-700 font-extrabold">KSh {Number(product.deliveryFee || 0).toLocaleString()}</span>
-          </div>
-        </div>
-
-        {/* 🎯 CORE INTERACTION ACTION CONTROL BUTTON KEYS */}
-        <div className="grid grid-cols-4 gap-2 mt-2 pt-1">
+        {/* ACTION BUTTONS */}
+        <div className="mt-auto grid grid-cols-[1fr_44px] gap-2 pt-1">
           <button
             type="button"
-            onClick={() => onClick?.(productId)}
-            className="col-span-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs py-3 text-center transition shadow-xs flex items-center justify-center gap-2 group/btn cursor-pointer"
+            onClick={handleAddToBasket}
+            disabled={!hasStock || !onAddToBasket}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#08784d] px-3 py-3 text-xs font-extrabold text-white shadow-sm transition hover:bg-[#065f3c] focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
+            aria-label={`Add ${product?.name || "product"} to basket`}
+            title={
+              !hasStock
+                ? "Product is out of stock"
+                : !onAddToBasket
+                  ? "Basket action must be connected"
+                  : "Add to basket"
+            }
           >
-            🛒 Add to Basket
+            <CartIcon />
+            <span>Add to Basket</span>
           </button>
-          
+
           <button
             type="button"
-            onClick={() => onClick?.(productId)}
-            className="col-span-1 rounded-xl border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-700 transition cursor-pointer"
-            title="View Product Layout Specifications Details Passing Keys"
+            onClick={handleViewProduct}
+            disabled={productId == null || !onClick}
+            className="flex min-h-11 items-center justify-center rounded-xl border border-emerald-900/15 bg-white text-[#075b43] transition hover:border-emerald-700 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            title="View product details"
+            aria-label={`View ${product?.name || "product"} details`}
           >
-            <svg className="h-4 w-4 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
+            <EyeIcon />
           </button>
         </div>
-
       </div>
-    </div>
+    </article>
   );
 }
