@@ -1,82 +1,36 @@
 // src/constants/routes.js
+// Every page path lives here. Never type a path by hand elsewhere.
 
 const ROUTES = {
-  /* ==========================================
-   * 🌟 SokoDigi Core Marketplace Routes
-   * ========================================== */
+  /* Public */
   HOME: "/",
-  MARKETPLACE: "/marketplace",               // Points directly to our Emerald Green MarketHub Portal
-  PRODUCT_DETAILS: "/product-details/:id",  // Points to our decoupled Single Product Details View
+  MARKETPLACE: "/marketplace",
+  PRODUCT_DETAILS: "/product-details/:id",
+  PUBLIC_PROFILE: "/profile/:username", // a marketer's shop page (matches the backend's username lookup)
+  REGISTER: "/register",                // referral links: /register?sponsor=<username>
 
-  /* ==========================================
-   * Public Auth Context Proxies
-   * ========================================== */
-  LOGIN: "/login",
-  REGISTER: "/register",
-  FORGOT_PASSWORD: "/forgot-password",
-  VERIFY_EMAIL: "/verify-email",
-  PUBLIC_NEWS_DETAIL: "/news/:newsId",
-  PUBLIC_PROFILE: "/profile/:userId", 
-      
-  /* ==========================================
-   * Member & Merchant Routes
-   * ========================================== */
-  // 🎯 UNIFIED DASHBOARD REDIRECT TARGET:
-  // Points standard members directly to the state-driven "myShop Pro" control layout grid
+  /* Any signed-in account (buyers and marketers) */
+  CHECKOUT: "/checkout",
+  WALLET: "/wallet",
+  MESSAGES: "/messages",
+  NOTIFICATIONS: "/notifications",
+
+  /* Marketers (active, paid members) */
+  MEMBERSHIP: "/membership", // open to pending and lapsed marketers too: this is where they pay
   MEMBER_DASHBOARD: "/dashboard",
-  
-  MEMBER_APPLICATION: "/member/application",
-  MEMBER_PROFILE: "/member/profile",
-  MEMBER_SETTINGS: "/member/settings",
-  MEMBER_CARD: "/member/card",
+  MY_TEAM: "/my-team",
 
-  /* ==========================================
-   * Admin Routes
-   * ========================================== */
+  /* Admin (screens not built yet) */
   ADMIN_DASHBOARD: "/admin",
-  ADMIN_PROFILE: "/admin/profile", 
 
-  ADMIN_MEMBERS: "/admin/members",
-  ADMIN_MEMBER_NEW: "/admin/members/new",
-  ADMIN_MEMBER_CATEGORIES: "/admin/members/categories",
-  ADMIN_MEMBER_DETAILS: "/admin/members/:memberId",
-  ADMIN_INTERESTED_PARTIES: "/admin/interested-parties",
-
-  ADMIN_APPLICATIONS: "/admin/applications",
-  ADMIN_APPLICATION_REVIEW: "/admin/applications/:applicationId",
-
-  ADMIN_MANAGEMENT: "/admin/management",
-
-  /* ==========================================
-   * Admin Events Management Routes
-   * ========================================== */
-  ADMIN_EVENTS: "/admin/events",
-  ADMIN_EVENTS_NEW: "/admin/events/new",
-  ADMIN_EVENTS_EDIT: "/admin/events/edit/:eventId",
-
-  /* ==========================================
-   * Admin News Management Routes
-   * ========================================== */
-  ADMIN_NEWS: "/admin/news",
-  ADMIN_NEWS_NEW: "/admin/news/new",
-  ADMIN_NEWS_EDIT: "/admin/news/edit/:newsId", 
-
-  /* ==========================================
-   * Admin Financials Routes
-   * ========================================== */
-  ADMIN_FINANCIALS: "/admin/financials", 
-  ADMIN_FINANCIALS_DETAIL: "/admin/financials/:applicationId", 
-
-  /* ==========================================
-   * Admin Settings Routes
-   * ========================================== */
-  ADMIN_SETTINGS: '/admin/settings',
-  ADMIN_SETTINGS_GENERAL: '/admin/settings/general',
-
-  /* ==========================================
-   * Miscellaneous
-   * ========================================== */
+  /* Fallback */
   NOT_FOUND: "*",
 };
+
+// Build real URLs from the patterns above. encodeURIComponent keeps odd characters from breaking a link.
+export const productPath = (id) => ROUTES.PRODUCT_DETAILS.replace(":id", encodeURIComponent(id));
+export const profilePath = (username) => ROUTES.PUBLIC_PROFILE.replace(":username", encodeURIComponent(username));
+export const registerPath = (sponsorUsername) =>
+  sponsorUsername ? `${ROUTES.REGISTER}?sponsor=${encodeURIComponent(sponsorUsername)}` : ROUTES.REGISTER;
 
 export default ROUTES;
