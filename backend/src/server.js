@@ -2,11 +2,11 @@ require("dotenv").config({ path: require("path").resolve(__dirname, "../.env") }
 
 const http = require("http");
 const { Server } = require("socket.io");
-const jwt = require("jsonwebtoken");
-const cookie = require("cookie");
 const app = require("./app");
 const connectDatabase = require("./config/database");
-const notifications = require("./services/notificationService");
+const admin = require("./config/firebaseAdmin");
+const User = require("./models/User");
+const notifications = require("./services/notification.service");
 
 const PORT = Number(process.env.PORT || 3000);
 
@@ -16,33 +16,36 @@ async function start() {
 
   const io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_URL, // must be an explicit origin when credentials are on ("*" is rejected by browsers)
+      origin: (process.env.CLIENT_URL || "").split(",").map((s) => s.trim()).filter(Boolean),
       methods: ["GET", "POST"],
       credentials: true,
     },
+    maxHttpBufferSize: 1e5, // 100 KB: these sockets only push notifications down to the browser
   });
   notifications.init(io);
 
-  // 🔒 Authenticate every socket from the session cookie — the client no longer gets to claim a user ID.
-  io.use((socket, next) => {
+  // Authenticate every socket with the SAME Firebase token the API uses.
+  // The client never gets to say who it is.
+  io.use(async (socket, next) => {
     try {
-      const cookies = cookie.parse(socket.handshake.headers.cookie || "");
-      const token = cookies.token || socket.handshake.auth?.token; // ← adjust "token" to your cookie name
-      if (!token) return next(new Error("unauthorized"));
-      const payload = jwt.verify(token, process.env.JWT_SECRET);
-      socket.userId = String(payload.id || payload._id || payload.sub); // ← adjust to your JWT payload
-      next();
+      const token = socket.handshake.auth?.token;
+      if (typeof token !== "string" || !token) return next(new Error("unauthorized"));
+      const decoded = await admin.auth().verifyIdToken(token);
+      const user = await User.findOne({ firebaseUid: decoded.uid }).select("_id isActive membershipStatus").lean();
+      if (!user || !user.isActive || user.membershipStatus === "suspended") return next(new Error("unauthorized"));
+      socket.userId = String(user._id);
+      return next();
     } catch {
-      next(new Error("unauthorized"));
+      return next(new Error("unauthorized"));
     }
   });
 
-  // One room per user: works across multiple tabs/devices and cleans up automatically on disconnect.
+  // One private room per user, joined automatically, and nothing the client sends is ever trusted
   io.on("connection", (socket) => {
     socket.join(notifications.roomFor(socket.userId));
   });
 
-  server.listen(PORT, () => console.log(`🚀 SokoDigi API running on http://localhost:${PORT}`));
+  server.listen(PORT, () => console.log(`🚀 SokoDigi API running on port ${PORT}`));
 }
 
 start().catch((error) => {
