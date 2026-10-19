@@ -252,6 +252,12 @@ async function completeDelivery(req, res) {
       return releaseEscrowToVendor(order._id, session); // pays vendor + promoter + platform
     });
 
+    const f = order.financials;
+const ctx = { orderId: order._id, orderRef: order.orderNumber };
+await notify("ESCROW_RELEASED", order.sellerId, { ...ctx, amount: f.totalWholesaleToShop }, { actorId: sellerId, includeActor: true });
+await notify("ORDER_COMPLETED", order.buyerId, ctx, { actorId: sellerId });
+if (order.promoterId && f.totalCommissionSplit > 0) await notify("PROMOTER_BONUS", order.promoterId, { ...ctx, amount: f.totalCommissionSplit });
+
     return res.status(200).json({ ok: true, status: "DELIVERED", releasedToVendor: result.releasedToVendor });
   } catch (err) {
     return sendError(res, err, "completeDelivery");
@@ -285,6 +291,11 @@ async function cancelOrder(req, res) {
         await Product.updateOne({ _id: it.productId }, { $inc: { quantity: it.quantity } }, { session });
       }
     });
+    
+    const other = same(order.sellerId, me) ? order.buyerId : order.sellerId;
+await notify("ORDER_CANCELLED", other, { orderId: order._id, orderRef: order.orderNumber }, { actorId: me });
+await notify("ESCROW_REFUNDED", order.buyerId, { orderId: order._id, orderRef: order.orderNumber, amount: order.financials.totalRetailPaid }, { includeActor: true });
+    
     return res.json({ ok: true, status: "CANCELLED" });
   } catch (err) {
     return sendError(res, err, "cancelOrder");
