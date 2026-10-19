@@ -1,225 +1,637 @@
+
 /* ==========================================================================
-   🎯 FLOATING ASYMMETRIC CONTAINER NAVBAR
+   SOKODIGI MARKETHUB — PREMIUM MARKETPLACE NAVBAR
+   White • Forest Green • Soft Shadows • Responsive
    ========================================================================== */
+
 .sokodigi-header {
+  --sd-green: #075b43;
+  --sd-green-dark: #034b37;
+  --sd-green-bright: #078451;
+  --sd-text: #20352d;
+  --sd-muted: #738178;
+  --sd-border: #e8eee9;
+  --sd-soft: #f5f8f5;
+
   position: fixed;
-  top: 1.25rem; 
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  width: calc(100% - 3rem);
-  max-width: 1280px;
+  width: calc(100% - 32px);
+  max-width: 1500px;
   z-index: 1000;
-  background-color: #ffffff;
-  border-radius: 100px; 
-  border: 1px solid #e5ebe4;
-  box-shadow: 0 10px 30px rgba(45, 58, 46, 0.04);
+
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid var(--sd-border);
+  border-radius: 24px;
+  box-shadow: 0 8px 28px rgba(16, 49, 34, 0.08);
+  box-sizing: border-box;
+  isolation: isolate;
+}
+
+.sokodigi-header *,
+.sokodigi-header *::before,
+.sokodigi-header *::after {
   box-sizing: border-box;
 }
 
 .sokodigi-header__inner {
-  padding: 0.5rem 1rem 0.5rem 2.5rem;
+  min-height: 76px;
+  padding: 10px 22px;
   display: grid;
-  /* Perfect three column alignment matching blueprint blueprint */
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(180px, 1fr) minmax(280px, 1.2fr) auto;
   align-items: center;
-  gap: 2rem;
+  gap: 24px;
 }
-/* ==========================================================================
-   Brand Logo Rendering Tweaks
-   ========================================================================== */
+
+/* BRAND */
+
 .sokodigi-brand {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
+  flex-shrink: 0;
+  min-width: 0;
   text-decoration: none;
+  outline-offset: 5px;
 }
 
 .sokodigi-brand__logo {
-  /* 🎯 TAILORED PROPORTIONS: Fits perfectly inside the floating white navbar pill container */
-  height: 48px; 
-  width: auto;
-  max-width: 220px;
-  object-fit: contain;
   display: block;
-  /* Smooth entry scaling transition mechanics */
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  width: auto;
+  height: 49px;
+  max-width: 245px;
+  object-fit: contain;
+  object-position: left center;
+  transition: transform 180ms ease;
 }
 
-.sokodigi-brand__logo:hover {
-  transform: scale(1.03); /* Soft responsive interactive feedback */
+.sokodigi-brand:hover .sokodigi-brand__logo {
+  transform: scale(1.025);
 }
 
-/* Fallback typography handling ONLY if the logo image fails to resolve */
 .brand-text {
-  font-size: 1.4rem;
+  color: var(--sd-green);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.65rem;
   font-weight: 800;
-  color: #2e7d32; /* SokoDigi Forest Green Hex value alignment */
-  letter-spacing: -0.03em;
+  letter-spacing: -0.055em;
+  white-space: nowrap;
 }
 
+/* PRIMARY NAVIGATION */
 
 .sokodigi-nav {
   display: flex;
   align-items: center;
-  gap: 2.25rem;
   justify-content: center;
+  gap: 5px;
+  min-width: 0;
 }
 
 .sokodigi-nav a {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #556356;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 15px;
+  border-radius: 999px;
+
+  color: #53645a;
+  font-size: 0.83rem;
+  font-weight: 650;
   text-decoration: none;
-  transition: color 0.15s ease;
+  white-space: nowrap;
+
+  transition:
+    color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
 }
 
 .sokodigi-nav a:hover {
-  color: #2e7d32;
+  color: var(--sd-green);
+  background: #f0f6f1;
 }
 
-/* ==========================================================================
-   🎯 PREMIUM INNER SEARCH CONTAINER LAYOUT
-   ========================================================================== */
+/* Keep current route visually active without changing route logic.
+   React Router adds this class automatically to active NavLinks only.
+   Existing Link elements remain fully compatible. */
+
+/* SEARCH AND ACCOUNT ACTIONS */
+
 .nav-actions-block {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
 }
 
 .nav-search-wrapper {
   display: flex;
   align-items: center;
-  background-color: #f1f6f0; /* Soft eco-tinted background card background */
-  padding: 0.35rem 0.5rem;
-  border-radius: 100px;
-  border: 1px solid #e2e8df;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  max-width: 44px; /* Collapsed state profile */
-  overflow: hidden;
+  flex: 1 1 260px;
+  min-width: 44px;
+  max-width: 360px;
+  height: 44px;
+  padding: 0 12px;
+
+  border: 1px solid #e6ece7;
+  border-radius: 999px;
+  background: #f6f8f6;
+
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
-/* Expands dynamically on hovering or clicking the lens trigger anchor */
 .nav-search-wrapper:hover,
+.nav-search-wrapper:focus-within,
 .nav-search-wrapper.active-input {
-  max-width: 200px;
-  padding: 0.35rem 1rem;
-  background-color: #ffffff;
-  border-color: #2e7d32;
+  background: #fff;
+  border-color: #a9cbb8;
+  box-shadow: 0 0 0 3px rgba(7, 132, 81, 0.06);
 }
 
 .nav-search-trigger {
-  background: transparent !important;
-  border: none !important;
-  color: #556356;
-  cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  padding: 0.25rem;
+  justify-content: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sd-green);
+
+  cursor: pointer;
+  transition: background 180ms ease;
 }
 
 .nav-search-trigger:hover {
-  color: #2e7d32;
+  background: #eaf4ed;
 }
 
 .nav-search-field {
-  border: none !important;
-  outline: none !important;
-  background: transparent !important;
-  font-size: 0.8rem;
-  color: #2d3a2e !important;
-  width: 120px;
-  margin-left: 0.5rem;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  height: 36px;
+  margin-left: 5px;
+  padding: 0 4px;
+
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--sd-text);
+  font: inherit;
+  font-size: 0.78rem;
 }
 
-/* 🟢 ANONYMOUS LINK BUTTON */
-.login-cta-button {
-  background-color: #2e7d32 !important;
-  color: #ffffff !important;
-  border: none !important;
-  padding: 0.65rem 1.65rem;
-  border-radius: 100px; 
-  font-size: 0.85rem;
-  font-weight: 700;
+.nav-search-field::placeholder {
+  color: #89958d;
+  opacity: 1;
+}
+
+.nav-search-field::-webkit-search-cancel-button {
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.12);
-  transition: all 0.2s ease;
+}
+
+/* GUEST CALL TO ACTION */
+
+.login-cta-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 23px;
+
+  border: 1px solid var(--sd-green);
+  border-radius: 999px;
+  background: var(--sd-green);
+  color: #fff;
+
+  font-size: 0.83rem;
+  font-weight: 750;
+  white-space: nowrap;
+  cursor: pointer;
+
+  box-shadow: 0 4px 12px rgba(7, 91, 67, 0.12);
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
 }
 
 .login-cta-button:hover {
-  background-color: #1b5e20 !important;
+  background: var(--sd-green-dark);
+  border-color: var(--sd-green-dark);
+  box-shadow: 0 6px 16px rgba(7, 91, 67, 0.18);
+  transform: translateY(-1px);
 }
 
-/* 🟢 AUTHENTICATED CONTAINER PROFILE */
+/* SIGNED-IN PROFILE */
+
 .profile-avatar-wrapper {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.avatar-profile-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  text-decoration: none;
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.avatar-profile-link:hover {
+  border-color: #b8d6c3;
+  background: #f0f7f1;
 }
 
 .avatar-circle {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
   overflow: hidden;
-  border: 2px solid #2e7d32; 
+  border: 2px solid #d6e9dc;
+  border-radius: 50%;
+  background: #eaf4ed;
+  color: var(--sd-green);
 }
 
-.avatar-circle img {
+.avatar-circle img,
+.avatar-img-element {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.logout-btn {
-  background: none;
-  border: none;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #6c7e6d;
-  cursor: pointer;
-}
-.logout-btn:hover {
-  color: #ef4444;
+.avatar-fallback-icon {
+  width: 21px;
+  height: 21px;
+  color: var(--sd-green);
 }
 
-/* Mobile Toggles */
+/* NOTIFICATION CONTROL */
+
+.profile-avatar-wrapper button[aria-label^="Notifications"] {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+
+  border: 1px solid #edf1ed;
+  border-radius: 50%;
+  background: #f7f9f7;
+  color: #43594c;
+
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.profile-avatar-wrapper button[aria-label^="Notifications"]:hover {
+  background: #eaf4ed;
+  color: var(--sd-green);
+}
+
+.logout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 12px;
+
+  border: 1px solid #e8eee9;
+  border-radius: 999px;
+  background: #fff;
+  color: #58675d;
+
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.logout-btn:hover {
+  border-color: #f4d3d3;
+  background: #fff5f5;
+  color: #c33d3d;
+}
+
+/* MOBILE MENU BUTTON */
+
 .mobile-toggle {
   display: none;
-  background: none;
-  border: none;
-  cursor: pointer;
+  align-items: center;
+  justify-content: center;
   flex-direction: column;
-  justify-content: space-around;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-}
-.mobile-toggle span {
-  width: 100%;
-  height: 2px;
-  background-color: #2d3a2e;
-  border-radius: 2px;
+  flex: 0 0 42px;
+  gap: 5px;
+  width: 42px;
+  height: 42px;
+  padding: 10px;
+
+  border: 1px solid var(--sd-border);
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
 }
 
-@media (max-width: 992px) {
-  .sokodigi-header {
-    top: 0.75rem;
-    width: calc(100% - 1.5rem);
+.mobile-toggle span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 99px;
+  background: var(--sd-green);
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+/* EXISTING DROPDOWN CLASSES
+   The JSX uses utility classes for these panels. These rules provide a
+   consistent look for dropdowns that use the classes below. */
+
+.sokodigi-header :global(.absolute.right-0.z-50) {
+  color: var(--sd-text);
+  border: 1px solid var(--sd-border);
+  border-radius: 18px;
+  box-shadow: 0 16px 45px rgba(18, 48, 32, 0.14);
+}
+
+/* TABLET */
+
+@media (max-width: 1200px) {
+  .sokodigi-header__inner {
+    grid-template-columns: auto minmax(140px, 1fr) minmax(220px, 1.1fr);
+    gap: 14px;
+    padding: 10px 16px;
   }
-  .sokodigi-header__inner { grid-template-columns: 1fr auto; padding: 0.5rem 1.25rem; }
-  .mobile-toggle { display: flex; }
-  .nav-search-wrapper { max-width: 160px; }
+
+  .sokodigi-brand__logo {
+    height: 44px;
+    max-width: 190px;
+  }
+
+  .sokodigi-nav {
+    gap: 0;
+  }
+
+  .sokodigi-nav a {
+    padding: 0 10px;
+    font-size: 0.8rem;
+  }
+
+  .nav-actions-block {
+    gap: 9px;
+  }
+
+  .profile-avatar-wrapper {
+    gap: 7px;
+  }
+
+  .logout-btn {
+    padding: 0 9px;
+  }
+}
+
+/* COMPACT TABLET / MOBILE */
+
+@media (max-width: 900px) {
+  .sokodigi-header {
+    top: 8px;
+    width: calc(100% - 20px);
+    border-radius: 20px;
+  }
+
+  .sokodigi-header__inner {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    min-height: 68px;
+    padding: 9px 12px;
+  }
+
+  .sokodigi-brand__logo {
+    height: 43px;
+    max-width: 190px;
+  }
+
+  .nav-actions-block {
+    gap: 8px;
+  }
+
+  .mobile-toggle {
+    display: inline-flex;
+  }
+
   .sokodigi-nav {
     display: none;
     position: absolute;
-    top: 100%;
+    top: calc(100% + 9px);
     left: 0;
-    width: 100%;
+    right: 0;
+    z-index: 1001;
+
+    align-items: stretch;
     flex-direction: column;
-    background-color: #ffffff;
+    gap: 5px;
+    padding: 12px;
+
+    border: 1px solid var(--sd-border);
     border-radius: 20px;
-    padding: 1.5rem;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-    margin-top: 0.5rem;
+    background: #fff;
+    box-shadow: 0 16px 36px rgba(18, 48, 32, 0.12);
   }
-  .sokodigi-nav.menu-expanded { display: flex; }
+
+  .sokodigi-nav.menu-expanded {
+    display: flex;
+  }
+
+  .sokodigi-nav a {
+    justify-content: flex-start;
+    min-height: 44px;
+    padding: 0 15px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+  }
+
+  .sokodigi-nav a:hover {
+    background: #eff7f1;
+  }
+
+  .nav-search-wrapper {
+    flex: 0 1 220px;
+    max-width: 220px;
+    height: 40px;
+    padding: 0 8px;
+  }
+
+  .nav-search-field {
+    font-size: 0.75rem;
+  }
+
+  .login-cta-button {
+    min-height: 40px;
+    padding: 0 15px;
+    font-size: 0.78rem;
+  }
+
+  .profile-avatar-wrapper {
+    gap: 6px;
+  }
+
+  .avatar-circle {
+    width: 36px;
+    height: 36px;
+  }
+
+  .logout-btn {
+    display: none;
+  }
+}
+
+/* SMALL PHONES */
+
+@media (max-width: 560px) {
+  .sokodigi-header {
+    width: calc(100% - 16px);
+    top: 7px;
+    border-radius: 18px;
+  }
+
+  .sokodigi-header__inner {
+    min-height: 62px;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+
+  .sokodigi-brand__logo {
+    height: 37px;
+    max-width: 145px;
+  }
+
+  .brand-text {
+    font-size: 1.35rem;
+  }
+
+  .nav-actions-block {
+    gap: 6px;
+  }
+
+  .nav-search-wrapper {
+    flex: 0 0 38px;
+    width: 38px;
+    max-width: 38px;
+    height: 38px;
+    padding: 0 3px;
+    overflow: hidden;
+    transition:
+      width 180ms ease,
+      flex-basis 180ms ease,
+      max-width 180ms ease,
+      background 180ms ease;
+  }
+
+  .nav-search-wrapper.active-input,
+  .nav-search-wrapper:focus-within {
+    flex-basis: min(190px, 48vw);
+    width: min(190px, 48vw);
+    max-width: min(190px, 48vw);
+    padding: 0 7px;
+  }
+
+  .nav-search-trigger {
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+  }
+
+  .nav-search-field {
+    width: 0;
+    min-width: 0;
+    margin-left: 0;
+    padding: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .nav-search-wrapper.active-input .nav-search-field,
+  .nav-search-wrapper:focus-within .nav-search-field {
+    width: 100%;
+    margin-left: 3px;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .login-cta-button {
+    min-height: 38px;
+    padding: 0 12px;
+    font-size: 0.75rem;
+  }
+
+  .profile-avatar-wrapper {
+    gap: 4px;
+  }
+
+  .avatar-profile-link {
+    padding: 1px;
+  }
+
+  .avatar-circle {
+    width: 34px;
+    height: 34px;
+  }
+
+  .mobile-toggle {
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
+    padding: 8px;
+  }
+
+  .profile-avatar-wrapper button[aria-label^="Notifications"] {
+    width: 34px;
+    height: 34px;
+  }
+
+  /* Keep the notification panel within the viewport on narrow phones. */
+  .profile-avatar-wrapper .relative {
+    max-width: 100%;
+  }
+}
+
+/* ACCESSIBILITY */
+
+@media (prefers-reduced-motion: reduce) {
+  .sokodigi-header *,
+  .sokodigi-header *::before,
+  .sokodigi-header *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
