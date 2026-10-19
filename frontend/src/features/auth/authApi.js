@@ -60,6 +60,16 @@ export async function syncAccount(payload = {}) {
   return data; // { user, profile }
 }
 
+export async function getMe() {
+  const user = auth.currentUser;
+  if (!user) return { synced: false };
+  const token = await user.getIdToken();
+  const res = await fetch(`${API_URL}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || "REQUEST_FAILED"), { code: data.error, status: res.status });
+  return data; // { synced, user, profile }
+}
+
 // ---- Buyer ----
 export async function registerBuyer({ email, password, firstName, lastName, username, phoneNumber }) {
   await createUserWithEmailAndPassword(auth, email.trim(), password);
