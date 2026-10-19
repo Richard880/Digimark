@@ -1,862 +1,389 @@
-
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 
 import useAuth from "../../auth/hooks/useAuth";
+import apiClient from "../../../services/apiClient";
+import { patchProfile, friendlyError } from "../../auth/authApi";
+import ROUTES, { productPath, profilePath, registerPath } from "../../../constants/routes";
 import MatrixTreeChart from "../../vendor-dashboard/MatrixTreeChart";
 import LegDistributionCards from "../../vendor-dashboard/LegDistributionCards";
-
 import AvatarMenuModal from "./AvatarMenuModal";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 
-import styles from "./Profile.module.css";
+const money = (n) => `KSh ${Number(n || 0).toLocaleString("en-KE")}`;
+const idOf = (v) => String(v?._id ?? v ?? "");
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
+const AVATAR_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-// ============================================================================
-// API CONFIGURATION
-// ============================================================================
+const ORDER_ERRORS = {
+  INVALID_RELEASE_PIN: "That PIN is incorrect.",
+  TOO_MANY_ATTEMPTS: "Too many wrong attempts. Try again in 15 minutes.",
+  ALREADY_FULFILLED: "This order was already completed.",
+  ORDER_NOT_FOUND: "Order not found.",
+  ORDER_NOT_CANCELLABLE: "This order can no longer be cancelled.",
+  INVALID_PIN_FORMAT: "Enter the 6-digit PIN.",
+  TOO_MANY_REQUESTS: "Too many requests. Please wait a minute.",
+};
+const orderError = (e) =>
+  e.response ? ORDER_ERRORS[e.response.data?.error] || "Something went wrong. Please try again." : "Couldn't reach Sokodigi. Check your connection.";
 
-const API_URL = import.meta.env.PROD
-  ? ""
-  : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(
-      /\/$/,
-      ""
-    );
+const Stat = ({ value, label, accent }) => (
+  <div className="px-4 py-4 text-center">
+    <p className={`text-xl font-black ${accent ? "text-emerald-700" : "text-slate-900"}`}>{value}</p>
+    <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-slate-400">{label}</p>
+  </div>
+);
 
-const MEMBER_SETTINGS_ROUTE = "/settings";
-const NETWORK_DASHBOARD_ROUTE = "/dashboard/network";
+/* ───────────── One order, shown the right way for buyer, seller or promoter ───────────── */
+function OrderCard({ order, myId, onChanged }) {
+  const role = idOf(order.buyerId) === myId ? "buyer" : idOf(order.sellerId) === myId ? "seller" : "promoter";
+  const f = order.financials || {};
+  const status = order.orderStatus;
+  const open = ["PROCESSING", "DISPATCHED"].includes(status) && !order.isEscrowReleased;
+  const ship = order.shippingDetails;
 
-// ============================================================================
-// PROFILE COMPONENT
-// ============================================================================
+  const [pinData, setPinData] = useState(null); // { pin, qrPayload }: buyer only, fetched on demand
+  const [sellerPin, setSellerPin] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
 
-export default function Profile() {
-  const { userId } = useParams();
+  const showPin = async () => {
+    setBusy(true); setMsg("");
+    try {
+      const { data } = await apiClient.get(`/orders/${encodeURIComponent(order.orderNumber)}/pin`);
+      setPinData({ pin: data.pin, qrPayload: data.qrPayload });
+    } catch (e) { setMsg(orderError(e)); } finally { setBusy(false); }
+  };
+
+  const verify = async (e) => {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(sellerPin)) return setMsg(ORDER_ERRORS.INVALID_PIN_FORMAT);
+    setBusy(true); setMsg("");
+    try {
+      await apiClient.patch(`/orders/${encodeURIComponent(order.orderNumber)}/fulfill-handshake`, { pin: sellerPin });
+      setSellerPin("");
+      onChanged();
+    } catch (err) { setMsg(orderError(err)); } finally { setBusy(false); }
+  };
+
+  const cancel = async () => {
+    if (!window.confirm("Cancel this order? The buyer is refunded in full.")) return;
+    setBusy(true); setMsg("");
+    try {
+      await apiClient.patch(`/orders/${encodeURIComponent(order.orderNumber)}/cancel`);
+      onChanged();
+    } catch (err) { setMsg(orderError(err)); } finally { setBusy(false); }
+  };
+
+  const amountLabel = role === "buyer" ? "You paid" : role === "seller" ? "You receive" : "Your bonus";
+  const amount = role === "buyer" ? f.totalRetailPaid : role === "seller" ? f.totalWholesaleToShop : f.totalCommissionSplit;
+  const canCancel = open && (role === "seller" || (role === "buyer" && status === "PROCESSING"));
+  const input = "w-full rounded-xl border border-slate-200 p-2 text-sm font-mono tracking-widest focus:outline-emerald-600";
+
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
+            {role === "buyer" ? "Purchase" : role === "seller" ? "Sale" : "Promoted sale"}
+          </p>
+          <h3 className="mt-1 font-mono text-sm font-bold text-slate-800">#{order.orderNumber}</h3>
+        </div>
+        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase text-emerald-700">
+          {String(status || "").replace(/_/g, " ")}
+        </span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{amountLabel}</p>
+          <p className="mt-1 text-sm font-black text-slate-900">{money(amount)}</p>
+        </div>
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Date</p>
+          <p className="mt-1 text-xs font-semibold text-slate-600">
+            {order.createdAt ? new Date(order.createdAt).toLocaleDateString("en-KE") : "N/A"}
+          </p>
+        </div>
+      </div>
+
+      <ul className="mt-3 space-y-1 border-t border-slate-100 pt-3 text-xs text-slate-600">
+        {(order.items || []).map((it, i) => (
+          <li key={`${it.productId}-${i}`} className="flex justify-between gap-3">
+            <span>{it.name} × {it.quantity}</span>
+            <span className="font-semibold">{money(it.pricePaid * it.quantity)}</span>
+          </li>
+        ))}
+      </ul>
+
+      {/* BUYER: reveal the PIN and QR only when needed */}
+      {role === "buyer" && open && (
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          {!pinData ? (
+            <button type="button" onClick={showPin} disabled={busy}
+              className="w-full rounded-xl bg-emerald-700 py-2.5 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50">
+              Show my delivery PIN
+            </button>
+          ) : (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
+              <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Your delivery PIN</p>
+              <p className="my-2 font-mono text-3xl font-black tracking-[0.3em] text-emerald-900">{pinData.pin}</p>
+              <div className="mx-auto my-3 w-fit rounded-lg bg-white p-2">
+                <QRCodeSVG value={pinData.qrPayload} size={150} level="M" />
+              </div>
+              <p className="text-[11px] leading-5 text-emerald-800">
+                Show this to the seller <b>only after you receive your item</b>. Scanning it or typing the PIN releases your payment.
+              </p>
+              <button type="button" onClick={() => setPinData(null)} className="mt-2 text-[11px] font-bold text-emerald-700 underline">Hide</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SELLER: delivery address and PIN entry */}
+      {role === "seller" && open && (
+        <div className="mt-4 space-y-3 border-t border-slate-100 pt-4">
+          {ship && (
+            <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+              <p className="font-bold text-slate-800">Deliver to {ship.fullName}</p>
+              <p>{ship.phoneNumber} · {ship.subCounty}, {ship.county}</p>
+              {ship.deliveryNotes && <p className="mt-1 italic">{ship.deliveryNotes}</p>}
+            </div>
+          )}
+          <form onSubmit={verify} className="flex gap-2">
+            <input inputMode="numeric" maxLength={6} placeholder="Buyer's 6-digit PIN" value={sellerPin}
+              onChange={(e) => setSellerPin(e.target.value.replace(/\D/g, ""))} className={input} />
+            <button type="submit" disabled={busy}
+              className="shrink-0 rounded-xl bg-emerald-700 px-4 text-xs font-bold text-white hover:bg-emerald-800 disabled:opacity-50">
+              Confirm delivery
+            </button>
+          </form>
+          <p className="text-[11px] text-slate-400">Only enter the PIN after the buyer has your item in hand.</p>
+        </div>
+      )}
+
+      {canCancel && (
+        <button type="button" onClick={cancel} disabled={busy} className="mt-3 text-[11px] font-bold text-red-600 underline disabled:opacity-50">
+          Cancel order
+        </button>
+      )}
+      {msg && <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{msg}</p>}
+    </article>
+  );
+}
+
+/* ───────────── Product card ───────────── */
+function ProductCard({ product, to, badge }) {
   const navigate = useNavigate();
-  const { auth } = useAuth();
+  return (
+    <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md">
+      <button type="button" onClick={() => navigate(to)} className="block w-full text-left">
+        <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={product.name || "Product"} loading="lazy"
+              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" />
+          ) : (
+            <div className="flex h-full items-center justify-center text-xs font-bold text-slate-400">No image</div>
+          )}
+          {badge && <span className="absolute left-2 top-2 rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-extrabold uppercase text-amber-700">{badge}</span>}
+        </div>
+        <div className="p-4">
+          <p className="text-[9px] font-black uppercase tracking-wider text-emerald-600">{product.category || "general"}</p>
+          <h3 className="mt-1 line-clamp-2 text-sm font-black text-slate-900">{product.name}</h3>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <span className="text-lg font-black text-slate-900">{money(product.price)}</span>
+            {product.quantity !== undefined && <span className="text-[10px] font-semibold text-slate-400">{product.quantity} left</span>}
+          </div>
+        </div>
+      </button>
+    </article>
+  );
+}
 
+/* ───────────── Page ───────────── */
+export default function Profile() {
+  const { username: usernameParam } = useParams();
+  const navigate = useNavigate();
+  const { auth, refreshProfile } = useAuth();
   const fileInputRef = useRef(null);
 
-  // ==========================================================================
-  // AUTH / USER CONTEXT
-  // ==========================================================================
+  const me = auth.user || {};
+  const myProfile = auth.profile || {};
+  const myId = idOf(me._id);
+  const isOwnProfile = !usernameParam || (!!myProfile.username && usernameParam.toLowerCase() === myProfile.username);
+  const isMarketer = auth.destination === "dashboard"; // active, paid marketer
+  const showShop = !isOwnProfile || isMarketer;
 
-  const loggedInUser = auth?.currentUser;
-  const loggedInProfile = auth?.profile || {};
-
- const isOwnProfile =
-    !userId ||
-    userId === loggedInUser?.uid ||
-    userId === loggedInProfile?.id ||
-    userId === loggedInProfile?._id ||
-    userId === auth?.user?.id ||
-    userId === auth?.user?._id;
-
-  // ==========================================================================
-  // STATE
-  // ==========================================================================
-
-  const [brandProfile, setBrandProfile] = useState(null);
-  const [matrixMetrics, setMatrixMetrics] = useState(null);
+  const [brand, setBrand] = useState(null);
   const [products, setProducts] = useState([]);
-  const [sharedProducts, setSharedProducts] = useState([]);
-  const [myOrdersList, setMyOrdersList] = useState([]);
+  const [featured, setFeatured] = useState([]);
+  const [shared, setShared] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [matrix, setMatrix] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [activeTab, setActiveTab] = useState(null);
+  const [notice, setNotice] = useState("");
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const [updatingAvatar, setUpdatingAvatar] = useState(false);
 
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const [activeTab, setActiveTab] = useState("products");
-  const [shareMessage, setShareMessage] = useState("");
-
-  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
-  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
-
-  // ==========================================================================
-  // ACTIVE PROFILE IDENTIFIER
-  // ==========================================================================
-
-  const activeTargetId = isOwnProfile
-    ? loggedInProfile?.id ||
-      loggedInProfile?._id ||
-      auth?.user?.id ||
-      auth?.user?._id ||
-      loggedInUser?.uid
-    : userId;
-
-  // ==========================================================================
-  // FETCH ORDERS
-  // ==========================================================================
-
-  const fetchOrders = async () => {
-    try {
-      const token = loggedInUser?.getIdToken
-        ? await loggedInUser.getIdToken()
-        : null;
-
-      const response = await fetch(`${API_URL}/api/orders`, {
-        headers: token
-          ? {
-              Authorization: `Bearer ${token}`,
-            }
-          : {},
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-
-        setMyOrdersList(
-          Array.isArray(data)
-            ? data
-            : data?.orders || []
-        );
-      } else {
-        setMyOrdersList([]);
-        console.error(
-          "Failed to fetch orders:",
-          response.status
-        );
-      }
-    } catch (err) {
-      console.error("Error fetching orders:", err);
-      setMyOrdersList([]);
-    }
-  };
-
-  // ==========================================================================
-  // FETCH SHARED PRODUCTS
-  // ==========================================================================
-
-  const fetchSharedProducts = async () => {
-    try {
-      const token = loggedInUser?.getIdToken
-        ? await loggedInUser.getIdToken()
-        : null;
-
-      const response = await fetch(
-        `${API_URL}/api/shared-products`,
-        {
-          headers: token
-            ? {
-                Authorization: `Bearer ${token}`,
-              }
-            : {},
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-
-        setSharedProducts(
-          Array.isArray(data)
-            ? data
-            : data?.products || []
-        );
-      } else {
-        setSharedProducts([]);
-
-        console.error(
-          "Failed to load shared products:",
-          response.status
-        );
-      }
-    } catch (error) {
-      console.error(
-        "Error fetching shared products:",
-        error
-      );
-
-      setSharedProducts([]);
-    }
-  };
-
-  // ==========================================================================
-  // AVATAR UPLOAD
-  // ==========================================================================
-
-  const handleAvatarFileChange = async (event) => {
-    const selectedFile = event.target.files?.[0];
-
-    if (!selectedFile) {
-      return;
-    }
-
-    if (!selectedFile.type.startsWith("image/")) {
-      alert("Please select a valid image file.");
-      event.target.value = "";
-      return;
-    }
-
-    if (selectedFile.size > 2 * 1024 * 1024) {
-      alert(
-        "Profile picture files are restricted to a maximum size of 2MB."
-      );
-
-      event.target.value = "";
-      return;
-    }
-
-    setIsUpdatingAvatar(true);
-
-    try {
-      const currentUser = auth?.currentUser;
-
-      if (!currentUser) {
-        throw new Error(
-          "Your session has expired. Please sign in again."
-        );
-      }
-
-      console.log(
-        "Starting profile image upload to Cloudinary..."
-      );
-
-      const uploadedUrl = await uploadImageToCloudinary(
-        selectedFile,
-        "profiles"
-      );
-
-      if (
-        typeof uploadedUrl !== "string" ||
-        uploadedUrl.trim() === ""
-      ) {
-        throw new Error(
-          "Upload pipeline failed to resolve an image URL."
-        );
-      }
-
-      // Immediately update visible profile.
-      setBrandProfile((previousProfile) => ({
-        ...(previousProfile || {}),
-        photoURL: uploadedUrl,
-        profilePic: uploadedUrl,
-        profilePhoto: uploadedUrl,
-      }));
-
-      const token = await currentUser.getIdToken();
-
-      const profileResponse = await fetch(
-        `${API_URL}/api/auth/sync`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            profilePic: uploadedUrl,
-            photoURL: uploadedUrl,
-            profilePhoto: uploadedUrl,
-
-            userData: {
-              profilePic: uploadedUrl,
-              photoURL: uploadedUrl,
-              profilePhoto: uploadedUrl,
-            },
-          }),
-        }
-      );
-
-      if (!profileResponse.ok) {
-        const responseText =
-          await profileResponse.text();
-
-        throw new Error(
-          `Profile sync failed: ${profileResponse.status} ${responseText}`
-        );
-      }
-
-      console.log(
-        "Profile avatar changes synced successfully."
-      );
-
-      setIsAvatarModalOpen(false);
-
-      window.dispatchEvent(
-        new CustomEvent("profile-avatar-updated", {
-          detail: {
-            profilePic: uploadedUrl,
-            photoURL: uploadedUrl,
-            profilePhoto: uploadedUrl,
-          },
-        })
-      );
-    } catch (error) {
-      console.error(
-        "Avatar synchronization error:",
-        error
-      );
-
-      alert(
-        error?.message ||
-          "Unable to update the profile picture."
-      );
-    } finally {
-      setIsUpdatingAvatar(false);
-      event.target.value = "";
-    }
-  };
-
-  // ==========================================================================
-  // TAB EFFECTS
-  // ==========================================================================
-
+  // ── Load the profile ──
   useEffect(() => {
-    if (activeTab === "orders" && isOwnProfile) {
-      fetchOrders();
-    }
-  }, [activeTab, isOwnProfile]);
-
-  useEffect(() => {
-    if (activeTab === "shared") {
-      fetchSharedProducts();
-    }
-  }, [activeTab]);
-
-  // ==========================================================================
-  // LOAD PROFILE
-  // ==========================================================================
-  useEffect(() => {
-    let isMounted = true;
-
-    if (!activeTargetId) {
-      setIsLoading(false);
-      setProducts([]);
-      setBrandProfile(null);
-      return undefined;
-    }
-
-    const loadProfile = async () => {
+    if (auth.loading) return undefined;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setNotFound(false);
       try {
-        setIsLoading(true);
-
-        let resolvedProfile = null;
-        let resolvedMatrixMetrics = null;
-
-        // ====================================================================
-        // OWN PROFILE
-        // ====================================================================
-        if (isOwnProfile && loggedInUser) {
-          const accountCategory =
-            loggedInProfile?.accountCategory ||
-            auth?.user?.accountCategory ||
-            "retail";
-
-          resolvedProfile = {
-            id: activeTargetId,
-            name: `${loggedInProfile?.firstName || ""} ${loggedInProfile?.lastName || ""}`.trim() ||
-              loggedInProfile?.name ||
-              loggedInUser?.displayName ||
-              loggedInUser?.email ||
-              "SokoDigi Member",
-            username: loggedInProfile?.username || loggedInUser?.email?.split("@")[0] || "member",
-            accountCategory,
-            membershipNumber: loggedInProfile?.membershipNumber || auth?.user?.membershipNumber || "PENDING",
-            brandName: loggedInProfile?.brandName || "SokoDigi Merchant",
-            phoneNumber: loggedInProfile?.phoneNumber || loggedInUser?.phoneNumber || "",
-            bio: loggedInProfile?.bio || loggedInProfile?.description || "",
-            photoURL: loggedInProfile?.profilePhoto || loggedInProfile?.photoURL || loggedInProfile?.profilePic || loggedInUser?.photoURL || "",
-            profilePic: loggedInProfile?.profilePic || loggedInProfile?.photoURL || loggedInProfile?.profilePhoto || loggedInUser?.photoURL || "",
-            profilePhoto: loggedInProfile?.profilePhoto || loggedInProfile?.photoURL || loggedInProfile?.profilePic || loggedInUser?.photoURL || "",
-            networkLevel: loggedInProfile?.networkLevel || loggedInProfile?.marketerLevel || null,
-            subscribers: loggedInProfile?.subscriberCount || 0,
-            subscriptions: loggedInProfile?.subscriptionCount || 0,
-          };
-
-          // ================================================================
-          // MATRIX METRICS
-          // ================================================================
-          if (accountCategory === "network") {
-            try {
-              const token = loggedInUser?.getIdToken 
-                ? await loggedInUser.getIdToken() 
-                : (auth?.token || auth?.accessToken || null);
-
-              if (token) {
-                const metricsResponse = await fetch(
-                  `${API_URL}/api/network/matrix-metrics`,
-                  {
-                    headers: {
-                      Authorization: `Bearer ${token}`,
-                    },
-                  }
-                );
-
-                if (metricsResponse.ok) {
-                  resolvedMatrixMetrics = await metricsResponse.json();
-                }
-              } else {
-                console.warn("Skipping matrix metrics fetch: No auth token could be resolved.");
-              }
-            } catch (metricsError) {
-              console.error("Delayed matrix aggregation lookup error:", metricsError);
-            }
+        if (isOwnProfile) {
+          if (!auth.authenticated) { navigate(ROUTES.HOME, { replace: true }); return; }
+          setBrand(myProfile);
+          if (isMarketer) {
+            const [prods, metrics] = await Promise.all([
+              apiClient.get("/products", { params: { sellerId: myId, status: "all", limit: 50 } }),
+              apiClient.get("/network/matrix-metrics").catch(() => null),
+            ]);
+            if (cancelled) return;
+            setProducts(prods.data.feed || []);
+            setMatrix(metrics?.data?.ok ? metrics.data : null);
           }
         } else {
-          // ==================================================================
-          // PUBLIC PROFILE
-          // ==================================================================
-          const response = await fetch(
-            `${API_URL}/api/profiles/${encodeURIComponent(activeTargetId)}`
-          );
-
-          if (response.ok) {
-            resolvedProfile = await response.json();
-          } else {
-            // ================================================================
-            // LEGACY MARKET FALLBACK
-            // ================================================================
-            const marketResponse = await fetch(`${API_URL}/api/products/market`);
-
-            if (marketResponse.ok) {
-              const feedData = await marketResponse.json();
-              const feedList = Array.isArray(feedData)
-                ? feedData
-                : feedData?.products || [];
-
-              const matchedItem = feedList.find(
-                (p) => p?.shopId === activeTargetId || p?.userId === activeTargetId
-              );
-
-              if (matchedItem) {
-                resolvedProfile = {
-                  id: activeTargetId,
-                  name: matchedItem?.displayName || matchedItem?.sellerName || "SokoDigi Merchant",
-                  username: matchedItem?.username || "merchant",
-                  accountCategory: matchedItem?.accountCategory || "retail",
-                  membershipNumber: matchedItem?.membershipNumber || "N/A",
-                  brandName: matchedItem?.brandName || "",
-                  phoneNumber: matchedItem?.phoneNumber || "",
-                  bio: matchedItem?.bio || "",
-                  profilePic: matchedItem?.photoURL || matchedItem?.profilePhoto || matchedItem?.profilePic || "",
-                  profilePhoto: matchedItem?.profilePhoto || matchedItem?.photoURL || matchedItem?.profilePic || "",
-                  photoURL: matchedItem?.photoURL || matchedItem?.profilePhoto || matchedItem?.profilePic || "",
-                  networkLevel: matchedItem?.networkLevel || null,
-                  subscribers: matchedItem?.subscriberCount || 0,
-                  subscriptions: matchedItem?.subscriptionCount || 0,
-                };
-              }
-            }
-          }
+          const { data } = await apiClient.get(`/profiles/${encodeURIComponent(usernameParam)}`);
+          if (cancelled) return;
+          setBrand(data.profile);
+          setProducts(data.products || []);
+          setFeatured(data.featured || []);
         }
-
-        // ====================================================================
-        // PRODUCTS FETCHING
-        // ====================================================================
-  
-        // ================================================================
-        // PRODUCTS FETCHING
-        // ================================================================
-        let resolvedProducts = [];
-
-        try {
-          const token = loggedInUser?.getIdToken
-            ? await loggedInUser.getIdToken()
-            : auth?.token || auth?.accessToken || null;
-
-          const params = new URLSearchParams({
-            shopId: String(activeTargetId),
-            status: "LISTED",
-            isShelved: "true",
-          });
-
-          const productsResponse = await fetch(
-            `${API_URL}/api/products?${params.toString()}`,
-            {
-              headers: token
-                ? { Authorization: `Bearer ${token}` }
-                : {},
-            }
-          );
-
-          const responseText = await productsResponse.text();
-          let productsData = {};
-
-          try {
-            productsData = responseText
-              ? JSON.parse(responseText)
-              : {};
-          } catch {
-            throw new Error(
-              "The products API returned an invalid JSON response."
-            );
-          }
-
-          if (!productsResponse.ok) {
-            throw new Error(
-              `Products API failed (${productsResponse.status}): ${
-                productsData?.message ||
-                productsData?.error ||
-                responseText ||
-                "Unknown server error"
-              }`
-            );
-          }
-
-          const rawList = Array.isArray(productsData)
-            ? productsData
-            : Array.isArray(productsData?.products)
-              ? productsData.products
-              : Array.isArray(productsData?.data)
-                ? productsData.data
-                : [];
-
-          resolvedProducts = rawList.filter((product) => {
-            const status = String(
-              product?.status || ""
-            ).toUpperCase();
-
-            const visible =
-              status === "LISTED" ||
-              status === "ACTIVE";
-
-            const notShelved =
-              product?.isShelved !== false;
-
-            return visible && notShelved;
-          });
-
-          console.info(
-            "[SokoDigi Profile] Products loaded:",
-            {
-              profileId: activeTargetId,
-              totalReturned: rawList.length,
-              visibleProducts: resolvedProducts.length,
-              endpoint: `${API_URL}/api/products`,
-            }
-          );
-        } catch (error) {
-          console.error(
-            "[SokoDigi Profile] Product loading failed:",
-            error
-          );
-
-          resolvedProducts = [];
-        }
-
-
-        // Emergency validation safety net to prevent blank screens
-        if (!resolvedProfile) {
-          resolvedProfile = {
-            id: activeTargetId,
-            name: "SokoDigi Member",
-            username: "member",
-            accountCategory: "retail",
-            membershipNumber: "PENDING",
-          };
-        }
-
-        if (!isMounted) return;
-
-        // Apply all resolved states at once
-        setBrandProfile(resolvedProfile);
-        setMatrixMetrics(resolvedMatrixMetrics);
-        setProducts(resolvedProducts);
-
-      } catch (error) {
-        console.error("SokoDigi profile loading error:", error);
-        if (isMounted) {
-          setProducts([]);
+      } catch (e) {
+        if (!cancelled) {
+          if (e.response?.status === 404) setNotFound(true);
+          else console.error("Profile load failed:", e);
         }
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
-    };
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.loading, auth.authenticated, isOwnProfile, usernameParam, myId, isMarketer]);
 
-    loadProfile();
-
-    return () => {
-      isMounted = false;
-    };
-   // Change your dependency array block to exactly this:
-  }, [
-    userId,
-    isOwnProfile,
-    activeTargetId,
-    loggedInUser?.uid
-  ]);
-
-
-  // ==========================================================================
-  // NETWORK LEVEL
-  // ==========================================================================
-
-  const networkLevel = useMemo(() => {
-    const possibleLevels = [
-      brandProfile?.networkLevel,
-      matrixMetrics?.networkLevel,
-      matrixMetrics?.marketerLevel,
-      matrixMetrics?.level,
-      matrixMetrics?.summary?.networkLevel,
-      matrixMetrics?.summary?.marketerLevel,
-      matrixMetrics?.summary?.level,
-    ];
-
-    const foundLevel = possibleLevels.find(
-      (value) =>
-        value !== null &&
-        value !== undefined &&
-        value !== ""
-    );
-
-    const numericLevel = Number(foundLevel);
-
-    return Number.isFinite(numericLevel) &&
-      numericLevel > 0
-      ? numericLevel
-      : null;
-  }, [brandProfile, matrixMetrics]);
-
-  // ==========================================================================
-  // NETWORK LEVEL PRESENTATION
-  // ==========================================================================
-
-  const levelInfo = useMemo(() => {
-    if (!networkLevel) {
-      return {
-        name: "Member",
-        shortName: "MEMBER",
-        ring: "border-slate-300",
-        badge:
-          "bg-slate-100 text-slate-600 border-slate-200",
-        dot: "bg-slate-400",
-      };
-    }
-
-    if (networkLevel >= 4) {
-      return {
-        name: "Level 4 Network",
-        shortName: "LEVEL 4",
-        ring: "border-amber-400",
-        badge:
-          "bg-amber-50 text-amber-700 border-amber-200",
-        dot: "bg-amber-500",
-      };
-    }
-
-    if (networkLevel === 3) {
-      return {
-        name: "Level 3 Network",
-        shortName: "LEVEL 3",
-        ring: "border-purple-500",
-        badge:
-          "bg-purple-50 text-purple-700 border-purple-200",
-        dot: "bg-purple-500",
-      };
-    }
-
-    if (networkLevel === 2) {
-      return {
-        name: "Level 2 Network",
-        shortName: "LEVEL 2",
-        ring: "border-blue-500",
-        badge:
-          "bg-blue-50 text-blue-700 border-blue-200",
-        dot: "bg-blue-500",
-      };
-    }
-
-    return {
-      name: "Level 1 Network",
-      shortName: "LEVEL 1",
-      ring: "border-emerald-500",
-      badge:
-        "bg-emerald-50 text-emerald-700 border-emerald-200",
-      dot: "bg-emerald-500",
-    };
-  }, [networkLevel]);
-
-  // ==========================================================================
-  // NETWORK MEMBERS
-  // ==========================================================================
-
-  const networkMembers =
-    matrixMetrics?.summary?.totalDownline ??
-    matrixMetrics?.summary?.totalMembers ??
-    matrixMetrics?.totalDownline ??
-    matrixMetrics?.totalMembers ??
-    0;
-
-  const subscribers =
-    Number(brandProfile?.subscribers) || 0;
-
-  // ==========================================================================
-  // PROFILE SHARE
-  // ==========================================================================
-
-  const handleShareProfile = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
-      const profileUrl = window.location.href;
+      const { data } = await apiClient.get("/orders", { params: { limit: 30 } });
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (e) { console.error("Orders load failed:", e); setOrders([]); }
+  }, []);
 
-      if (navigator.share) {
-        await navigator.share({
-          title: `${
-            brandProfile?.name || "SokoDigi Member"
-          } | SokoDigi`,
-          text: `View ${
-            brandProfile?.name || "this member"
-          } on SokoDigi.`,
-          url: profileUrl,
-        });
+  const fetchShared = useCallback(async () => {
+    try {
+      const { data } = await apiClient.get("/products/shared", { params: isOwnProfile ? {} : { username: usernameParam } });
+      setShared(data.products || []);
+    } catch (e) { console.error("Shared load failed:", e); setShared([]); }
+  }, [isOwnProfile, usernameParam]);
 
-        return;
-      }
+  const tabs = [
+    ...(showShop ? [{ id: "products", label: "Products" }, { id: "shared", label: "Shared Store" }] : []),
+    ...(isOwnProfile ? [{ id: "orders", label: "Orders" }] : []),
+    { id: "about", label: "About" },
+  ];
+  const tab = tabs.some((t) => t.id === activeTab) ? activeTab : tabs[0].id;
 
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(
-          profileUrl
-        );
+  useEffect(() => { if (tab === "orders" && isOwnProfile) fetchOrders(); }, [tab, isOwnProfile, fetchOrders]);
+  useEffect(() => { if (tab === "shared" && showShop) fetchShared(); }, [tab, showShop, fetchShared]);
 
-        setShareMessage("Profile link copied");
-
-        window.setTimeout(() => {
-          setShareMessage("");
-        }, 2500);
-      }
-    } catch (error) {
-      console.warn(
-        "Profile sharing cancelled or unavailable:",
-        error
-      );
-    }
+  // ── Avatar ──
+  const onAvatarFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!AVATAR_TYPES.includes(file.type)) return setNotice("Please choose a JPG, PNG or WebP image.");
+    if (file.size > 2 * 1024 * 1024) return setNotice("Profile pictures can be up to 2 MB.");
+    setUpdatingAvatar(true);
+    setNotice("");
+    try {
+      const url = await uploadImageToCloudinary(file, "profiles", () => auth.currentUser.getIdToken());
+      await patchProfile({ profilePhoto: url }); // the server only accepts images from our Cloudinary folder
+      setBrand((b) => ({ ...(b || {}), profilePhoto: url }));
+      setAvatarOpen(false);
+      refreshProfile();
+      window.dispatchEvent(new CustomEvent("profile-avatar-updated", { detail: { profilePhoto: url } }));
+    } catch (err) {
+      console.error("Avatar update failed:", err);
+      setNotice(err.message === "UPLOAD_FAILED" ? "Image upload failed. Check your connection." : err.code ? friendlyError(err) : err.message || "Couldn't update your picture.");
+    } finally { setUpdatingAvatar(false); }
   };
 
-  // ==========================================================================
-  // PRODUCT IMAGE URL
-  // ==========================================================================
+  const copy = async (text, okMsg) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice(okMsg);
+      setTimeout(() => setNotice(""), 2500);
+    } catch { setNotice("Couldn't copy. Please copy it manually."); }
+  };
 
- const getProductImageUrl = (product) => {
-  const imageUrl = product?.imageUrl || product?.image || product?.thumbnail || "";
-
-  if (
-    !imageUrl ||
-    imageUrl.startsWith("http://") ||
-    imageUrl.startsWith("https://") ||
-    imageUrl.startsWith("data:")
-  ) {
-    return imageUrl; // 🎯 Returns the direct production link safely
-  }
-
-  const fileName = imageUrl.split("/").pop();
-  return `${API_URL}/images/${fileName}`;
-};
-
-
-  // ==========================================================================
-  // AVATAR URL
-  // ==========================================================================
-
-  const profileImage =
-    brandProfile?.photoURL ||
-    brandProfile?.profilePhoto ||
-    brandProfile?.profilePic ||
-    "";
-
-  // ==========================================================================
-  // LOADING STATE
-  // ==========================================================================
-
-  if (isLoading) {
+  if (loading || auth.loading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 text-center">
         <div className="h-11 w-11 animate-spin rounded-full border-4 border-emerald-100 border-t-emerald-600" />
-
-        <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
-          Loading SokoDigi Profile
-        </p>
+        <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">Loading profile</p>
+      </div>
+    );
+  }
+  if (notFound || !brand) {
+    return (
+      <div className="px-4 py-24 text-center">
+        <p className="text-sm font-bold text-slate-700">This shop isn't available.</p>
+        <Link to={ROUTES.MARKETPLACE} className="mt-3 inline-block text-xs font-bold text-emerald-700 underline">Back to the marketplace</Link>
       </div>
     );
   }
 
-  // ==========================================================================
-  // MAIN RENDER
-  // ==========================================================================
+  const displayName = brand.displayName || [brand.firstName, brand.lastName].filter(Boolean).join(" ") || "Sokodigi Member";
+  const profileImage = brand.profilePhoto || "";
+  const planNum = Number(String(me.plan || "").replace("phase", "")) || 0;
+  const levelLabel = isOwnProfile ? (planNum ? `Phase ${planNum}` : "Member") : cap(brand.marketerLevel || "member");
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const shopUrl = brand.username ? `${origin}${profilePath(brand.username)}` : "";
+  const pendingMarketer = isOwnProfile && me.accountCategory === "network" && !isMarketer;
 
   return (
     <main className="min-h-screen bg-slate-50/60">
-      {/* ================================================================
-          HIDDEN IMAGE UPLOAD INPUT
-          ================================================================ */}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleAvatarFileChange}
-        className="hidden"
-      />
-
-      {/* ================================================================
-          AVATAR MENU MODAL
-          ================================================================ */}
-
+      <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onAvatarFile} className="hidden" />
       <AvatarMenuModal
-        isOpen={isAvatarModalOpen}
-        onClose={() => setIsAvatarModalOpen(false)}
+        isOpen={avatarOpen}
+        onClose={() => setAvatarOpen(false)}
         currentImageUrl={profileImage}
         isOwnProfile={isOwnProfile}
-        onUploadClick={() =>
-          fileInputRef.current?.click()
-        }
+        onUploadClick={() => fileInputRef.current?.click()}
       />
 
-      {/* ================================================================
-          PROFILE CONTENT
-          ================================================================ */}
-
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
-        {/* ==============================================================
-            PROFILE HEADER
-            ============================================================== */}
+        {pendingMarketer && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+            <span>Your marketer shop isn't live yet. Activate your membership to start selling.</span>
+            <Link to={ROUTES.MEMBERSHIP} className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 font-bold text-white">Activate</Link>
+          </div>
+        )}
 
+        {/* HEADER */}
         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          {/* Cover / top banner */}
           <div className="h-32 bg-gradient-to-r from-emerald-950 via-emerald-800 to-emerald-600 sm:h-40" />
-
-          {/* Profile information */}
           <div className="relative px-5 pb-6 sm:px-8">
             <div className="-mt-14 flex flex-col gap-5 sm:-mt-16 sm:flex-row sm:items-end sm:justify-between">
-              {/* Avatar + identity */}
               <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-end">
                 <button
                   type="button"
-                  onClick={() =>
-                    isOwnProfile &&
-                    setIsAvatarModalOpen(true)
-                  }
-                  className={`relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 bg-white shadow-lg sm:h-32 sm:w-32 ${levelInfo.ring} ${
-                    isOwnProfile
-                      ? "cursor-pointer"
-                      : "cursor-default"
-                  }`}
-                  title={
-                    isOwnProfile
-                      ? "Manage profile picture"
-                      : "Profile picture"
-                  }
+                  onClick={() => isOwnProfile && setAvatarOpen(true)}
+                  className={`relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-emerald-500 bg-white shadow-lg sm:h-32 sm:w-32 ${isOwnProfile ? "cursor-pointer" : "cursor-default"}`}
+                  title={isOwnProfile ? "Manage profile picture" : displayName}
                 >
                   {profileImage ? (
-                    <img
-                      src={profileImage}
-                      alt={
-                        brandProfile?.name ||
-                        "SokoDigi Member"
-                      }
-                      className="h-full w-full object-cover"
-                    />
+                    <img src={profileImage} alt={displayName} className="h-full w-full object-cover" />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-emerald-50 text-4xl font-black text-emerald-700">
-                      {(
-                        brandProfile?.name ||
-                        "S"
-                      )
-                        .charAt(0)
-                        .toUpperCase()}
-                    </div>
+                    <span className="text-4xl font-black text-emerald-700">{displayName.charAt(0).toUpperCase()}</span>
                   )}
-
-                  {isUpdatingAvatar && (
+                  {updatingAvatar && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/50">
                       <div className="h-7 w-7 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     </div>
@@ -864,927 +391,182 @@ export default function Profile() {
                 </button>
 
                 <div className="pb-1 text-center sm:text-left">
-                  <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                    <h1 className="text-2xl font-black tracking-tight text-slate-900">
-                      {brandProfile?.name ||
-                        "SokoDigi Member"}
-                    </h1>
-
-                    {isOwnProfile && (
-                      <span className="rounded-full bg-emerald-50 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-700">
-                        You
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="mt-1 text-sm font-medium text-slate-500">
-                    @{brandProfile?.username ||
-                      "member"}
-                  </p>
-
-                  {brandProfile?.brandName && (
-                    <p className="mt-1 text-sm font-semibold text-slate-700">
-                      {brandProfile.brandName}
-                    </p>
-                  )}
-
+                  <h1 className="text-2xl font-black tracking-tight text-slate-900">{displayName}</h1>
+                  {brand.username && <p className="mt-1 text-sm font-medium text-slate-500">@{brand.username}</p>}
+                  {brand.brandName && <p className="mt-1 text-sm font-semibold text-slate-700">{brand.brandName}</p>}
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${levelInfo.badge}`}
-                    >
-                      <span
-                        className={`h-1.5 w-1.5 rounded-full ${levelInfo.dot}`}
-                      />
-                      {levelInfo.shortName}
-                    </span>
-
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                      {brandProfile?.accountCategory ||
-                        "retail"}
-                    </span>
-
-                    {brandProfile?.membershipNumber && (
-                      <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-mono text-[10px] font-bold text-slate-500">
-                        #{brandProfile.membershipNumber}
-                      </span>
+                    {showShop && (
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">{levelLabel}</span>
+                    )}
+                    {isOwnProfile && brand.membershipNumber && (
+                      <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 font-mono text-[10px] font-bold text-slate-500">#{brand.membershipNumber}</span>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Header actions */}
               <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
-                <button
-                  type="button"
-                  onClick={handleShareProfile}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
-                >
-                  Share
-                </button>
-
-                {isOwnProfile ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate(
-                        MEMBER_SETTINGS_ROUTE
-                      )
-                    }
-                    className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-800"
-                  >
-                    Edit Profile
+                {shopUrl && (
+                  <button type="button" onClick={() => copy(shopUrl, "Shop link copied")}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:border-emerald-300 hover:text-emerald-700">
+                    Share shop
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setIsSubscribed(
-                        (previous) => !previous
-                      )
-                    }
-                    className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
-                      isSubscribed
-                        ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "bg-emerald-700 text-white hover:bg-emerald-800"
-                    }`}
-                  >
-                    {isSubscribed
-                      ? "✓ Subscribed"
-                      : "Subscribe"}
+                )}
+                {isOwnProfile && isMarketer && brand.username && (
+                  <button type="button" onClick={() => copy(`${origin}${registerPath(brand.username)}`, "Invite link copied")}
+                    className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800">
+                    Copy invite link
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Bio */}
-            {brandProfile?.bio && (
-              <div className="mt-6 max-w-3xl">
-                <p className="text-sm leading-6 text-slate-600">
-                  {brandProfile.bio}
-                </p>
+            {brand.bio && <p className="mt-6 max-w-3xl text-sm leading-6 text-slate-600">{brand.bio}</p>}
+
+            {showShop && (
+              <div className="mt-6 grid grid-cols-3 divide-x overflow-hidden rounded-2xl border border-slate-100 bg-slate-50">
+                <Stat value={products.length} label="Products" />
+                <Stat value={isOwnProfile ? matrix?.summary?.totalDownline ?? 0 : brand.location?.county || "—"} label={isOwnProfile ? "Network" : "Location"} />
+                <Stat value={levelLabel} label="Level" accent />
               </div>
             )}
-
-            {/* Profile statistics */}
-            <div className="mt-6 grid grid-cols-2 divide-x overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 sm:grid-cols-4">
-              <div className="px-4 py-4 text-center">
-                <p className="text-xl font-black text-slate-900">
-                  {products.length}
-                </p>
-                <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                  Products
-                </p>
-              </div>
-
-              <div className="px-4 py-4 text-center">
-                <p className="text-xl font-black text-slate-900">
-                  {subscribers}
-                </p>
-                <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                  Subscribers
-                </p>
-              </div>
-
-              <div className="px-4 py-4 text-center">
-                <p className="text-xl font-black text-slate-900">
-                  {networkMembers}
-                </p>
-                <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                  Network Members
-                </p>
-              </div>
-
-              <div className="px-4 py-4 text-center">
-                <p className="text-xl font-black text-emerald-700">
-                  {networkLevel || "—"}
-                </p>
-                <p className="mt-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                  Network Level
-                </p>
-              </div>
-            </div>
           </div>
         </section>
 
-        {/* Share confirmation */}
-        {shareMessage && (
-          <div className="mt-3 text-center text-xs font-bold text-emerald-700">
-            {shareMessage}
-          </div>
+        {notice && <div role="status" className="mt-3 text-center text-xs font-bold text-emerald-700">{notice}</div>}
+
+        {/* NETWORK (own, active marketers) */}
+        {isOwnProfile && matrix?.ok && (
+          <>
+            <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {[
+                ["Total network", matrix.summary?.totalDownline || 0, ""],
+                ["Active members", matrix.summary?.activeDownline || 0, "text-emerald-600"],
+                ["Spillover rate", `${matrix.spilloverMetrics?.spilloverRatePercentage || 0}%`, ""],
+              ].map(([label, value, cls]) => (
+                <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p>
+                  <p className={`mt-2 text-2xl font-black ${cls || "text-slate-900"}`}>{value}</p>
+                </div>
+              ))}
+            </section>
+            <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="lg:col-span-1"><MatrixTreeChart generations={matrix.generations} /></div>
+              <div className="lg:col-span-2"><LegDistributionCards legBalanceMatrix={matrix.legBalanceMatrix} spilloverMetrics={matrix.spilloverMetrics} /></div>
+            </section>
+          </>
         )}
 
-        {/* ==============================================================
-            NETWORK METRICS
-            ============================================================== */}
-
-        {matrixMetrics?.ok && (
-          <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                Total Network Downline
-              </p>
-
-              <p className="mt-2 text-2xl font-black text-slate-900">
-                {matrixMetrics.summary
-                  ?.totalDownline || 0}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                Active Nodes
-              </p>
-
-              <p className="mt-2 text-2xl font-black text-emerald-600">
-                {matrixMetrics.summary
-                  ?.activeDownline || 0}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                Matrix Spillover Rate
-              </p>
-
-              <p className="mt-2 text-2xl font-black text-slate-900">
-                {matrixMetrics.spilloverMetrics
-                  ?.spilloverRatePercentage || 0}
-                %
-              </p>
+        {/* FEATURED (public shops) */}
+        {!isOwnProfile && featured.length > 0 && (
+          <section className="mt-6">
+            <h2 className="mb-3 text-sm font-black text-slate-900">Featured</h2>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {featured.map((p) => <ProductCard key={p._id} product={p} to={productPath(p._id)} badge="Featured" />)}
             </div>
           </section>
         )}
 
-        {/* ==============================================================
-            MATRIX VISUALIZATION
-            ============================================================== */}
-
-        {matrixMetrics?.ok && (
-          <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-1">
-              <MatrixTreeChart
-                generations={
-                  matrixMetrics.generations
-                }
-              />
-            </div>
-
-            <div className="lg:col-span-2">
-              <LegDistributionCards
-                legBalanceMatrix={
-                  matrixMetrics.legBalanceMatrix
-                }
-                spilloverMetrics={
-                  matrixMetrics.spilloverMetrics
-                }
-              />
-            </div>
-          </section>
-        )}
-
-        {/* ==============================================================
-            TABS
-            ============================================================== */}
-
+        {/* TABS */}
         <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto border-b border-slate-100">
             <div className="flex min-w-max">
-              {[
-                {
-                  id: "products",
-                  label: "Products",
-                },
-                {
-                  id: "shared",
-                  label: "Shared Store",
-                },
-                ...(isOwnProfile
-                  ? [
-                      {
-                        id: "orders",
-                        label: "Orders",
-                      },
-                    ]
-                  : []),
-                {
-                  id: "about",
-                  label: "About",
-                },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() =>
-                    setActiveTab(tab.id)
-                  }
-                  className={`border-b-2 px-5 py-4 text-xs font-black transition ${
-                    activeTab === tab.id
-                      ? "border-emerald-600 text-emerald-700"
-                      : "border-transparent text-slate-400 hover:text-slate-700"
-                  }`}
-                >
-                  {tab.label}
-
-                  {tab.id === "products" && (
-                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] text-slate-500">
-                      {products.length}
-                    </span>
-                  )}
-
-                  {tab.id === "orders" &&
-                    myOrdersList.length > 0 && (
-                      <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] text-emerald-700">
-                        {myOrdersList.length}
-                      </span>
-                    )}
+              {tabs.map((t) => (
+                <button key={t.id} type="button" onClick={() => setActiveTab(t.id)}
+                  className={`border-b-2 px-5 py-4 text-xs font-black transition ${tab === t.id ? "border-emerald-600 text-emerald-700" : "border-transparent text-slate-400 hover:text-slate-700"}`}>
+                  {t.label}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* ============================================================
-              PRODUCTS TAB
-              ============================================================ */}
-
-          {activeTab === "products" && (
+          {tab === "products" && (
             <section className="p-5 sm:p-7">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-black text-slate-900">
-                    Active Storefront
-                  </h2>
-
-                  <p className="mt-1 text-xs text-slate-400">
-                    Products currently displayed by this
-                    SokoDigi merchant.
-                  </p>
+                  <h2 className="text-lg font-black text-slate-900">Storefront</h2>
+                  <p className="mt-1 text-xs text-slate-400">{isOwnProfile ? "Everything you've listed, including hidden items." : "Products from this shop."}</p>
                 </div>
-
                 {isOwnProfile && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      navigate("/dashboard")
-                    }
-                    className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800"
-                  >
-                    Manage Store
-                  </button>
+                  <button type="button" onClick={() => navigate(ROUTES.MEMBER_DASHBOARD)} className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800">Manage store</button>
                 )}
               </div>
-
               {products.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-16 text-center">
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white text-2xl shadow-sm">
-                    🛍️
-                  </div>
-
-                  <h3 className="mt-4 text-sm font-black text-slate-700">
-                    No products yet
-                  </h3>
-
-                  <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-400">
-                    This storefront has not initialized
-                    any marketplace listings yet.
-                  </p>
-
-                  {isOwnProfile && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate("/dashboard")
-                      }
-                      className="mt-5 rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white"
-                    >
-                      Add Products
-                    </button>
-                  )}
-                </div>
+                <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center text-xs text-slate-400">No products yet.</p>
               ) : (
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {products.map((product) => {
-                    const productId =
-                      product?.id ||
-                      product?._id;
-
-                    const imageUrl =
-                      getProductImageUrl(product);
-
-                    return (
-                      <article
-                        key={productId}
-                        className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
-                      >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            navigate(
-                              `/product-details/${productId}`
-                            )
-                          }
-                          className="block w-full text-left"
-                        >
-                          <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                            {imageUrl ? (
-                              <img
-                                src={imageUrl}
-                                alt={
-                                  product?.name ||
-                                  "Product"
-                                }
-                                className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-                                onError={(event) => {
-                                  event.currentTarget.style.display =
-                                    "none";
-                                }}
-                              />
-                            ) : (
-                              <div className="flex h-full items-center justify-center text-xs font-bold text-slate-400">
-                                No image available
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="p-4">
-                            <p className="text-[9px] font-black uppercase tracking-wider text-emerald-600">
-                              {product?.category ||
-                                "General"}
-                            </p>
-
-                            <h3 className="mt-1 line-clamp-2 text-sm font-black text-slate-900">
-                              {product?.name ||
-                                "Untitled Product"}
-                            </h3>
-
-                            <div className="mt-4 flex items-center justify-between gap-3">
-                              <span className="text-lg font-black text-slate-900">
-                                KSh{" "}
-                                {Number(
-                                  product?.price || 0
-                                ).toLocaleString()}
-                              </span>
-
-                              {product?.quantity !==
-                                undefined && (
-                                <span className="text-[10px] font-semibold text-slate-400">
-                                  {product.quantity}{" "}
-                                  available
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      </article>
-                    );
-                  })}
+                  {products.map((p) => (
+                    <ProductCard key={p._id} product={p} to={productPath(p._id)}
+                      badge={isOwnProfile && (p.status === "UNLISTED" || p.isShelved === false) ? "Hidden" : undefined} />
+                  ))}
                 </div>
               )}
             </section>
           )}
 
-          {/* ============================================================
-              SHARED STORE TAB
-              ============================================================ */}
-
-          {activeTab === "shared" && (
+          {tab === "shared" && (
             <section className="p-5 sm:p-7">
-              <div className="mb-5">
-                <h2 className="text-lg font-black text-slate-900">
-                  Shared Store
-                </h2>
-
-                <p className="mt-1 text-xs text-slate-400">
-                  Products this storefront has re-pinned or
-                  shared from partner shops.
+              <h2 className="text-lg font-black text-slate-900">Shared Store</h2>
+              <p className="mb-5 mt-1 text-xs text-slate-400">
+                {isOwnProfile ? "Products you promote. You earn a 5% bonus when they sell through your link." : "Products this shop recommends from other sellers."}
+              </p>
+              {shared.length === 0 ? (
+                <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-14 text-center text-xs text-slate-400">
+                  {isOwnProfile ? "Open any product and tap “Copy my share link” to start promoting it." : "Nothing shared yet."}
                 </p>
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {shared.map((p) => (
+                    <ProductCard key={p._id} product={p} badge="Promoted"
+                      to={`${productPath(p._id)}?ref=${encodeURIComponent(p.shareCode)}`} />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {sharedProducts.length > 0 ? (
-                  sharedProducts.map((item) => {
-                    const product =
-                      item?.productId;
-
-                    const productImage =
-                      product?.imageUrl ||
-                      product?.image ||
-                      "";
-
-                    return (
-                      <div
-                        key={
-                          item?._id ||
-                          product?._id ||
-                          Math.random()
-                        }
-                        className="overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-                      >
-                        {productImage ? (
-                          <img
-                            src={productImage}
-                            alt={
-                              product?.name ||
-                              "Shared product"
-                            }
-                            className="h-40 w-full rounded-lg object-cover"
-                            crossOrigin="anonymous"
-                          />
-                        ) : (
-                          <div className="flex h-40 w-full items-center justify-center rounded-lg bg-slate-50 text-xs text-slate-400">
-                            No image available
-                          </div>
-                        )}
-
-                        <h3 className="mt-3 text-sm font-bold text-slate-800">
-                          {product?.name ||
-                            "Shared Product"}
-                        </h3>
-
-                        <p className="text-xs font-medium text-slate-400">
-                          By{" "}
-                          {product?.brandName ||
-                            "Partner Shop"}
-                        </p>
-
-                        <div className="mt-3 flex items-center justify-between border-t border-slate-50 pt-2">
-                          <span className="text-sm font-black text-slate-900">
-                            KES{" "}
-                            {Number(
-                              product?.price || 0
-                            ).toLocaleString()}
-                          </span>
-
-                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-extrabold uppercase text-amber-700">
-                            Affiliate Pick
-                          </span>
-                        </div>
-
-                        {item?.customNotes && (
-                          <p className="mt-2 rounded bg-slate-50 p-2 text-[11px] italic text-slate-500">
-                            💡 "{item.customNotes}"
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })
+          {tab === "orders" && isOwnProfile && (
+            <section className="p-5 sm:p-7">
+              <h2 className="text-lg font-black text-slate-900">My Orders</h2>
+              <p className="mt-1 text-xs text-slate-400">Your purchases, and your sales if you run a shop.</p>
+              <div className="mt-6 grid gap-6 md:grid-cols-2">
+                {orders.length > 0 ? (
+                  orders.map((o) => <OrderCard key={o._id} order={o} myId={myId} onChanged={fetchOrders} />)
                 ) : (
-                  <div className="col-span-full py-12 text-center text-xs text-slate-400">
-                    No re-pinned catalog products listed
-                    on this storefront yet.
-                  </div>
+                  <p className="col-span-full rounded-2xl border border-slate-100 py-12 text-center text-xs text-slate-400">No orders yet.</p>
                 )}
               </div>
             </section>
           )}
 
-          {/* ============================================================
-              ORDERS TAB
-              ============================================================ */}
-
-          {activeTab === "orders" &&
-            isOwnProfile && (
-              <section className="p-5 sm:p-7">
-                <h2 className="text-lg font-black text-slate-900">
-                  My Purchase Receipts
-                </h2>
-
-                <p className="mt-1 text-xs text-slate-400">
-                  View your product delivery slips, active
-                  packages, and secure order information.
-                </p>
-
-                <div className="mt-6 grid gap-6 md:grid-cols-2">
-                  {myOrdersList.length > 0 ? (
-                    myOrdersList.map((order) => (
-                      <OrderCardDetails
-                        key={
-                          order?._id ||
-                          order?.id
-                        }
-                        order={order}
-                      />
-                    ))
-                  ) : (
-                    <div className="col-span-full rounded-2xl border border-slate-100 bg-white py-12 text-center text-xs text-slate-400">
-                      You haven't purchased any items
-                      from the MarketHub yet.
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-          {/* ============================================================
-              ABOUT TAB
-              ============================================================ */}
-
-          {activeTab === "about" && (
+          {tab === "about" && (
             <section className="p-5 sm:p-7">
-              <div className="rounded-2xl border border-slate-200 bg-white">
-                <div className="border-b border-slate-100 p-5">
-                  <h2 className="text-lg font-black text-slate-900">
-                    About{" "}
-                    {brandProfile?.name ||
-                      "this member"}
-                  </h2>
-                </div>
-
-                <div className="grid gap-6 p-5 sm:grid-cols-2">
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                      Username
-                    </p>
-
-                    <p className="mt-1 text-sm font-semibold text-slate-800">
-                      @{brandProfile?.username ||
-                        "member"}
-                    </p>
+              <div className="grid gap-6 rounded-2xl border border-slate-200 p-5 sm:grid-cols-2">
+                {[
+                  ["Username", brand.username ? `@${brand.username}` : "—"],
+                  ["Brand", brand.brandName || "—"],
+                  ["County", brand.location?.county || "—"],
+                  ...(isOwnProfile ? [["Membership number", brand.membershipNumber || "Not yet issued"], ["Phone", brand.phoneNumber || "—"]] : []),
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">{label}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-800">{value}</p>
                   </div>
-
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                      Account Type
-                    </p>
-
-                    <p className="mt-1 text-sm font-semibold capitalize text-slate-800">
-                      {brandProfile?.accountCategory ||
-                        "retail"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                      Membership Number
-                    </p>
-
-                    <p className="mt-1 font-mono text-sm font-semibold text-slate-800">
-                      {brandProfile?.membershipNumber ||
-                        "N/A"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                      Network Level
-                    </p>
-
-                    <p className="mt-1 text-sm font-semibold text-slate-800">
-                      {levelInfo.name}
-                    </p>
-                  </div>
-
-                  {brandProfile?.phoneNumber && (
-                    <div>
-                      <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                        Phone
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold text-slate-800">
-                        {brandProfile.phoneNumber}
-                      </p>
-                    </div>
-                  )}
-
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                      Subscribers
-                    </p>
-
-                    <p className="mt-1 text-sm font-semibold text-slate-800">
-                      {subscribers}
-                    </p>
-                  </div>
-                </div>
-
-                {brandProfile?.bio && (
-                  <div className="border-t border-slate-100 p-5">
-                    <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-                      Bio
-                    </p>
-
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                      {brandProfile.bio}
-                    </p>
-                  </div>
-                )}
-
-                {isOwnProfile && (
-                  <div className="border-t border-slate-100 bg-slate-50 p-5">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(
-                          MEMBER_SETTINGS_ROUTE
-                        )
-                      }
-                      className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800"
-                    >
-                      Manage Account Settings
-                    </button>
-                  </div>
-                )}
+                ))}
               </div>
             </section>
           )}
         </section>
 
-        {/* ==============================================================
-            NETWORK ACTION
-            ============================================================== */}
-
-        {isOwnProfile &&
-          (brandProfile?.accountCategory ===
-            "network" ||
-            matrixMetrics?.ok) && (
-            <div className="mt-6 flex justify-center">
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(NETWORK_DASHBOARD_ROUTE)
-                }
-                className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-xs font-black text-emerald-700 transition hover:bg-emerald-100"
-              >
-                Open Network Dashboard
-              </button>
-            </div>
-          )}
+        {isOwnProfile && isMarketer && (
+          <div className="mt-6 flex justify-center">
+            <button type="button" onClick={() => navigate(ROUTES.MY_TEAM)}
+              className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-xs font-black text-emerald-700 hover:bg-emerald-100">
+              Open my team
+            </button>
+          </div>
+        )}
       </div>
     </main>
-  );
-}
-
-// ============================================================================
-// ORDER CARD
-// ============================================================================
-
-
-function OrderCardDetails({ order }) {
-  if (!order) return null;
-
-  // --------------------------------------------------
-  // ORDER DETAILS
-  // --------------------------------------------------
-  const orderId = order._id || order.id || "";
-
-  const orderReference =
-    order.orderNumber ||
-    order.orderCode ||
-    order.reference ||
-    (orderId ? String(orderId).slice(-10) : "N/A");
-
-  const status = String(
-    order.orderStatus || order.status || "PROCESSING"
-  ).replace(/_/g, " ");
-
-  const createdAt = order.createdAt || order.date || null;
-
-  // --------------------------------------------------
-  // TOTAL AMOUNT
-  // Matches the financial fields in your order controller.
-  // --------------------------------------------------
-  const financials = order.financials || {};
-
-  const calculatedFinancialTotal =
-    Number(financials.totalRetailPaid || 0) +
-    Number(financials.deliveryFeePaid || 0);
-
-  const total = Number(
-    financials.totalAmountLocked ??
-      (
-        calculatedFinancialTotal > 0
-          ? calculatedFinancialTotal
-          : order.totalAmount ??
-            order.total ??
-            order.amount ??
-            0
-      )
-  ) || 0;
-
-  // --------------------------------------------------
-  // DELIVERY PIN
-  // Supports the names used by your backend.
-  // --------------------------------------------------
-  const deliveryPin =
-    order.deliveryReleasePin ??
-    order.escrowReleasePin ??
-    order.deliveryPin ??
-    order.releasePin ??
-    order.orderPin ??
-    order.pin ??
-    "";
-
-  // --------------------------------------------------
-  // QR CODE
-  // Encodes only the order reference, never the PIN.
-  // --------------------------------------------------
-  const qrValue = order.orderNumber
-    ? JSON.stringify({
-        type: "SOKODIGI_ORDER",
-        orderNumber: order.orderNumber,
-      })
-    : orderId
-      ? JSON.stringify({
-          type: "SOKODIGI_ORDER",
-          orderId: String(orderId),
-        })
-      : "";
-
-  const items = Array.isArray(order.items) ? order.items : [];
-
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      {/* ORDER HEADER */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-            Order Reference
-          </p>
-
-          <h3 className="mt-1 font-mono text-sm font-bold text-slate-800">
-            #{orderReference}
-          </h3>
-        </div>
-
-        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-black uppercase text-emerald-700">
-          {status}
-        </span>
-      </div>
-
-      {/* ORDER TOTAL AND DATE */}
-      <div className="mt-5 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
-        <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-            Total
-          </p>
-
-          <p className="mt-1 text-sm font-black text-slate-900">
-            KSh {total.toLocaleString("en-KE")}
-          </p>
-        </div>
-
-        <div>
-          <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-            Order Date
-          </p>
-
-          <p className="mt-1 text-xs font-semibold text-slate-600">
-            {createdAt &&
-            !Number.isNaN(new Date(createdAt).getTime())
-              ? new Date(createdAt).toLocaleDateString("en-KE")
-              : "N/A"}
-          </p>
-        </div>
-      </div>
-
-      {/* ORDER ITEMS */}
-      <div className="mt-4 border-t border-slate-100 pt-4">
-        <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">
-          Items
-        </p>
-
-        {items.length > 0 ? (
-          <ul className="mt-2 space-y-2">
-            {items.map((item, index) => {
-              const quantity = Number(item?.quantity ?? 1);
-
-              // Your order controller stores pricePaid, not price.
-              const unitPrice = Number(
-                item?.pricePaid ??
-                  item?.price ??
-                  0
-              );
-
-              const subtotal = Number(
-                item?.subtotal ?? unitPrice * quantity
-              );
-
-              return (
-                <li
-                  key={
-                    item?._id ||
-                    item?.productId ||
-                    `${item?.name || "product"}-${index}`
-                  }
-                  className="flex justify-between gap-3 text-xs text-slate-600"
-                >
-                  <span>
-                    {item?.name || item?.productName || "Product"}
-                    {" × "}
-                    {quantity}
-                  </span>
-
-                  <span className="whitespace-nowrap font-semibold">
-                    KSh {subtotal.toLocaleString("en-KE")}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="mt-2 text-xs text-slate-500">
-            No item details are available for this order.
-          </p>
-        )}
-      </div>
-
-      {/* DELIVERY VERIFICATION */}
-      <div className="mt-5 border-t border-slate-100 pt-5">
-        <h4 className="text-sm font-black text-slate-900">
-          Delivery Verification
-        </h4>
-
-        {/* QR CODE */}
-        {qrValue ? (
-          <div className="mt-3 flex flex-col items-center rounded-xl bg-slate-50 p-4">
-            <QRCodeSVG
-              value={qrValue}
-              size={160}
-              level="M"
-              includeMargin
-              title={`QR code for order ${orderReference}`}
-            />
-
-            <p className="mt-3 text-center text-[10px] text-slate-500">
-              Scan to identify this order. The QR code does not
-              authorize escrow release by itself.
-            </p>
-
-            <p className="mt-1 break-all text-center font-mono text-[10px] text-slate-400">
-              {orderReference}
-            </p>
-          </div>
-        ) : (
-          <p className="mt-3 text-xs text-slate-500">
-            The order reference is unavailable, so a QR code
-            cannot be generated.
-          </p>
-        )}
-
-        {/* DELIVERY PIN */}
-        {deliveryPin ? (
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-            <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">
-              Your Delivery PIN
-            </p>
-
-            <p className="mt-2 font-mono text-2xl font-black tracking-[0.3em] text-emerald-900">
-              {String(deliveryPin)}
-            </p>
-
-            <p className="mt-2 text-[11px] leading-5 text-emerald-800">
-              Keep this PIN private. Share it with the authorized
-              delivery person only when your order is ready for
-              delivery verification.
-            </p>
-          </div>
-        ) : (
-          <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-            No delivery PIN was returned for this order. Confirm
-            that the backend includes the PIN for the authorized
-            buyer when retrieving order details.
-          </p>
-        )}
-      </div>
-    </article>
   );
 }
