@@ -3,7 +3,8 @@ import { Link } from "react-router-dom";
 import apiClient from "../../../services/apiClient";
 
 const typeOf = (n) => String(n?.type || "");
-const isEscrow = (n) => /MPESA|ESCROW|PAYMENT/.test(typeOf(n));
+const isEscrow = (n) => n?.category === "ESCROW";
+
 
 // Only follow links inside the app, never external or script URLs
 const safeLink = (url) => (typeof url === "string" && url.startsWith("/") && !url.startsWith("//") ? url : "#");
@@ -49,7 +50,8 @@ export default function NotificationsPage() {
 
   const filteredNotifications = notifications.filter((n) => {
     if (filter === "ESCROW") return isEscrow(n);
-    if (filter === "MESSAGES") return typeOf(n) === "NEW_MESSAGE";
+// ...in the filter:
+if (filter === "MESSAGES") return n.category === "MESSAGES";
     return true;
   });
 
