@@ -1,35 +1,17 @@
 const express = require("express");
-const authenticate = require("../../middleware/authenticate"); // Parses secure token signatures
+const rateLimit = require("express-rate-limit");
+const authenticate = require("../../middleware/authenticate");
+const { listOrders, createOrder, getDeliveryPin, completeDelivery, cancelOrder } = require("./order.controller");
 
-const { 
-  listOrders, 
-  createOrder, 
-  fulfillOrderEscrowHandshake // 🎯 NEW: Single unified dual-verification controller
-} = require("./order.controller");
-
-
-router.get("/:orderNumber/pin", authenticate, getDeliveryPin);                          // buyer only
-router.patch("/:orderNumber/fulfill-handshake", authenticate.strict, completeDelivery); // seller only
-router.patch("/:orderNumber/cancel", authenticate.strict, cancelOrder);
 const router = express.Router();
 
-// =========================================================================
-// 🛒 1. Core Order Pipeline Execution
-// =========================================================================
+const perUser = (limit) =>
+  rateLimit({ windowMs: 60 * 1000, limit, keyGenerator: (req) => String(req.user._id), message: { error: "TOO_MANY_REQUESTS" } });
 
-// Maps to: POST /api/orders (Creates order, run ACID balances, locks escrow)
-router.post("/", authenticate, createOrder);
-
-// Maps to: GET /api/orders (Retrieves order logs by buyer/seller metrics)
-router.get("/", authenticate, listOrders);
-
-
-// =========================================================================
-// 🚚 2. Unified Escrow Release Handshake Gateway
-// =========================================================================
-
-// Maps to: PATCH /api/orders/:orderNumber/fulfill-handshake
-// Accepts EITHER { "pin": "123456" } OR { "qrToken": "SDO-XXXXX" } in req.body
-router.patch("/:orderNumber/fulfill-handshake", authenticate, fulfillOrderEscrowHandshake);
+router.get("/", authenticate, perUser(60), listOrders);
+router.post("/", authenticate.strict, perUser(10), createOrder);
+router.get("/:orderNumber/pin", authenticate, perUser(30), getDeliveryPin);                           // buyer only
+router.patch("/:orderNumber/fulfill-handshake", authenticate.strict, perUser(10), completeDelivery);  // seller only
+router.patch("/:orderNumber/cancel", authenticate.strict, perUser(10), cancelOrder);
 
 module.exports = router;
