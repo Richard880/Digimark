@@ -1,117 +1,97 @@
 import { useState, useEffect, useMemo } from "react";
-import { Outlet } from "react-router-dom"; 
-import useAuth from "../../features/auth/hooks/useAuth"; 
-import Navbar from "../Navbar/Navbar"; 
+import { Outlet } from "react-router-dom";
+import useAuth from "../../features/auth/hooks/useAuth";
+import apiClient from "../../services/apiClient";
+import Navbar from "../Navbar/Navbar";
 import Footer from "../Footer/Footer";
-import AuthModal from "../../features/auth/AuthModal"; 
-import styles from "./MainLayout.module.css"; 
+import AuthModal from "../../features/auth/AuthModal";
+import styles from "./MainLayout.module.css";
 
-export default function MainLayout() { 
-  const { auth, logout } = useAuth(); 
-  
-  // 🎯 THE FINAL FIX: Combine Firebase Authentication and your MongoDB Profile data records 
-  // into a single unified data payload wrapper so the Navbar gets the true profilePhoto property!
+export default function MainLayout() {
+  const { auth, logout } = useAuth();
+
+  // One plain object for the Navbar: the Firebase identity plus the database profile
   const unifiedUser = useMemo(() => {
-    if (!auth?.currentUser) return null;
-    
+    if (!auth.authenticated) return null;
+    const fb = auth.currentUser;
+    const p = auth.profile || {};
     return {
-      ...auth.currentUser,
-      ...auth.profile, // Injects your clean database "profilePhoto" field directly onto the root object level!
-      profile: auth.profile
+      ...p,
+      uid: fb?.uid,
+      email: fb?.email,
+      displayName: p.displayName || fb?.displayName || "",
+      profilePhoto: p.profilePhoto || "",
+      photoURL: p.profilePhoto || fb?.photoURL || "",
+      role: auth.role,
+      accountCategory: auth.user?.accountCategory,
+      membershipStatus: auth.user?.membershipStatus,
+      destination: auth.destination,
+      profile: p,
     };
-  }, [auth?.currentUser, auth?.profile]);
+  }, [auth.authenticated, auth.currentUser, auth.profile, auth.role, auth.user, auth.destination]);
 
-  // UI Modal Controls
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-
-  // Live Database Search State Frameworks
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchParams, setSearchParams] = useState({ q: "", type: "" });
 
-  // Handle live query data payload emissions from both Navbar & HomePage capsules
-  const handleSearchUpdate = (searchObj) => {
-    setSearchParams(searchObj);
-  };
+  const handleSearchUpdate = (searchObj) => setSearchParams(searchObj);
 
-  // Debounced API Side Effect Network Dispatcher Pipeline
+  // Debounced search: waits 300 ms after typing stops and cancels the previous request
   useEffect(() => {
-    // If the input field contains less than 2 characters, clear results automatically
-    if (searchParams.q.trim().length < 2) return;
+    const q = searchParams.q.trim();
+    if (q.length < 2) return undefined;
 
     const controller = new AbortController();
-    
-    const fetchBackendResults = async () => {
+    const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const queryParams = new URLSearchParams({
-          q: searchParams.q,
-          type: searchParams.type
-        }).toString();
-
-        // Connects natively to your Express endpoint router mapping structure
-        const response = await fetch(`/api/search?${queryParams}`, {
-          signal: controller.signal
+        const { data } = await apiClient.get("/search", {
+          params: { q, type: searchParams.type },
+          signal: controller.signal,
         });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setSearchResults(data);
-        }
+        setSearchResults(Array.isArray(data) ? data : data?.results || []);
       } catch (err) {
-        if (err.name !== "AbortError") {
-          console.error("Search pipeline network mismatch: ", err);
+        if (err.code !== "ERR_CANCELED") {
+          console.error("Search failed:", err);
           setSearchResults([]);
         }
       } finally {
         setIsSearching(false);
       }
-    };
-
-    // 300ms Debounce reduces server load on rapid keystrokes
-    const delayDebounceFn = setTimeout(() => {
-      fetchBackendResults();
     }, 300);
 
     return () => {
-      clearTimeout(delayDebounceFn);
-      controller.abort(); // Cleans up hanging requests if a user keeps typing
+      clearTimeout(timer);
+      controller.abort();
     };
   }, [searchParams]);
 
-  return ( 
-    <div className={styles["sokodigi-app"]}> 
-      {/* 🎯 THE FIX: Pass down the dynamic unifiedUser object carrying your profile data fields */}
-      <Navbar 
-        user={unifiedUser} 
-        onLogout={logout} 
-        onAuthClick={() => setIsAuthModalOpen(true)} 
+  return (
+    <div className={styles["sokodigi-app"]}>
+      <Navbar
+        user={unifiedUser}
+        onLogout={logout}
+        onAuthClick={() => setIsAuthModalOpen(true)}
         onSearchUpdate={handleSearchUpdate}
       />
 
-      <AuthModal 
-        isOpen={isAuthModalOpen && !auth?.currentUser}
-        onClose={() => setIsAuthModalOpen(false)}
-      />
+      {/* Stays open until the database account exists, so registration isn't cut off */}
+      <AuthModal isOpen={isAuthModalOpen && !auth.authenticated} onClose={() => setIsAuthModalOpen(false)} />
 
-      <main className={styles["sokodigi-main"]}> 
-        {/* 
-          🟢 COMBINED OUTLET CONTEXT:
-          Shares database search arrays with MarketHub while exposing modal triggers 
-          and search update managers directly to the premium HomePage visual frame.
-        */}
-        <Outlet 
+      <main className={styles["sokodigi-main"]}>
+        <Outlet
           context={{
-            searchResults: searchParams.q.trim().length >= 2 ? searchResults : [], 
-            isSearching, 
+            searchResults: searchParams.q.trim().length >= 2 ? searchResults : [],
+            isSearching,
             activeQuery: searchParams.q,
             onAuthClick: () => setIsAuthModalOpen(true),
-            onSearchUpdate: handleSearchUpdate
-          }} 
-        /> 
-      </main> 
+            onSearchUpdate: handleSearchUpdate,
+          }}
+        />
+      </main>
 
       <Footer />
-    </div> 
-  ); 
+    </div>
+  );
 }
