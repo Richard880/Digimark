@@ -47,7 +47,7 @@ export default function MainLayout() {
       setIsSearching(true);
       try {
         const { data } = await apiClient.get("/search", {
-          params: { q, type: searchParams.type },
+         params: { q, type: "product" },
           signal: controller.signal,
         });
         setSearchResults(Array.isArray(data) ? data : data?.results || []);
