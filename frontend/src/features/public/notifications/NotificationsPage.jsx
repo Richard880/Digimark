@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import axios from "axios";
+import apiClient from "../../../services/apiClient";
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
@@ -8,9 +8,6 @@ export default function NotificationsPage() {
   const [filter, setFilter] = useState("ALL"); // ALL, ESCROW, MESSAGES
 
   // 🚀 ENVIRONMENT CONFIG: Fallback dynamically from your environment constants
-  const BACKEND_URL =import.meta.env.PROD 
-  ? "" 
-  : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/\$/, "");
 
   // Fetch past notification history logs from your backend on mount
   useEffect(() => {
