@@ -62,9 +62,10 @@ export default function MarketerSetup({ onDone }) {
         brandCategory: v.brandCategory,
         county: v.county.trim(),
         address: v.address.trim(),
-        sponsor: v.sponsor?.trim() || undefined,
+        sponsor: referral ? undefined : v.sponsor?.trim() || undefined,
       });
       sessionStorage.removeItem("sokodigi_sponsor");
+      clearReferral();
       await refreshProfile(true); // the app now knows this is a marketer account
       onDone?.();
     } catch (e) { setErr(friendlyError(e)); } finally { setBusy(false); }
