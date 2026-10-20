@@ -119,6 +119,14 @@ async function syncCurrentUser(req, res) {
       userData.sponsorUserId = b.sponsorUserId;
     }
 
+        // Referral from an invite link. Only a checked string ever becomes a query.
+    if (present(b.referrer)) {
+      const s = typeof b.referrer === "string" ? b.referrer.trim() : "";
+      if (/^SDK-\d{6,9}$/i.test(s)) userData.referrer = { membershipNumber: s.toUpperCase() };
+      else if (/^[a-zA-Z0-9_]{3,20}$/.test(s)) userData.referrer = { username: s.toLowerCase() };
+      // anything else is ignored: a bad link must never block signup
+    }
+
     // Prefer the Firebase-verified photo; accept a client URL only if it's https
     let photo = null;
     for (const raw of [b.profilePhoto, b.photoURL, b.profilePic]) {
