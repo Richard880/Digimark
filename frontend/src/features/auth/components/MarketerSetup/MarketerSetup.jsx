@@ -7,6 +7,7 @@ import { AuthInput } from "../AuthInput/AuthInput";
 import Button from "../../../../components/ui/Button";
 import Alert from "../../../../components/ui/Alert";
 import { becomeMarketer, patchProfile, friendlyError } from "../../authApi";
+import { getReferral, clearReferral } from "../../../../utils/referral";
 
 const CATEGORIES = [
   ["phones-gadgets", "Phones & Gadgets"], ["tech-computing", "Tech & Computing"],
@@ -18,6 +19,7 @@ const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
 export default function MarketerSetup({ onDone }) {
   const { auth, refreshProfile } = useAuth();
+  const referral = auth.referral;
   const profile = auth.profile || {};
   const needUsername = !profile.username; // chosen once: it becomes the shop URL
   const needPhone = !profile.phoneNumber; // set once: payouts go to it
@@ -28,7 +30,7 @@ export default function MarketerSetup({ onDone }) {
   const [err, setErr] = useState("");
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
-      sponsor: sessionStorage.getItem("sokodigi_sponsor") || "",
+      sponsor: getReferral() || "",
       brandName: profile.brandName || "",
       county: profile.location?.county || "",
       address: profile.address || "",
@@ -111,9 +113,18 @@ export default function MarketerSetup({ onDone }) {
             {...register("county", { required: "County is required" })} />
           <AuthInput placeholder="Business address / town" icon="house" error={errors.address?.message}
             {...register("address", { required: "Address is required", minLength: { value: 5, message: "Too short" } })} />
-          <AuthInput placeholder="Sponsor's ID or username (optional)" icon="diagram-3" error={errors.sponsor?.message}
-            {...register("sponsor", { pattern: { value: /^(SDK-\d{6,9}|[a-zA-Z0-9_]{3,20})$/i, message: "Enter a sponsor ID like SDK-001001, or a username" } })} />
-          <p style={{ fontSize: 11, color: "#9ca3af" }}>Leave blank to join directly under Sokodigi.</p>
+          
+         {referral ? (
+            <p style={{ fontSize: 13, color: "#065f46", background: "#ecfdf5", padding: 10, borderRadius: 8, margin: "8px 0" }}>
+              Referred by <b>{referral.name || `@${referral.username}`}</b>. You'll join their team.
+            </p>
+          ) : (
+            <>
+              <AuthInput placeholder="Sponsor's ID or username (optional)" icon="diagram-3" error={errors.sponsor?.message}
+                {...register("sponsor", { pattern: { value: /^(SDK-\d{6,9}|[a-zA-Z0-9_]{3,20})$/i, message: "Enter a sponsor ID like SDK-001001, or a username" } })} />
+              <p style={{ fontSize: 11, color: "#9ca3af" }}>Leave blank to join directly under Sokodigi.</p>
+            </>
+          )}
 
           <Button type="submit" loading={busy}>Continue to membership</Button>
         </form>
