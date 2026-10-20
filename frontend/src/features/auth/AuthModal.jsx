@@ -26,7 +26,7 @@ export default function AuthModal({ isOpen, onClose }) {
   const handleRegistered = ({ category }) => {
     onClose();
     // Marketers still need the brand-details step, which lives on the register page
-    navigate(category === "network" ? ROUTES.REGISTER : ROUTES.HOME);
+   navigate(category === "network" ? ROUTES.BECOME_MARKETER : ROUTES.HOME);
   };
 
   return (
