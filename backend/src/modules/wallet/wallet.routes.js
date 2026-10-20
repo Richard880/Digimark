@@ -4,11 +4,17 @@ const router = express.Router();
 
 const {
   getMyWalletDetails,
-  handleMpesaTopUp,
-  getTopUpStatus,
-  mpesaCallback,
-  devTopUp'
+  handleMpesaTopUp, 
+  mpesaCallback, 
+  getTopUpStatus, 
+  devTopUp,
+  darajaFetch, 
+  getAccessToken, 
+  normalizePhone, 
+  safeEq, // shared with withdraw.controller
+  MPESA_ENABLED,
 } = require("./wallet.controller");
+
 const {
   requestWithdrawal,
   listWithdrawals,
@@ -30,6 +36,13 @@ const perUser = (limit, windowMs = 60 * 1000) =>
     message: { error: "TOO_MANY_REQUESTS" },
   });
 
+/* ───────────── Public Config & Feature Flags ───────────── */
+
+// Exposes the feature flag status so your frontend layout knows whether to render M-Pesa menus
+router.get("/config", (req, res) => {
+  return res.status(200).json({ mpesaEnabled: MPESA_ENABLED });
+});
+
 /* ───────────── Authenticated user routes ───────────── */
 
 // Balance + last 30 transactions
@@ -45,10 +58,46 @@ router.get("/topup/:checkoutRequestId/status", authenticate, perUser(30), getTop
 router.post("/withdraw", authenticate, perUser(3), requestWithdrawal);
 router.get("/withdrawals", authenticate, perUser(30), listWithdrawals);
 
+/* ───────────── Development & Debugging Utilities ───────────── */
 
+// Utility phone normalizer tool for frontend form checks
+router.post("/utils/normalize-phone", authenticate, perUser(30), (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: "PHONE_REQUIRED" });
+  return res.status(200).json({ normalized: normalizePhone(phone) });
+});
 
-if (process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_TOPUP === "true") {
+// Secure equality verification tool for transaction references
+router.post("/utils/verify-reference", authenticate, perUser(30), (req, res) => {
+  const { input, target } = req.body;
+  return res.status(200).json({ match: safeEq(input, target) });
+});
+
+// Non-production testing backdoors for simulation endpoints
+if (process.env.NODE_ENV !== "production" || process.env.ALLOW_DEV_TOPUP === "true") {
+  // Manual local wallet credit bypass
   router.post("/dev-topup", authenticate, perUser(10), devTopUp);
+
+  // Daraja connectivity verification check (Tests Daraja access token validity)
+  router.get("/dev/daraja-token", authenticate, async (req, res) => {
+    try {
+      const token = await getAccessToken();
+      return res.status(200).json({ ok: true, token });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
+
+  // Daraja raw fetch endpoint connectivity pipeline test
+  router.post("/dev/daraja-fetch", authenticate, async (req, res) => {
+    const { url, options } = req.body;
+    try {
+      const data = await darajaFetch(url, options);
+      return res.status(200).json({ ok: true, data });
+    } catch (error) {
+      return res.status(500).json({ ok: false, error: error.message });
+    }
+  });
 }
 
 /* ───────────── Safaricom callbacks: PUBLIC ─────────────
