@@ -94,7 +94,7 @@ export function destinationFor(user) {
   if (user.accountCategory !== "network") return "home"; // buyer
   if (user.membershipStatus === "suspended") return "suspended";
   const lapsed = user.membershipExpiresAt && new Date(user.membershipExpiresAt) <= new Date();
-  if (user.membershipStatus === "pending" || lapsed) return "membership"; // pay or renew
+  if (user.membershipStatus === "pending" || user.membershipStatus === "expired" || lapsed) return "membership"; // pay or renew
   return "dashboard"; // active marketer
 }
 // ---- Marketer, step 1: create the login and ask them to verify ----
