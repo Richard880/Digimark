@@ -5,6 +5,7 @@ const Product = require("../../models/Product");
 const ShareLink = require("../../models/ShareLink");
 const { notify } = require("../../services/notification.service");
 const User = require("../../models/User");
+const { PLATFORM_BP, AFFILIATE_BP } = require("../../config/fees");
 const {
   holdOrderFunds,
   releaseEscrowToVendor,
