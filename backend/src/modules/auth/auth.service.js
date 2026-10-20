@@ -8,7 +8,7 @@ const matrixService = require("../../../services/matrixService");
 const MAX_DIRECT_REFERRALS = 10;
 const ROOT_EMAIL = (process.env.COMPANY_ROOT_EMAIL || "admin@sokodigi.com").toLowerCase();
 const NETWORK_REQUIRED = ["firstName", "lastName", "phoneNumber", "username", "brandName"];
-const ROOT_FILTER = { $or: [{ membershipExpiresAt: null }, { membershipExpiresAt: { $gt: new Date() } }] };
+
 
 // Deliberate errors: the controller turns { code, status } into a clean response
 class AppError extends Error {
@@ -104,6 +104,16 @@ async function createAccount({ firebaseUid, cleanEmail, emailVerified, userData 
     }
   }
 
+  // Referral: remembered on the account now, used if they become a marketer later
+  let referredBy = null;
+  if (userData.referrer) {
+    const rp = await UserProfile.findOne(userData.referrer).select("userId").lean();
+    const ru = rp && (await User.findOne({
+      _id: rp.userId, accountCategory: "network", membershipStatus: { $in: ["active", "expired"] }, isActive: true,
+    }).select("_id").lean());
+    if (ru) referredBy = ru._id;
+  }
+  
   try {
     // User + wallet together: no user ever exists without a wallet
     return await mongoose.connection.transaction(async (session) => {
@@ -120,6 +130,7 @@ async function createAccount({ firebaseUid, cleanEmail, emailVerified, userData 
           parentId: null,
           pathFromRoot: [],
           referrals: [],
+          referredBy,
         }],
         { session }
       );
@@ -221,7 +232,7 @@ async function synchronizeFirebaseUser({
 
 /** Retail buyer -> pending network member. Sponsor is a USERNAME (never an id or email). */
 async function upgradeToNetwork(userId, f) {
-  const user = await User.findById(userId).select("accountCategory isActive").lean();
+  const user = await User.findById(userId).select("accountCategory isActive referredBy").lean();
   if (!user || !user.isActive) throw new AppError("ACCOUNT_NOT_ELIGIBLE", 403);
   if (user.accountCategory === "network") throw new AppError("ALREADY_A_MARKETER", 409);
 
@@ -234,15 +245,20 @@ async function upgradeToNetwork(userId, f) {
   const root = await User.findOne({ email: ROOT_EMAIL, accountCategory: "network" }).select("_id").lean();
   if (!root) throw new AppError("NETWORK_NOT_OPEN", 503);
 
+  const sponsorOk = { accountCategory: "network", membershipStatus: { $in: ["active", "expired"] }, isActive: true };
   let sponsorId = root._id;
-  if (f.sponsor) {
+
+  // 1. The person who invited them at signup always wins
+  let chosen = null;
+  if (user.referredBy) chosen = await User.findOne({ _id: user.referredBy, ...sponsorOk }).select("_id").lean();
+
+  // 2. Otherwise the sponsor they typed (no silent fallback to the company if it's wrong)
+  if (!chosen && f.sponsor) {
     const sp = await UserProfile.findOne(f.sponsor).select("userId").lean();
-    const su = sp && (await User.findOne({
-      _id: sp.userId, accountCategory: "network", membershipStatus: "active", isActive: true, ...ROOT_FILTER,
-    }).select("_id").lean());
-    if (!su) throw new AppError("INVALID_SPONSOR", 400); // no silent fallback to the company
-    sponsorId = su._id;
+    chosen = sp && (await User.findOne({ _id: sp.userId, ...sponsorOk }).select("_id").lean());
+    if (!chosen) throw new AppError("INVALID_SPONSOR", 400);
   }
+  if (chosen) sponsorId = chosen._id;
 
   await mongoose.connection.transaction(async (session) => {
     const r = await User.updateOne(
