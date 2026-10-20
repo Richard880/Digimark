@@ -97,23 +97,36 @@ async function createOrder(req, res) {
     }
     const promoter = await resolvePromoter(shareCode, productId, buyerId);
 
-    const order = await mongoose.connection.transaction(async (session) => {
-      // Atomic stock reservation: check + decrement in ONE operation (no oversell race)
+       const order = await mongoose.connection.transaction(async (session) => {
+      // Atomic stock reservation: check + decrement in ONE operation (no oversell race).
+      // Only listed, shelved products can be bought.
       const product = await Product.findOneAndUpdate(
-        { _id: productId, quantity: { $gte: quantity }, isActive: { $ne: false } },
+        {
+          _id: productId,
+          quantity: { $gte: quantity },
+          status: { $in: ["LISTED", "ACTIVE"] },
+          isShelved: true,
+        },
         { $inc: { quantity: -quantity } },
         { new: true, session }
       );
 
-      const live = await User.exists({
-        _id: product.sellerId || product.merchantId, membershipStatus: "active", isActive: true,
-          $or: [{ membershipExpiresAt: null }, { membershipExpiresAt: { $gt: new Date() } }],
-            }).session(session);
-        if (!live) throw fail("PRODUCT_NOT_FOUND", 404); // rolls the stock reservation back too
       if (!product) {
-        const exists = await Product.exists({ _id: productId }).session(session);
-        throw exists ? fail("INSUFFICIENT_STOCK", 409) : fail("PRODUCT_NOT_FOUND", 404);
+        const p = await Product.findOne({ _id: productId }).select("status isShelved").session(session).lean();
+        const visible = p && p.isShelved === true && ["LISTED", "ACTIVE"].includes(p.status);
+        throw visible ? fail("INSUFFICIENT_STOCK", 409) : fail("PRODUCT_NOT_FOUND", 404);
       }
+
+      // The seller must still have a live membership (a second guard on top of the daily expiry job)
+      const live = await User.exists({
+        _id: product.sellerId || product.merchantId,
+        membershipStatus: "active",
+        isActive: true,
+        $or: [{ membershipExpiresAt: null }, { membershipExpiresAt: { $gt: new Date() } }],
+      }).session(session);
+      if (!live) throw fail("PRODUCT_NOT_FOUND", 404); // rolls the stock reservation back too
+
+      // ...continue with: const sellerId = product.sellerId || product.merchantId; and the rest, unchanged
 
       const sellerId = product.sellerId || product.merchantId;
       const delivery = product.deliveryFee || 0;
