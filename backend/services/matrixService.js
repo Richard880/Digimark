@@ -34,7 +34,7 @@ async function findMlmPlacement(sponsorObjectId) {
     .lean();
   if (!sponsor) return { ok: false, reason: "SPONSOR_NOT_FOUND" };
   if (sponsor.accountCategory !== "network") return { ok: false, reason: "TARGET_SPONSOR_NOT_A_NETWORK_MEMBER" };
-  if (sponsor.membershipStatus !== "active") return { ok: false, reason: "SPONSOR_NOT_ACTIVE" };
+  if (!["active", "expired"].includes(sponsor.membershipStatus)) return { ok: false, reason: "SPONSOR_NOT_ACTIVE" };
 
   let frontier = [sponsor]; // members at the current level, in left-to-right order
 
