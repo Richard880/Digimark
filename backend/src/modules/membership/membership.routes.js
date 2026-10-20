@@ -2,7 +2,7 @@ const express = require("express");
 const rateLimit = require("express-rate-limit");
 const router = express.Router();
 const authenticate = require("../../middleware/authenticate");
-const { listPlans, myMembership, pay } = require("./membership.controller");
+const { listPlans, myMembership, pay, myActivity } = require("./membership.controller");
 
 const perUser = (limit) =>
   rateLimit({ windowMs: 60 * 1000, limit, keyGenerator: (req) => String(req.user._id), message: { error: "TOO_MANY_REQUESTS" } });
