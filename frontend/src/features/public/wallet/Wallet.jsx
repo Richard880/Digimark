@@ -27,6 +27,8 @@ const MESSAGES = {
   TOO_MANY_REQUESTS: "You're going too fast. Please wait a minute and try again.",
   NETWORK_ERROR: "Couldn't reach Sokodigi. Check your connection and try again.",
   GENERIC: "Something went wrong. Please try again.",
+  MPESA_NOT_CONFIGURED: "M-Pesa top-ups aren't available yet. Please check back soon.",
+  PAYOUTS_NOT_CONFIGURED: "Withdrawals aren't available yet. Please check back soon.",
 };
 
 const TYPE_LABELS = {
