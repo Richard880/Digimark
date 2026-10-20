@@ -5,6 +5,10 @@ const Wallet = require("../src/models/Wallet");
 const MembershipPayment = require("../src/models/MembershipPayment");
 const generateMembershipNumber = require("../src/utils/membershipNumber");
 const { placeInMatrix } = require("../src/modules/auth/auth.service");
+const Product = require("../../models/Product");
+const { notify } = require("../../services/notification.service");
+const { evaluateUsers } = require("./eligibility.service");
+
 const C = require("../src/modules/config/activity");
 const { PLANS, LEVELS, ROLLUP_MAX_STEPS, PERIOD_DAYS, RENEW_WINDOW_DAYS } = require("../src/modules/config/plans");
 
@@ -98,7 +102,7 @@ async function payMembership({ userId, planKey, idempotencyKey }) {
   if (String(userId) === PLATFORM_ID) throw new MembershipError("NOT_APPLICABLE", 400);
 
   try {
-    return await mongoose.connection.transaction(async (session) => {
+   const out = await mongoose.connection.transaction(async (session) => {
       const now = new Date();
       let user = await User.findById(userId).session(session);
       if (!user || user.accountCategory !== "network") throw new MembershipError("NOT_A_NETWORK_ACCOUNT", 403);
@@ -175,6 +179,7 @@ async function payMembership({ userId, planKey, idempotencyKey }) {
       if (isActivation) $set.membershipStartedAt = now;
       if (isActivation && C.GRACE_DAYS > 0) $set.commissionEligible = true; // grace period; the daily sweep takes over later
       await User.updateOne({ _id: userId }, { $set }, { session });
+      await Product.updateMany({ sellerId: userId, hiddenByExpiry: true }, { $set: { isShelved: true, hiddenByExpiry: false } }, { session });
 
       if (isActivation) {
         const profile = await UserProfile.findOne({ userId }).session(session).select("membershipNumber");
@@ -184,7 +189,12 @@ async function payMembership({ userId, planKey, idempotencyKey }) {
         }
       }
 
-      return { ok: true, paymentId: pay._id, plan: planKey, amount, periodEnd, activated: isActivation };
+      
+        return {
+        ok: true, paymentId: pay._id, plan: planKey, amount, periodEnd, activated: isActivation,
+        sponsorId: user.sponsorId,
+        commissions: rows.filter((r) => r.kind === "commission" || r.kind === "rollup"),
+      };
     });
   } catch (e) {
     if (e.code === 11000) {
