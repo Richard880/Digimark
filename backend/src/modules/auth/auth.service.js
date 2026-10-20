@@ -236,7 +236,7 @@ async function upgradeToNetwork(userId, f) {
 
   let sponsorId = root._id;
   if (f.sponsor) {
-    const sp = await UserProfile.findOne({ username: f.sponsor }).select("userId").lean();
+    const sp = await UserProfile.findOne(f.sponsor).select("userId").lean();
     const su = sp && (await User.findOne({
       _id: sp.userId, accountCategory: "network", membershipStatus: "active", isActive: true, ...ROOT_FILTER,
     }).select("_id").lean());
