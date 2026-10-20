@@ -168,10 +168,12 @@ async function becomeMarketer(req, res) {
       username = typeof b.username === "string" ? b.username.trim().toLowerCase() : "";
       if (!/^[a-z0-9_]{3,20}$/.test(username)) throw new InputError("username");
     }
-    let sponsor;
+       let sponsor;
     if (b.sponsor !== undefined && b.sponsor !== "") {
-      sponsor = typeof b.sponsor === "string" ? b.sponsor.trim().toLowerCase() : "";
-      if (!/^[a-z0-9_]{3,20}$/.test(sponsor)) throw new InputError("sponsor");
+      const s = typeof b.sponsor === "string" ? b.sponsor.trim() : "";
+      if (/^SDK-\d{6,9}$/i.test(s)) sponsor = { membershipNumber: s.toUpperCase() };
+      else if (/^[a-zA-Z0-9_]{3,20}$/.test(s)) sponsor = { username: s.toLowerCase() };
+      else throw new InputError("sponsor");
     }
 
     const r = await upgradeToNetwork(req.user._id, { brandName, brandCategory, county, address, username, sponsor });
