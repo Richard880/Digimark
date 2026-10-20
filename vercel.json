@@ -3,8 +3,8 @@
   "cleanUrls": true,
   "crons": [
     {
-      "path": "/api/internal/eligibility",
-      "schedule": "0 1 * * *"
+      "path": "/api/internal/daily",
+    "schedule": "0 1 * * *" 
     }
   ],
   "builds": [
