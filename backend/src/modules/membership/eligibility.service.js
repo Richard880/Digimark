@@ -3,7 +3,7 @@ const Wallet = require("../../models/Wallet");
 const Product = require("../../models/Product");
 const Order = require("../../models/Order");
 const ActivityDay = require("../../models/ActivityDay");
-const C = require("../../config/activity");
+const C = require("../config/activity");
 
 const PLATFORM_ID = process.env.PLATFORM_WALLET_USER_ID;
 if (!PLATFORM_ID) throw new Error("Missing env PLATFORM_WALLET_USER_ID");
