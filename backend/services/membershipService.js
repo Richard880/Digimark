@@ -5,9 +5,9 @@ const Wallet = require("../src/models/Wallet");
 const MembershipPayment = require("../src/models/MembershipPayment");
 const generateMembershipNumber = require("../src/utils/membershipNumber");
 const { placeInMatrix } = require("../src/modules/auth/auth.service");
-const Product = require("../../models/Product");
-const { notify } = require("../../services/notification.service");
-const { evaluateUsers } = require("./eligibility.service");
+const Product = require("../src/models/Product");
+const { notify } = require("../src/services/notification.service");
+const { evaluateUsers } = require("../src/modules/membership/eligibility.service");
 
 const C = require("../src/modules/config/activity");
 const { PLANS, LEVELS, ROLLUP_MAX_STEPS, PERIOD_DAYS, RENEW_WINDOW_DAYS } = require("../src/modules/config/plans");
