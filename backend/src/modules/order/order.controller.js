@@ -4,6 +4,7 @@ const Order = require("../../models/Order");
 const Product = require("../../models/Product");
 const ShareLink = require("../../models/ShareLink");
 const { notify } = require("../../services/notification.service");
+const User = require("../../models/User");
 const {
   holdOrderFunds,
   releaseEscrowToVendor,
@@ -103,6 +104,12 @@ async function createOrder(req, res) {
         { $inc: { quantity: -quantity } },
         { new: true, session }
       );
+
+      const live = await User.exists({
+        _id: product.sellerId || product.merchantId, membershipStatus: "active", isActive: true,
+          $or: [{ membershipExpiresAt: null }, { membershipExpiresAt: { $gt: new Date() } }],
+            }).session(session);
+        if (!live) throw fail("PRODUCT_NOT_FOUND", 404); // rolls the stock reservation back too
       if (!product) {
         const exists = await Product.exists({ _id: productId }).session(session);
         throw exists ? fail("INSUFFICIENT_STOCK", 409) : fail("PRODUCT_NOT_FOUND", 404);
