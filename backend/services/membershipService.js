@@ -190,12 +190,35 @@ async function payMembership({ userId, planKey, idempotencyKey }) {
       }
 
       
-        return {
+             return {
         ok: true, paymentId: pay._id, plan: planKey, amount, periodEnd, activated: isActivation,
         sponsorId: user.sponsorId,
         commissions: rows.filter((r) => r.kind === "commission" || r.kind === "rollup"),
       };
     });
+
+    // After the money has moved: a failure here can never undo a payment
+    try {
+      for (const r of out.commissions) {
+        await notify("NETWORK_COMMISSION", r.payeeId, { amount: r.amount, level: r.level });
+      }
+      if (out.activated) {
+        await notify("MEMBERSHIP_ACTIVATED", userId);
+        if (out.sponsorId) await notify("TEAM_MEMBER_JOINED", out.sponsorId);
+      } else {
+        // A renewal: re-check eligibility now instead of waiting for tonight's job
+        const u = await User.findById(userId).select("membershipStartedAt membershipExpiresAt").lean();
+        const r = (await evaluateUsers([u])).get(String(userId));
+        await User.updateOne(
+          { _id: userId },
+          { $set: { commissionEligible: r.eligible, activityScore: r.score, eligibilityCheckedAt: new Date() } }
+        );
+      }
+    } catch (e2) {
+      console.error("Post-payment tasks failed:", e2.message);
+    }
+
+    return out;
   } catch (e) {
     if (e.code === 11000) {
       const prior = await MembershipPayment.findOne({ userId, idempotencyKey }).lean();
