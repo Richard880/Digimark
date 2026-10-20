@@ -60,7 +60,7 @@ export default function MarketerSetup({ onDone }) {
         brandCategory: v.brandCategory,
         county: v.county.trim(),
         address: v.address.trim(),
-        sponsor: v.sponsor?.trim().toLowerCase() || undefined,
+        sponsor: v.sponsor?.trim() || undefined,
       });
       sessionStorage.removeItem("sokodigi_sponsor");
       await refreshProfile(true); // the app now knows this is a marketer account
@@ -111,8 +111,8 @@ export default function MarketerSetup({ onDone }) {
             {...register("county", { required: "County is required" })} />
           <AuthInput placeholder="Business address / town" icon="house" error={errors.address?.message}
             {...register("address", { required: "Address is required", minLength: { value: 5, message: "Too short" } })} />
-          <AuthInput placeholder="Sponsor's username (optional)" icon="diagram-3" error={errors.sponsor?.message}
-            {...register("sponsor", { pattern: { value: USERNAME_RE, message: "That doesn't look like a username" } })} />
+          <AuthInput placeholder="Sponsor's ID or username (optional)" icon="diagram-3" error={errors.sponsor?.message}
+            {...register("sponsor", { pattern: { value: /^(SDK-\d{6,9}|[a-zA-Z0-9_]{3,20})$/i, message: "Enter a sponsor ID like SDK-001001, or a username" } })} />
           <p style={{ fontSize: 11, color: "#9ca3af" }}>Leave blank to join directly under Sokodigi.</p>
 
           <Button type="submit" loading={busy}>Continue to membership</Button>
