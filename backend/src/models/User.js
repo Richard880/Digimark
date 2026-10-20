@@ -15,10 +15,13 @@ const userSchema = new Schema(
     accountCategory: { type: String, enum: ["retail", "network"], required: true, default: "retail" },
 
     // pending = registered but fee not paid. Only "active" members may sell or earn.
-    membershipStatus: { type: String, enum: ["pending", "active", "suspended", "cancelled"], default: "pending" },
+   // 1. add "expired" to the status enum
+    membershipStatus: { type: String, enum: ["pending", "active", "expired", "suspended", "cancelled"], default: "pending" },
     plan: { type: String, enum: ["phase1", "phase2", "phase3", "phase4"], default: null },
     membershipStartedAt: { type: Date, default: null },
     membershipExpiresAt: { type: Date, default: null },
+    expiryRemind7For: { type: Date, default: null },
+    expiryRemind1For: { type: Date, default: null },
 
     isActive: { type: Boolean, default: true }, // admin kill switch (false = account disabled)
     emailVerified: { type: Boolean, default: false },
@@ -52,6 +55,8 @@ userSchema.index({ sponsorId: 1 });
 userSchema.index({ parentId: 1 });
 userSchema.index({ pathFromRoot: 1 }); // multikey
 userSchema.index({ accountCategory: 1, membershipStatus: 1, commissionEligible: 1 });
+// 3. with the other indexes
+userSchema.index({ membershipStatus: 1, membershipExpiresAt: 1 });
 
 // Backup guard. The REAL slot protection is the atomic filter in claimSlot().
 userSchema.pre("save", function () {
