@@ -178,6 +178,10 @@ async function createOrder(req, res) {
       return created;
     });
 
+    const ctx = { orderId: order._id, orderRef: order.orderNumber, amount: order.financials.totalRetailPaid };
+      await notify("ORDER_PLACED", order.sellerId, ctx, { actorId: buyerId });
+      await notify("ESCROW_FUNDED", order.sellerId, ctx, { actorId: buyerId });
+
     return res.status(201).json({
       ok: true,
       order: {
