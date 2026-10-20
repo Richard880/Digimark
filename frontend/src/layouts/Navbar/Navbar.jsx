@@ -195,6 +195,7 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate, so
       Membership
     </Link>
   )}
+  {signedIn && user?.accountCategory === "retail" && <Link to={ROUTES.BECOME_MARKETER} onClick={closeMenu}>Sell &amp; Earn</Link>}
 </nav>
 
 
