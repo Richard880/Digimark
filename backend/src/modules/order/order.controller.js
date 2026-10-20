@@ -5,7 +5,7 @@ const Product = require("../../models/Product");
 const ShareLink = require("../../models/ShareLink");
 const { notify } = require("../../services/notification.service");
 const User = require("../../models/User");
-const { PLATFORM_BP, AFFILIATE_BP } = require("../../config/fees");
+
 const {
   holdOrderFunds,
   releaseEscrowToVendor,
@@ -37,7 +37,7 @@ function sendError(res, err, tag) {
   return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
 }
 
-// TODO: replace with a real check against your share-link records, so a promoter
+
 // is only accepted if they actually shared THIS product (see design: unique share pin/url).
 // A promoter counts only if THEY created a share link for THIS product
 async function resolvePromoter(shareCode, productId, buyerId) {
@@ -62,7 +62,6 @@ async function listOrders(req, res) {
 
     // PIN fields are select:false, so they can never appear here
     const orders = await Order.find(filter)
-      
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -85,10 +84,8 @@ async function createOrder(req, res) {
     if (!buyerId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
 
    const { productId, shareCode, shippingDetails: sd } = req.body || {};
-// ...
-
     
-    const quantity = req.body?.quantity === undefined ? 1 : req.body.quantity;
+  const quantity = req.body?.quantity === undefined ? 1 : req.body.quantity;
 
     if (!isId(productId)) throw fail("INVALID_PRODUCT_ID");
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QTY) throw fail("INVALID_QUANTITY");
@@ -126,8 +123,6 @@ async function createOrder(req, res) {
         $or: [{ membershipExpiresAt: null }, { membershipExpiresAt: { $gt: new Date() } }],
       }).session(session);
       if (!live) throw fail("PRODUCT_NOT_FOUND", 404); // rolls the stock reservation back too
-
-      // ...continue with: const sellerId = product.sellerId || product.merchantId; and the rest, unchanged
 
       const sellerId = product.sellerId || product.merchantId;
       const delivery = product.deliveryFee || 0;
