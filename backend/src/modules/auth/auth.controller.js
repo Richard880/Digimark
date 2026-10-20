@@ -200,21 +200,28 @@ async function getMe(req, res) {
       .select("-firebaseUid -pathFromRoot -referrals -sponsorId -parentId -__v")
       .lean();
     if (!user) return res.json({ ok: true, synced: false });
+    
     const { referredBy, ...safeUser } = user;
     const profile = await UserProfile.findOne({ userId: user._id }).lean();
+    
     let referral = null;
     if (referredBy) {
       const rp = await UserProfile.findOne({ userId: referredBy }).select("username brandName displayName").lean();
-      if (rp) referral = { username: rp.username || "", name: rp.brandName || rp.displayName || "" };
+      if (rp) {
+        referral = { 
+          username: rp.username || "", 
+          name: rp.brandName || rp.displayName || "" 
+        };
+      }
     }
+    
     return res.json({ ok: true, synced: true, user: safeUser, profile, referral });
-    const profile = await UserProfile.findOne({ userId: user._id }).lean();
-    return res.json({ ok: true, synced: true, user, profile });
   } catch (e) {
     console.error("❌ getMe:", e.stack || e.message);
     return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   }
 }
+
 
 module.exports = { syncCurrentUser, becomeMarketer, getMe };
 
