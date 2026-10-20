@@ -5,6 +5,7 @@ import { auth } from "../../../firebase";
 import { syncAccount, patchProfile, friendlyError } from "../authApi";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 import useAuth from "../hooks/useAuth";
+import { getReferral, clearReferral } from "../../../utils/referral";
 
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -73,7 +74,9 @@ const { refreshProfile } = useAuth();
         lastName: v.lastName.trim(),
         phoneNumber: v.phoneNumber.trim(),
         accountCategory: "retail",
+        referrer: getReferral(),
       });
+      clearReferral(); // the server has it now
 
       // The photo needs a database user first (the signed upload checks it), so it goes last
      let photoFailed = false;
