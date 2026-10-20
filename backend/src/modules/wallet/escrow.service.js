@@ -52,13 +52,19 @@ async function creditWallet(userId, amount, orderId, description, session) {
  * Call from the order controller INSIDE its transaction: holdOrderFunds({...}, session)
  * amount, in integer cents. Price must come from the database, not from the client.
  */
-async function holdOrderFunds({ orderId, buyerId, vendorId, affiliateId = null, amount }, outerSession) {
+async function holdOrderFunds(
+  { orderId, buyerId, vendorId, affiliateId = null, amount, feeBase = amount },
+  outerSession
+) {
+  if (!outerSession) throw new EscrowError("SESSION_REQUIRED", 500); // order creation must join its own transaction
   if (!Number.isSafeInteger(amount) || amount <= 0) throw new EscrowError("INVALID_AMOUNT");
+  if (!Number.isSafeInteger(feeBase) || feeBase <= 0 || feeBase > amount) throw new EscrowError("INVALID_AMOUNT");
   if (same(buyerId, vendorId)) throw new EscrowError("SELF_PURCHASE_NOT_ALLOWED");
   if (affiliateId && (same(affiliateId, buyerId) || same(affiliateId, vendorId))) affiliateId = null;
 
-  const platformFee = Math.round((amount * PLATFORM_BP) / 10000);
-  const affiliateBonus = affiliateId ? Math.round((amount * AFFILIATE_BP) / 10000) : 0;
+  // Fees come off the product price only. Delivery is paid to the seller in full.
+  const platformFee = Math.round((feeBase * PLATFORM_BP) / 10000);
+  const affiliateBonus = affiliateId ? Math.round((feeBase * AFFILIATE_BP) / 10000) : 0;
   const vendorNet = amount - platformFee - affiliateBonus;
   if (vendorNet <= 0) throw new EscrowError("AMOUNT_TOO_SMALL");
 
@@ -103,14 +109,13 @@ async function holdOrderFunds({ orderId, buyerId, vendorId, affiliateId = null, 
         }],
         { session }
       );
-      return { escrowId: escrow._id, vendorNet, affiliateBonus, platformFee };
+      return { escrowId: escrow._id, vendorNet, affiliateBonus, platformFee, affiliateId };
     } catch (e) {
       if (e.code === 11000) throw new EscrowError("ESCROW_ALREADY_EXISTS", 409);
       throw e;
     }
   }, outerSession);
 }
-
 /**
  * Pays vendor + affiliate + platform out of escrow.
  * ONLY call after the controller has verified: (1) req.user is the vendor of this order,
