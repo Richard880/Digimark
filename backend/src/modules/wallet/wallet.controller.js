@@ -4,12 +4,20 @@ const Wallet = require("../../models/Wallet");
 const MpesaTopUp = require("../../models/MpesaTopUp");
 
 // ---------- Config (the app refuses to start if anything is missing) ----------
+// ---------- Config (warning-only: the app boots without M-Pesa credentials) ----------
 const REQUIRED_ENV = [
   "MPESA_CONSUMER_KEY", "MPESA_CONSUMER_SECRET", "MPESA_SHORTCODE",
   "MPESA_PASSKEY", "MPESA_CALLBACK_BASE_URL", "MPESA_CALLBACK_SECRET",
 ];
-for (const k of REQUIRED_ENV) if (!process.env[k]) throw new Error(`Missing env ${k}`);
-if (process.env.MPESA_CALLBACK_SECRET.length < 24) throw new Error("MPESA_CALLBACK_SECRET too short");
+const missingEnv = REQUIRED_ENV.filter((k) => !process.env[k]);
+if (process.env.MPESA_CALLBACK_SECRET && process.env.MPESA_CALLBACK_SECRET.length < 24) {
+  missingEnv.push("MPESA_CALLBACK_SECRET (needs 24+ characters)");
+}
+// Every M-Pesa route checks this. It turns itself on once all the variables exist.
+const MPESA_ENABLED = missingEnv.length === 0;
+if (!MPESA_ENABLED) {
+  console.warn(`⚠️  M-Pesa is OFF. Missing: ${missingEnv.join(", ")}. Top-ups are disabled until these are set.`);
+}
 
 const PROD = process.env.MPESA_ENV === "production";
 const BASE = PROD ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
@@ -182,6 +190,7 @@ async function getMyWalletDetails(req, res) {
 // ---------- POST /api/wallet/mpesa-topup : starts the STK push, credits NOTHING ----------
 async function handleMpesaTopUp(req, res) {
   try {
+    if (!MPESA_ENABLED) return res.status(503).json({ error: "MPESA_NOT_CONFIGURED" });
     const userId = req.user?._id;
     if (!userId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
 
@@ -229,6 +238,7 @@ async function handleMpesaTopUp(req, res) {
 async function mpesaCallback(req, res) {
   const ack = () => res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
   try {
+    if (!MPESA_ENABLED) return res.sendStatus(404);
     if (!safeEq(req.params.secret || "", process.env.MPESA_CALLBACK_SECRET)) return res.sendStatus(404);
 
     const cb = req.body?.Body?.stkCallback;
@@ -286,7 +296,7 @@ async function getTopUpStatus(req, res) {
     let topup = await MpesaTopUp.findOne({ checkoutRequestId: id, userId });
     if (!topup) return res.status(404).json({ error: "TOPUP_NOT_FOUND" });
 
-    if (topup.status === "PENDING") {
+     if (MPESA_ENABLED && topup.status === "PENDING") {
       const q = await stkQuery(id);
       if (q.state === "SUCCESS") await creditTopUp(id, null);
       else if (q.state === "FAILED") {
@@ -302,5 +312,29 @@ async function getTopUpStatus(req, res) {
   }
 }
 
+
+// ---------- POST /api/wallet/dev-topup : TESTING ONLY, never available in production ----------
+async function devTopUp(req, res) {
+  try {
+    if (process.env.NODE_ENV === "production" || process.env.ALLOW_DEV_TOPUP !== "true") return res.sendStatus(404);
+    const userId = req.user?._id;
+    if (!userId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    const amount = req.body?.amount;
+    if (!Number.isInteger(amount) || amount < 1 || amount > 20000) return res.status(400).json({ error: "INVALID_AMOUNT" });
+
+    const id = `DEV-${crypto.randomUUID()}`;
+    await MpesaTopUp.create({ userId, phone: "254700000000", amount, checkoutRequestId: id });
+    await creditTopUp(id, `DEV${crypto.randomBytes(5).toString("hex").toUpperCase()}`);
+    return res.json({ ok: true, credited: amount });
+  } catch (err) {
+    console.error("❌ devTopUp:", err.stack || err.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+}
+
 // allocateEscrowFunds is gone: escrow lives in escrow.service.js (holdOrderFunds)
-module.exports = { getMyWalletDetails, handleMpesaTopUp, mpesaCallback, getTopUpStatus };
+module.exports = {
+  getMyWalletDetails, handleMpesaTopUp, mpesaCallback, getTopUpStatus, devTopUp,
+  darajaFetch, getAccessToken, normalizePhone, safeEq, // shared with withdraw.controller
+  MPESA_ENABLED,
+};
