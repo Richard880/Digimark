@@ -5,6 +5,7 @@ import apiClient from "../../services/apiClient";
 import Navbar from "../Navbar/Navbar";
 import Footer from "../Footer/Footer";
 import AuthModal from "../../features/auth/AuthModal";
+import { captureReferral } from "../../utils/referral";
 import styles from "./MainLayout.module.css";
 
 export default function MainLayout() {
@@ -66,6 +67,8 @@ export default function MainLayout() {
       controller.abort();
     };
   }, [searchParams]);
+
+  useEffect(() => { captureReferral(); }, []);
 
   return (
     <div className={styles["sokodigi-app"]}>
