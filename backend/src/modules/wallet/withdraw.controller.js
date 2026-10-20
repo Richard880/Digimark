@@ -5,11 +5,18 @@ const Withdrawal = require("../../models/Withdrawal");
 const { darajaFetch, getAccessToken, normalizePhone, safeEq } = require("./wallet.controller");
 const UserProfile = require("../../models/UserProfile.js");
 
+// const REQUIRED_ENV = [
+//   "MPESA_B2C_SHORTCODE", "MPESA_INITIATOR_NAME", "MPESA_INITIATOR_PASSWORD",
+//   "MPESA_CERT_PEM", "MPESA_CALLBACK_BASE_URL", "MPESA_CALLBACK_SECRET",
+// ];
+// for (const k of REQUIRED_ENV) if (!process.env[k]) throw new Error(`Missing env ${k}`);
 const REQUIRED_ENV = [
   "MPESA_B2C_SHORTCODE", "MPESA_INITIATOR_NAME", "MPESA_INITIATOR_PASSWORD",
   "MPESA_CERT_PEM", "MPESA_CALLBACK_BASE_URL", "MPESA_CALLBACK_SECRET",
 ];
-for (const k of REQUIRED_ENV) if (!process.env[k]) throw new Error(`Missing env ${k}`);
+const missingEnv = REQUIRED_ENV.filter((k) => !process.env[k]);
+const B2C_ENABLED = missingEnv.length === 0;
+if (!B2C_ENABLED) console.warn(`⚠️  M-Pesa withdrawals are OFF. Missing: ${missingEnv.join(", ")}.`);
 
 const MIN_WITHDRAW = 50;
 const MAX_WITHDRAW = 150000; // single M-Pesa transaction ceiling
@@ -161,6 +168,7 @@ async function dispatchPayout(w) {
 // ---------- POST /api/wallet/withdraw ----------
 async function requestWithdrawal(req, res) {
   try {
+    if (!B2C_ENABLED) return res.status(503).json({ error: "PAYOUTS_NOT_CONFIGURED" });
     const userId = req.user?._id;
     if (!userId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
 
@@ -254,6 +262,7 @@ async function requestWithdrawal(req, res) {
 
 // ---------- POST /api/wallet/b2c-result/:secret : Safaricom, no user auth ----------
 async function b2cResult(req, res) {
+  if (!B2C_ENABLED) return res.sendStatus(404);
   const ack = () => res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
   try {
     if (!safeEq(req.params.secret || "", process.env.MPESA_CALLBACK_SECRET)) return res.sendStatus(404);
@@ -287,6 +296,7 @@ async function b2cResult(req, res) {
 
 // Queue timeout: outcome unknown, so hold the funds and flag for review. Do NOT refund.
 async function b2cTimeout(req, res) {
+  if (!B2C_ENABLED) return res.sendStatus(404);
   const ack = () => res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
   try {
     if (!safeEq(req.params.secret || "", process.env.MPESA_CALLBACK_SECRET)) return res.sendStatus(404);
