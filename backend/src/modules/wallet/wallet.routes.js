@@ -7,6 +7,7 @@ const {
   handleMpesaTopUp,
   getTopUpStatus,
   mpesaCallback,
+  devTopUp'
 } = require("./wallet.controller");
 const {
   requestWithdrawal,
@@ -43,6 +44,12 @@ router.get("/topup/:checkoutRequestId/status", authenticate, perUser(30), getTop
 // Withdraw to the phone saved on the account (requires an Idempotency-Key header)
 router.post("/withdraw", authenticate, perUser(3), requestWithdrawal);
 router.get("/withdrawals", authenticate, perUser(30), listWithdrawals);
+
+
+
+if (process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_TOPUP === "true") {
+  router.post("/dev-topup", authenticate, perUser(10), devTopUp);
+}
 
 /* ───────────── Safaricom callbacks: PUBLIC ─────────────
    No `authenticate` here. Safaricom calls these, and the secret in the URL is the
