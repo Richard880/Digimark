@@ -200,9 +200,14 @@ async function getMe(req, res) {
       .select("-firebaseUid -pathFromRoot -referrals -sponsorId -parentId -__v")
       .lean();
     if (!user) return res.json({ ok: true, synced: false });
-    if (!user.isActive || user.membershipStatus === "suspended") {
-      return res.status(403).json({ error: "ACCOUNT_DISABLED" });
+    const { referredBy, ...safeUser } = user;
+    const profile = await UserProfile.findOne({ userId: user._id }).lean();
+    let referral = null;
+    if (referredBy) {
+      const rp = await UserProfile.findOne({ userId: referredBy }).select("username brandName displayName").lean();
+      if (rp) referral = { username: rp.username || "", name: rp.brandName || rp.displayName || "" };
     }
+    return res.json({ ok: true, synced: true, user: safeUser, profile, referral });
     const profile = await UserProfile.findOne({ userId: user._id }).lean();
     return res.json({ ok: true, synced: true, user, profile });
   } catch (e) {
