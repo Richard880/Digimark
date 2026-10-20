@@ -35,6 +35,8 @@ const userSchema = new Schema(
 
     // Matrix fields (These must be declared as key-value pairs inside the object)
     sponsorId: { type: Schema.Types.ObjectId, ref: "User", default: null }, // who recruited them
+    // Who invited them at signup. Set once. A buyer has no sponsorId, so the referral lives here until they upgrade.
+    referredBy: { type: Schema.Types.ObjectId, ref: "User", default: null, immutable: true },
     parentId: { type: Schema.Types.ObjectId, ref: "User", default: null },  // where the matrix placed them
     
     // Slots are claimed with an atomic $expr-guarded $push. Never $push here from anywhere else.
