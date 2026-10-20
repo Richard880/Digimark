@@ -53,6 +53,7 @@ const productSchema = new mongoose.Schema(
       default: "LISTED",
     },
     isShelved: { type: Boolean, default: true },
+    hiddenByExpiry: { type: Boolean, default: false },
     isPremiumVendor: { type: Boolean, default: false },
     likesCount: { type: Number, default: 0, min: 0 },
 
