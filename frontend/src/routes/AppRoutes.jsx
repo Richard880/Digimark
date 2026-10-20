@@ -13,6 +13,8 @@ import NotificationsPage from "../features/public/notifications/NotificationsPag
 import CheckoutPage from "../features/public/Checkout/CheckoutPage";
 import RegisterPage from "../features/auth/pages/RegisterPage/RegisterPage";
 import MembershipPage from "../features/membership/MembershipPage";
+import BecomeMarketerPage from "../features/membership/BecomeMarketerPage";
+
 
 import useAuth from "../features/auth/hooks/useAuth";
 import ROUTES from "../constants/routes";
@@ -93,6 +95,7 @@ export default function AppRoutes() {
           <Route path={ROUTES.NOTIFICATIONS} element={<RequireAuth><NotificationsPage /></RequireAuth>} />
           <Route path={ROUTES.WALLET} element={<RequireAuth><Wallet /></RequireAuth>} />
           <Route path={ROUTES.MY_PROFILE} element={<RequireAuth><Profile /></RequireAuth>} />
+          <Route path={ROUTES.BECOME_MARKETER} element={<RequireAuth><BecomeMarketerPage /></RequireAuth>} />
 
           {/* Marketers: the membership page is open to pending and lapsed members too */}
           <Route path={ROUTES.MEMBERSHIP} element={<RequireMarketer allowPending><MembershipPage /></RequireMarketer>} />
