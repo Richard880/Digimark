@@ -361,8 +361,8 @@ export default function Profile() {
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 md:py-10">
         {pendingMarketer && (
           <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-            <span>Your marketer shop isn't live yet. Activate your membership to start selling.</span>
-            <Link to={ROUTES.MEMBERSHIP} className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 font-bold text-white">Activate</Link>
+            <span>{me.membershipStatus === "expired" ? "Your membership has expired, so your shop is paused. Renew to bring it back." : "Your marketer shop isn't live yet. Activate your membership to start selling."}</span>
+                <Link to={ROUTES.MEMBERSHIP} className="...">{me.membershipStatus === "expired" ? "Renew" : "Activate"}</Link>
           </div>
         )}
 
