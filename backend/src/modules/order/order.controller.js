@@ -148,7 +148,7 @@ async function createOrder(req, res) {
           _id: orderId,
           buyerId,
           sellerId,
-          promoterId: hold.affiliateBonus > 0 ? promoter : null,
+          promoterId: hold.affiliateId || null,
           items: [{
             productId: product._id,
             name: product.name,
