@@ -15,6 +15,7 @@ const EMPTY = {
   synced: false,
   loadError: null,      // set when the server was unreachable (the user stays signed in)
   destination: "home",  // "home" | "membership" | "dashboard" | "suspended"
+  referral: null,
 };
 
 const build = (currentUser, data) => ({
@@ -28,6 +29,7 @@ const build = (currentUser, data) => ({
   synced: !!data.synced,
   loadError: null,
   destination: destinationFor(data.user),
+  referral: data.referral || null,
 });
 
 function AuthProvider({ children }) {
