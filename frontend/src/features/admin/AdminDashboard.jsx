@@ -116,6 +116,33 @@ export default function AdminDashboard() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
+
+      <div className="mb-4 flex flex-wrap gap-2">
+  <button
+    type="button"
+    onClick={() => window.history.back()}
+    className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+  >
+    ← Back
+  </button>
+
+  <button
+    type="button"
+    onClick={() => window.location.href = "/profile"}
+    className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700"
+  >
+    My Profile
+  </button>
+
+  <button
+    type="button"
+    onClick={() => window.location.href = "/"}
+    className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800"
+  >
+    MarketHub
+  </button>
+</div>
+      
       <h1 className="text-xl font-black text-slate-900">Admin</h1>
       {loadErr && <p role="alert" className="mt-2 text-xs font-bold text-red-600">Error: {loadErr}</p>}
 
