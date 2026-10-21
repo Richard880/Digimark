@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import apiClient from "../../services/apiClient";
+import apiClient from "../../../services/apiClient";
 import { generateIdentity, importPrivate, makeBackup, restoreFromBackup, saveIdentity, loadIdentity } from "./chatCrypto";
 
 // status: loading | setup (first time) | restore (new device or cleared browser) | reset | ready | error
