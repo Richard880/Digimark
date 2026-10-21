@@ -189,6 +189,7 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate, so
       Dashboard
     </Link>
   )}
+  {["admin", "super_admin"].includes(user?.role) && <Link to={ROUTES.ADMIN_DASHBOARD} onClick={closeMenu}>Admin</Link>}
 
   {needsMembership && (
     <Link to={ROUTES.MEMBERSHIP} onClick={closeMenu}>
