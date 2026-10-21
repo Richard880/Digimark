@@ -82,7 +82,7 @@ export default function MainLayout() {
       {/* Stays open until the database account exists, so registration isn't cut off */}
       <AuthModal isOpen={isAuthModalOpen && !auth.authenticated} onClose={() => setIsAuthModalOpen(false)} />
 
-      <main className={styles["sokodigi-main"]}>
+     <main className={`${styles["sokodigi-main"]} pb-20 lg:pb-0`}>
         <Outlet
           context={{
             searchResults: searchParams.q.trim().length >= 2 ? searchResults : [],
