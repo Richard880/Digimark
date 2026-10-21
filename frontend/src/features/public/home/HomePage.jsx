@@ -14,6 +14,7 @@ const CATEGORIES = [
   ["ankara-art", "🎨", "Ankara & Art"],
 ];
 
+
 const TRUST = [
   ["🔒", "Escrow protection", "Your money is held until you confirm delivery."],
   ["📲", "Pay with M-Pesa", "Top up your wallet and shop in seconds."],
