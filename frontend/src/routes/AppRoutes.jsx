@@ -15,6 +15,7 @@ import RegisterPage from "../features/auth/pages/RegisterPage/RegisterPage";
 import MembershipPage from "../features/membership/MembershipPage";
 import BecomeMarketerPage from "../features/membership/BecomeMarketerPage";
 
+import AdminDashboard from "../features/admin/AdminDashboard";
 
 import useAuth from "../features/auth/hooks/useAuth";
 import ROUTES from "../constants/routes";
@@ -77,6 +78,14 @@ function MarketerCheck({ children, allowPending }) {
   return children;
 }
 
+
+function RequireAdmin({ children }) {
+  const { auth } = useAuth();
+  if (auth.loading) return <Screen><div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /></Screen>;
+  if (!auth.authenticated || !["admin", "super_admin"].includes(auth.role)) return <Navigate to={ROUTES.HOME} replace />;
+  return children;
+}
+
 export default function AppRoutes() {
   return (
     <BrowserRouter>
@@ -104,6 +113,8 @@ export default function AppRoutes() {
 
         {/* Merchant dashboard (outside the public layout) */}
         <Route path={ROUTES.MEMBER_DASHBOARD} element={<RequireMarketer><MyShopDashboard /></RequireMarketer>} />
+
+        <Route path={ROUTES.ADMIN_DASHBOARD} element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
 
         <Route path={ROUTES.NOT_FOUND} element={<Navigate to={ROUTES.HOME} replace />} />
       </Routes>
