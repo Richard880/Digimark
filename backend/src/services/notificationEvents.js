@@ -32,6 +32,7 @@ const EVENTS = {
 
   // Messages
   NEW_MESSAGE: E("MESSAGES", "New message", (c) => `${c.senderName || "Someone"} sent you a message.`, URL.messages),
+  CHAT_REQUEST: E("MESSAGES", "Chat request", (c) => `${c.senderName || "Someone"} wants to chat. Open Messages to turn on secure chat.`, URL.messages),
 
   // Network and membership
   PROMOTER_BONUS: E("SYSTEM", "Promoter bonus earned", (c) => `You earned ${money(c.amount)} from order #${c.orderRef}.`, URL.wallet),
