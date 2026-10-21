@@ -33,27 +33,43 @@ const toInt = (v) =>
   typeof v === "number" ? v : typeof v === "string" && /^\d{1,12}$/.test(v.trim()) ? Number(v) : NaN;
 const str = (v, max) => (typeof v === "string" && v.trim().length <= max ? v.trim() : null);
 
+
 function cleanUrl(v) {
   if (v === "") return "";
+
   try {
     const u = new URL(v);
-    return u.protocol === "https:" && v.length <= 500 ? u.toString() : null;
+    return u.protocol === "https:" && v.length <= 500
+      ? u.toString()
+      : null;
   } catch {
     return null;
   }
+} // IMPORTANT: closes cleanUrl before cleanImageUrl is declared
 
-// Accepts only images uploaded to YOUR Cloudinary account's products folder
+// Accepts only images uploaded to your Cloudinary products folder.
 function cleanImageUrl(v, folder = "sokodigi/products") {
   if (v === "") return "";
+
   const u = cleanUrl(v);
   if (u === null) return null;
+
   const { hostname, pathname } = new URL(u);
-  const cloud = (process.env.CLOUDINARY_CLOUD_NAME || "").replace(/[^\w-]/g, "");
-  if (hostname !== "res.cloudinary.com" || !cloud) return null;
-  const re = new RegExp(`^/${cloud}/image/upload/(v\\d+/)?${folder}/[\\w-]{1,80}\\.(jpg|jpeg|png|webp)$`);
+  const cloud = (process.env.CLOUDINARY_CLOUD_NAME || "")
+    .replace(/[^\w-]/g, "");
+
+  if (hostname !== "res.cloudinary.com" || !cloud) {
+    return null;
+  }
+
+  const re = new RegExp(
+    `^/${cloud}/image/upload/(v\\d+/)?${folder}/[\\w-]{1,80}\\.(jpg|jpeg|png|webp)$`
+  );
+
   return re.test(pathname) ? u : null;
 }
-}
+
+
 
 function paging(req) {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
