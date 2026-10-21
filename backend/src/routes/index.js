@@ -12,6 +12,7 @@ router.use("/wallet", require("../modules/wallet/wallet.routes"));
 router.use("/membership", require("../modules/membership/membership.routes"));
 router.use("/internal", require("./internal.routes"));
 router.use("/search", require("./search.routes"));
+router.use("/chats", require("../modules/chats/chat.routes"));
 
 router.use("/admin", require("../modules/admin/admin.routes"));
 
