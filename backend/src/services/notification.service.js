@@ -49,4 +49,10 @@ async function notify(type, recipients, ctx = {}, { actorId, includeActor = fals
   }
 }
 
-module.exports = { init, notify, roomFor };
+const emitTo = (userId, event, payload) => {
+  if (io) io.to(roomFor(userId)).emit(event, payload);
+};
+
+module.exports = { init, notify, roomFor, emitTo };
+
+
