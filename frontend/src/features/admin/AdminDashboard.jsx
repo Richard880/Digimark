@@ -66,9 +66,21 @@ export default function AdminDashboard() {
   const [loadErr, setLoadErr] = useState("");
   const [reports, setReports] = useState([]); 
   
-  useEffect(() => { if (tab === "reports") apiClient.get("/admin/reports").then(({ data }) =>
-    setReports(data.items)).catch((e) => setLoadErr(errCode(e))); }, [tab]);
-     tabBtn("reports", "Reports")
+ useEffect(() => {
+  if (tab !== "reports") return;
+
+  const loadReports = async () => {
+    try {
+      const { data } = await apiClient.get("/admin/reports");
+      setReports(Array.isArray(data.items) ? data.items : []);
+      setLoadErr("");
+    } catch (e) {
+      setLoadErr(errCode(e));
+    }
+  };
+
+  loadReports();
+}, [tab]);
 
   const loadAttention = useCallback(async () => {
     try {
@@ -119,7 +131,13 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      <div className="mt-6 flex border-b border-slate-200">{tabBtn("attention", "Needs attention")}{tabBtn("members", "Members")}{tabBtn("audit", "Audit log")}</div>
+     
+<div className="mt-6 flex flex-wrap border-b border-slate-200">
+  {tabBtn("attention", "Needs attention")}
+  {tabBtn("members", "Members")}
+  {tabBtn("audit", "Audit log")}
+  {tabBtn("reports", "Reports")}
+</div>
 
       {tab === "attention" && (
         <div className="mt-5 space-y-6">
