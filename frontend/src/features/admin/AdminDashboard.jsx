@@ -64,6 +64,11 @@ export default function AdminDashboard() {
   const [member, setMember] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [loadErr, setLoadErr] = useState("");
+  const [reports, setReports] = useState([]); 
+  
+  useEffect(() => { if (tab === "reports") apiClient.get("/admin/reports").then(({ data }) =>
+    setReports(data.items)).catch((e) => setLoadErr(errCode(e))); }, [tab]);
+     tabBtn("reports", "Reports")
 
   const loadAttention = useCallback(async () => {
     try {
@@ -171,6 +176,30 @@ export default function AdminDashboard() {
           </section>
         </div>
       )}
+
+      {tab === "reports" && (
+  <ul className="mt-5 space-y-2">
+    {reports.length === 0 && <p className="text-xs text-slate-400">No open reports.</p>}
+    {reports.map((r) => (
+      <Row key={r._id}>
+        <div className="max-w-xl">
+          <p className="font-black text-slate-800">{r.reportedName} <span className="font-normal text-slate-500">reported by {r.reporterName} · {r.reason}</span></p>
+          {r.distinctReporters7d >= 3 && <p className="font-bold text-red-600">{r.distinctReporters7d} different people reported this account this week</p>}
+          {r.details && <p className="text-slate-600">“{r.details}”</p>}
+          <p className="mt-1 text-[10px] font-bold uppercase text-slate-400">Messages shared by the reporter (unverified text)</p>
+          {r.excerpt.map((m) => (
+            <p key={m.messageId} className={`text-slate-600 ${m.fromReported ? "font-semibold" : ""}`}>{m.fromReported ? "Reported: " : "Reporter: "}{m.text}</p>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <button className={`${btn} bg-slate-100 text-slate-700`} onClick={() => { setTab("members"); openMember(r.reportedId); }}>Open member</button>
+          <button className={`${btn} bg-emerald-600 text-white`} onClick={() => setDialog({ title: "Action taken", confirm: "Close report", url: `/admin/reports/${r._id}/resolve`, body: { outcome: "actioned" } })}>Actioned</button>
+          <button className={`${btn} bg-slate-200 text-slate-700`} onClick={() => setDialog({ title: "Dismiss report", confirm: "Dismiss", url: `/admin/reports/${r._id}/resolve`, body: { outcome: "dismissed" } })}>Dismiss</button>
+        </div>
+      </Row>
+    ))}
+  </ul>
+)}
 
       {tab === "members" && (
         <div className="mt-5 space-y-4">
