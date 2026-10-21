@@ -183,6 +183,7 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate, so
 
   {signedIn && (
     <Link to={ROUTES.MESSAGES} onClick={closeMenu}>
+      {unreadMessages > 0 && <span className="ml-1 rounded-full bg-emerald-600 px-1.5 text-[9px] font-black text-white">{unreadMessages > 99 ? "99+" : unreadMessages}</span>}
       Messages
     </Link>
   )}
@@ -283,6 +284,7 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate, so
 
                 <Link to={ROUTES.MESSAGES} onClick={closeMenu}
                   className="rounded-lg px-2 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-emerald-50 hover:text-emerald-700" title="Inbox">
+                  {unreadMessages > 0 && <span className="ml-1 rounded-full bg-emerald-600 px-1.5 text-[9px] font-black text-white">{unreadMessages > 99 ? "99+" : unreadMessages}</span>}
                   💬 Inbox
                 </Link>
                 <Link to={ROUTES.WALLET} onClick={closeMenu}
