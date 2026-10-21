@@ -16,7 +16,7 @@ cloudinary.config({
 
 const router = express.Router();
 
-const FOLDERS = { products: "sokodigi/products", profiles: "sokodigi/profiles" };
+const FOLDERS = { products: "sokodigi/products", profiles: "sokodigi/profiles", chat: "sokodigi/chat" };
 
 // Runs after authenticate, so each user gets their own allowance
 const signLimiter = rateLimit({
@@ -41,13 +41,21 @@ router.post("/sign", authenticate, signLimiter, (req, res) => {
       return res.status(403).json({ error: "MARKETER_ACCOUNT_REQUIRED" });
     }
 
-    const uploadParams = {
+   const isChat = folderType === "chat";
+const uploadParams = isChat
+  ? {
+      timestamp: Math.round(Date.now() / 1000),
+      folder: FOLDERS.chat,
+      public_id: `${req.user._id}_${crypto.randomBytes(8).toString("hex")}.bin`, // raw files keep their extension
+      overwrite: "false",
+    }
+  : {
       timestamp: Math.round(Date.now() / 1000),
       folder: FOLDERS[folderType],
-      public_id: `${req.user._id}_${crypto.randomBytes(8).toString("hex")}`, // server-chosen: unguessable and owned by this user
+      public_id: `${req.user._id}_${crypto.randomBytes(8).toString("hex")}`,
       allowed_formats: "jpg,png,webp",
       overwrite: "false",
-      transformation: "c_limit,w_1600,h_1600", // shrinks anything larger on upload
+      transformation: "c_limit,w_1600,h_1600",
     };
     const signature = cloudinary.utils.api_sign_request(uploadParams, process.env.CLOUDINARY_API_SECRET);
 
