@@ -14,6 +14,7 @@ const AdminAction = require("../../models/AdminAction");
 const { notify } = require("../../services/notification.service");
 const { completeWithdrawal, failWithdrawal } = require("../wallet/withdraw.controller");
 const { refundEscrowToBuyer, EscrowError } = require("../wallet/escrow.service");
+const Report = require("../../models/Report");
 
 const router = express.Router();
 const PLATFORM_ID = process.env.PLATFORM_WALLET_USER_ID;
@@ -76,6 +77,7 @@ router.get("/overview", h(async (_req, res) => {
     User.countDocuments({ membershipStatus: "suspended" }),
   ]);
   res.json({ ok: true, withdrawalsNeedingAttention: wd, topupsNeedingAttention: tu, frozenWallets: frozen, suspendedMembers: suspended });
+  reportsOpen: await Report.countDocuments({ status: "open" })
 }));
 
 /* ───────── Withdrawals ───────── */
@@ -302,6 +304,43 @@ router.post("/orders/:orderNumber/cancel", h(async (req, res) => {
   res.json({ ok: true });
 }));
 
+/* ───────── Chat reports ───────── */
+router.get("/reports", h(async (req, res) => {
+  const status = ["open", "dismissed", "actioned"].includes(req.query.status) ? req.query.status : "open";
+  const rows = await Report.find({ status }).sort({ createdAt: 1 }).limit(50).select("-__v").lean();
+  const since = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+  const counts = await Report.aggregate([
+    { $match: { reportedId: { $in: rows.map((r) => r.reportedId) }, createdAt: { $gte: since } } },
+    { $group: { _id: "$reportedId", reporters: { $addToSet: "$reporterId" } } },
+  ]);
+  const countBy = new Map(counts.map((c) => [String(c._id), c.reporters.length]));
+  const ids = [...new Set(rows.flatMap((r) => [String(r.reporterId), String(r.reportedId)]))];
+  const profs = await UserProfile.find({ userId: { $in: ids } }).select("userId username brandName displayName").lean();
+  const nm = new Map(profs.map((p) => [String(p.userId), p.brandName || p.displayName || p.username]));
+  res.json({
+    ok: true,
+    items: rows.map((r) => ({
+      ...r,
+      reporterName: nm.get(String(r.reporterId)) || String(r.reporterId),
+      reportedName: nm.get(String(r.reportedId)) || String(r.reportedId),
+      distinctReporters7d: countBy.get(String(r.reportedId)) || 1,
+    })),
+  });
+}));
+
+router.post("/reports/:id/resolve", h(async (req, res) => {
+  if (!isId(req.params.id)) throw E("INVALID_ID");
+  const note = reason(req.body?.note);
+  if (!note) throw E("NOTE_REQUIRED");
+  if (!["dismissed", "actioned"].includes(req.body?.outcome)) throw E("INVALID_ACTION");
+  const r = await Report.findOneAndUpdate(
+    { _id: req.params.id, status: "open" },
+    { $set: { status: req.body.outcome, resolvedBy: req.user._id, resolvedNote: note, resolvedAt: new Date() } }
+  );
+  if (!r) throw E("ALREADY_SETTLED", 409);
+  await audit(req, `report_${req.body.outcome}`, "report", r._id, note, { reportedId: String(r.reportedId) });
+  res.json({ ok: true });
+}));
 /* ───────── Audit log ───────── */
 router.get("/audit", h(async (_req, res) => {
   res.json({ ok: true, items: await AdminAction.find().sort({ createdAt: -1 }).limit(100).select("-__v").lean() });
