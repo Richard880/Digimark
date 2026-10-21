@@ -22,6 +22,10 @@ const userSchema = new Schema(
     membershipExpiresAt: { type: Date, default: null },
     expiryRemind7For: { type: Date, default: null },
     expiryRemind1For: { type: Date, default: null },
+    suspendedAt: { type: Date, default: null },
+    suspendedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    suspendReason: { type: String, default: "", maxlength: 200 },
+    statusBeforeSuspend: { type: String, default: null },
 
     isActive: { type: Boolean, default: true }, // admin kill switch (false = account disabled)
     emailVerified: { type: Boolean, default: false },
