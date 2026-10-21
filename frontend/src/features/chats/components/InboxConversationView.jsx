@@ -1,489 +1,289 @@
-import { useEffect, useState, useRef, useMemo } from "react";
-import io from "socket.io-client";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import apiClient from "../../../services/apiClient";
-import useAuth from "../../auth/hooks/useAuth";
-import { chatEncryptionService } from "../services/chatEncryption";
+import ROUTES from "../../../constants/routes";
 
-const SOCKET_SERVER_URL = import.meta.env.PROD 
-  ? "" 
-  : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/api\/?$/, "");
+const MAX = 2000;
+const THREAD_POLL_MS = 5000;
+const INBOX_POLL_MS = 20000;
+
+const ERR = {
+  CHAT_NOT_ALLOWED: "You can message active Sokodigi shops, or people you've traded with.",
+  USER_NOT_FOUND: "That account isn't available.",
+  RECIPIENT_UNAVAILABLE: "This person can't receive messages right now.",
+  CANNOT_MESSAGE_SELF: "You can't message yourself.",
+  MESSAGE_TOO_LONG: "That message is too long.",
+  TOO_MANY_REQUESTS: "You're sending messages too fast. Wait a moment.",
+  CONVERSATION_NOT_FOUND: "That conversation isn't available.",
+};
+const errMsg = (e) => (!e.response ? "Couldn't reach Sokodigi. Check your connection." : ERR[e.response.data?.error] || "Something went wrong. Please try again.");
+
+const merge = (a, b) => {
+  const m = new Map(a.map((x) => [x.id, x]));
+  b.forEach((x) => m.set(x.id, x));
+  return [...m.values()].sort((x, y) => new Date(x.at) - new Date(y.at));
+};
+
+function timeLabel(d) {
+  const t = new Date(d);
+  if (Number.isNaN(t.getTime())) return "";
+  const today = new Date();
+  return t.toDateString() === today.toDateString()
+    ? t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : t.toLocaleDateString([], { day: "numeric", month: "short" });
+}
+
+function Avatar({ name, photo, size = "h-10 w-10" }) {
+  return (
+    <div className={`${size} shrink-0 overflow-hidden rounded-full bg-emerald-50 flex items-center justify-center text-sm font-black text-emerald-700`}>
+      {photo ? <img src={photo} alt="" className="h-full w-full object-cover" loading="lazy" /> : (name || "S").charAt(0).toUpperCase()}
+    </div>
+  );
+}
 
 export default function InboxConversationView() {
-  const { auth } = useAuth();
-  const loggedInUser = auth?.currentUser;
-  const currentUserId = loggedInUser?.uid || loggedInUser?._id; // Supporting firebase/mongo hybrid setups
+  const [params, setParams] = useSearchParams();
+  const [inbox, setInbox] = useState([]);
+  const [inboxLoading, setInboxLoading] = useState(true);
+  const [activeId, setActiveId] = useState(null);
+  const [thread, setThread] = useState({ messages: [], with: null, hasMore: false });
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [text, setText] = useState("");
+  const [notice, setNotice] = useState("");
 
-  // Operational State Matrices
-  const [conversations, setConversations] = useState([]);
-  const [activeThread, setActiveThread] = useState(null); // Selected Conversation Metadata object
-  const [messages, setMessages] = useState([]);
-  const [typedMessage, setTypedMessage] = useState("");
-  
-  const [sharedKey, setSharedKey] = useState(null);
-  const [isPartnerTyping, setIsPartnerTyping] = useState(false);
-  const [isLoadingInbox, setIsLoadingInbox] = useState(true);
-  const [isLoadingThread, setIsLoadingThread] = useState(false);
+  const bottomRef = useRef(null);
+  const lastAtRef = useRef(null);   // newest message we've seen, so polls fetch only what's new
+  const nearBottom = useRef(true);
 
-  // Structural Domain References
-  const socketRef = useRef(null);
-  const scrollAnchorRef = useRef(null);
-  const typingTimerRef = useRef(null);
-
-  // Dynamic Computation: Map out partner detail variables safely
-  const partnerMetadata = useMemo(() => {
-    if (!activeThread) return null;
-    const isSender = activeThread.lastMessage?.senderId === currentUserId;
-    const partnerId = isSender ? activeThread.lastMessage?.recipientId : activeThread.lastMessage?.senderId;
-    return {
-      id: partnerId,
-      name: activeThread.partnerName || "SokoDigi Trader",
-      initials: (activeThread.partnerName || "ST").substring(0, 2).toUpperCase()
-    };
-  }, [activeThread, currentUserId]);
-
-  // =========================================================================
-  // 📡 1. BASELINE SOCKET CONNECTION & LIFECYCLE HOOKS
-  // =========================================================================
-  useEffect(() => {
-    if (!currentUserId) return;
-
-    socketRef.current = io(SOCKET_SERVER_URL, { transports: ["websocket"] });
-    socketRef.current.emit("join_inbox", currentUserId);
-
-    // Observer: Live Incoming Messages
-    socketRef.current.on("new_message", async (data) => {
-      // If the incoming message belongs to our currently open active workspace view thread:
-      if (activeThread && (data.from === partnerMetadata?.id)) {
-        try {
-          const myKeys = await chatEncryptionService.getOrCreateSessionKeyPair(currentUserId);
-          // Fetch public key entry profile of partner node from central index directories
-          const keyResponse = await apiClient.get(`/users/${data.from}/public-key`);
-          const derivedSecret = await chatEncryptionService.deriveSharedSecret(myKeys.privateKey, keyResponse.data.publicKey);
-          
-          const decryptedBody = await chatEncryptionService.decryptCiphertext(data.content, data.iv, derivedSecret);
-          
-          setMessages((prev) => [...prev, {
-            _id: data._id,
-            senderId: data.from,
-            recipientId: currentUserId,
-            decryptedText: decryptedBody,
-            createdAt: data.createdAt
-          }]);
-        } catch (err) {
-          console.error("🔏 Streaming decryption crash:", err);
-        }
-      }
-      // Re-trigger inbox state summaries listing to refresh timestamps and ordering indexes
-      loadInboxSummaryListings();
-    });
-
-    // Observer: Streaming Typing Status Indicators
-    socketRef.current.on("user_typing", (data) => {
-      if (activeThread && data.from === partnerMetadata?.id) {
-        setIsPartnerTyping(data.isTyping);
-      }
-    });
-
-    loadInboxSummaryListings();
-
-    return () => {
-      if (socketRef.current) socketRef.current.disconnect();
-    };
-  }, [currentUserId, activeThread, partnerMetadata?.id]);
-
-    // 🎯 INSERT THIS RIGHT BELOW YOUR MAIN SOCKET USEEFFECT
-  useEffect(() => {
-    const queryParams = new URLSearchParams(window.location.search);
-    const targetUserId = queryParams.get("targetUser");
-    const shouldInit = queryParams.get("initMsg");
-
-    if (targetUserId && shouldInit && currentUserId) {
-      const initExternalThread = async () => {
-        try {
-          // Check if this user is already in our sidebar list
-          const existingConvo = conversations.find(c => {
-            const isSender = c.lastMessage?.senderId === currentUserId;
-            const pId = isSender ? c.lastMessage?.recipientId : c.lastMessage?.senderId;
-            return pId === targetUserId;
-          });
-
-          if (existingConvo) {
-            handleSelectConversation(existingConvo);
-          } else {
-            // Optimistically forge a temporary sidebar row for this new trader
-            const mockConvo = {
-              _id: `temp_room_${targetUserId}`,
-              partnerName: "New Trader (" + targetUserId.substring(0, 6) + "...)",
-              updatedAt: new Date().toISOString(),
-              lastMessage: {
-                senderId: currentUserId,
-                recipientId: targetUserId,
-                content: "",
-                iv: [],
-                isRead: true
-              }
-            };
-            setConversations(prev => [mockConvo, ...prev]);
-            setActiveThread(mockConvo);
-            
-            // Establish the secure E2EE crypto pipeline instantly
-            const myKeys = await chatEncryptionService.getOrCreateSessionKeyPair(currentUserId);
-            const keyResponse = await apiClient.get(`/users/${targetUserId}/public-key`);
-            const derivedSecret = await chatEncryptionService.deriveSharedSecret(myKeys.privateKey, keyResponse.data.publicKey);
-            setSharedKey(derivedSecret);
-            setMessages([]);
-          }
-        } catch (err) {
-          console.error("Failed to optimistically initialize target link:", err);
-        }
-      };
-      initExternalThread();
-    }
-  }, [window.location.search, conversations.length, currentUserId]);
-
-
-  
-  // Push viewport visibility index down to keep real-time streams readable
-  useEffect(() => {
-    if (scrollAnchorRef.current) {
-      scrollAnchorRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [messages, isPartnerTyping]);
-
-  // =========================================================================
-  // 🕒 2. TRANSACTIONAL DATA AGGREGATION LOOKUPS
-  // =========================================================================
-  const loadInboxSummaryListings = async () => {
+  const loadInbox = useCallback(async () => {
     try {
-      setIsLoadingInbox(true);
-      const response = await apiClient.get(`/chats/inbox/${currentUserId}`);
-      if (response.data?.ok) {
-        setConversations(response.data.inbox || []);
-      }
-    } catch (err) {
-      console.error("Failed to aggregate user messaging inbox log feeds:", err);
+      const { data } = await apiClient.get("/chats/inbox");
+      setInbox(data.items || []);
+    } catch (e) {
+      console.error("Inbox load failed:", e);
     } finally {
-      setIsLoadingInbox(false);
+      setInboxLoading(false);
     }
-  };
+  }, []);
 
-  const handleSelectConversation = async (convo) => {
+  const openThread = useCallback(async (id) => {
+    setActiveId(id);
+    setThread({ messages: [], with: null, hasMore: false });
+    setThreadLoading(true);
+    setNotice("");
+    lastAtRef.current = null;
     try {
-      setIsLoadingThread(true);
-      setActiveThread(convo);
-      setIsPartnerTyping(false);
-      setTypedMessage("");
-
-      const isSender = convo.lastMessage?.senderId === currentUserId;
-      const targetPartnerId = isSender ? convo.lastMessage?.recipientId : convo.lastMessage?.senderId;
-
-      // 1. Establish Symmetric E2EE Channel Encryption Link
-      const myKeys = await chatEncryptionService.getOrCreateSessionKeyPair(currentUserId);
-      const keyResponse = await apiClient.get(`/users/${targetPartnerId}/public-key`);
-      const derivedSecret = await chatEncryptionService.deriveSharedSecret(myKeys.privateKey, keyResponse.data.publicKey);
-      setSharedKey(derivedSecret);
-
-      // 2. Fetch Direct Message History Arrays from MongoDB
-      const historyResponse = await apiClient.get(`/chats/history/${currentUserId}/${targetPartnerId}`);
-      
-      if (historyResponse.data?.ok) {
-        const structuralHistory = historyResponse.data.history || [];
-        
-        // Loop decrypt historical logs on isolated worker cycles
-        const decryptedThread = await Promise.all(structuralHistory.map(async (msg) => {
-          const textBody = await chatEncryptionService.decryptCiphertext(msg.encryptedBlob, msg.iv, derivedSecret);
-          return {
-            ...msg,
-            decryptedText: textBody
-          };
-        }));
-        
-        setMessages(decryptedThread);
-      }
-    } catch (err) {
-      console.error("Failed to load or decrypt conversational channel threads:", err);
+      const { data } = await apiClient.get(`/chats/${id}/messages`);
+      setThread({ messages: data.messages, with: data.with, hasMore: data.hasMore });
+      lastAtRef.current = data.messages.at(-1)?.at || null;
+      nearBottom.current = true;
+      setInbox((prev) => prev.map((c) => (c.id === id ? { ...c, unread: 0 } : c)));
+    } catch (e) {
+      setNotice(errMsg(e));
+      setActiveId(null);
     } finally {
-      setIsLoadingThread(false);
+      setThreadLoading(false);
     }
-  };
+  }, []);
 
-  // =========================================================================
-  // 📤 3. INTERACTIVE PAYLOAD PIPELINE TRANSMISSIONS
-  // =========================================================================
-  const handleInputChange = (e) => {
-    setTypedMessage(e.target.value);
-    if (!socketRef.current || !partnerMetadata?.id) return;
+  // Inbox: load once, then refresh while the tab is visible
+  useEffect(() => {
+    loadInbox();
+    const t = setInterval(() => document.visibilityState === "visible" && loadInbox(), INBOX_POLL_MS);
+    return () => clearInterval(t);
+  }, [loadInbox]);
 
-    socketRef.current.emit("typing", {
-      recipientId: partnerMetadata.id,
-      senderId: currentUserId,
-      isTyping: true
-    });
+  // Arrived from a product page: /messages?targetUser=<id>
+  useEffect(() => {
+    const target = params.get("targetUser");
+    if (!target) return;
+    (async () => {
+      try {
+        const { data } = await apiClient.post("/chats/start", { targetUserId: target });
+        await openThread(data.conversationId);
+      } catch (e) {
+        setNotice(errMsg(e));
+      } finally {
+        setParams({}, { replace: true });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    clearTimeout(typingTimerRef.current);
-    typingTimerRef.current = setTimeout(() => {
-      socketRef.current.emit("typing", {
-        recipientId: partnerMetadata.id,
-        senderId: currentUserId,
-        isTyping: false
-      });
-    }, 2000);
-  };
+  // Open thread: poll only for newer messages
+  useEffect(() => {
+    if (!activeId) return undefined;
+    const t = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const { data } = await apiClient.get(`/chats/${activeId}/messages`, { params: { after: lastAtRef.current || undefined } });
+        if (data.messages.length) {
+          setThread((prev) => ({ ...prev, messages: merge(prev.messages, data.messages) }));
+          lastAtRef.current = data.messages.at(-1).at;
+        }
+      } catch { /* the next poll tries again */ }
+    }, THREAD_POLL_MS);
+    return () => clearInterval(t);
+  }, [activeId]);
 
-  const handleSendMessage = async (e) => {
-    if (e) e.preventDefault();
-    if (!typedMessage.trim() || !sharedKey || !partnerMetadata?.id) return;
+  useEffect(() => {
+    if (nearBottom.current) bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [thread.messages]);
 
-    const messageText = typedMessage.trim();
-    setTypedMessage(""); // Optimistic text reset
-
+  const loadEarlier = async () => {
+    const first = thread.messages[0];
+    if (!first) return;
     try {
-      // Execute asymmetric encryption calculations
-      const cryptographicBlob = await chatEncryptionService.encryptPlaintext(messageText, sharedKey);
+      const { data } = await apiClient.get(`/chats/${activeId}/messages`, { params: { before: first.at } });
+      nearBottom.current = false;
+      setThread((prev) => ({ ...prev, hasMore: data.hasMore, messages: merge(prev.messages, data.messages) }));
+    } catch (e) { setNotice(errMsg(e)); }
+  };
 
-      // Transmit live bundle parameters through socket infrastructure tunnels
-      socketRef.current.emit("send_encrypted_msg", {
-        recipientId: partnerMetadata.id,
-        senderId: currentUserId,
-        encryptedBlob: cryptographicBlob.ciphertext,
-        iv: cryptographicBlob.iv
-      });
-
-      // Render onto our local thread layout array immediately
-      setMessages((prev) => [...prev, {
-        _id: `temp_${Date.now()}`,
-        senderId: currentUserId,
-        recipientId: partnerMetadata.id,
-        decryptedText: messageText,
-        createdAt: new Date().toISOString()
-      }]);
-
-    } catch (err) {
-      console.error("Cryptographic distribution break:", err);
+  // Optimistic send: the message shows instantly and is marked if it fails
+  const send = async (body, tmpIdArg) => {
+    const clean = body.trim();
+    if (!clean || !activeId) return;
+    const tmpId = tmpIdArg || `tmp-${Date.now()}`;
+    nearBottom.current = true;
+    setThread((prev) => ({
+      ...prev,
+      messages: merge(prev.messages.filter((m) => m.id !== tmpId), [{ id: tmpId, mine: true, text: clean, at: new Date().toISOString(), status: "sending" }]),
+    }));
+    try {
+      const { data } = await apiClient.post(`/chats/${activeId}/messages`, { text: clean });
+      setThread((prev) => ({ ...prev, messages: merge(prev.messages.filter((m) => m.id !== tmpId), [data.message]) }));
+      loadInbox();
+    } catch (e) {
+      setThread((prev) => ({
+        ...prev,
+        messages: prev.messages.map((m) => (m.id === tmpId ? { ...m, status: "failed", error: errMsg(e) } : m)),
+      }));
     }
   };
 
- return (
-    <div className="w-full max-w-6xl mx-auto h-[calc(100vh-140px)] min-h-[500px] border border-slate-200 bg-white rounded-3xl overflow-hidden shadow-xs grid grid-cols-1 md:grid-cols-12">
-      
-      {/* 📂 LEFT-HAND CONVERSATION LIST INBOX MATRICES FEED */}
-      <div className={`md:col-span-4 border-r border-slate-100 flex flex-col h-full bg-slate-50/50 ${activeThread ? "hidden md:flex" : "flex"}`}>
-        {/* 🎯 UPDATED SIDEBAR HEADER: Injected the "Start Chat" dynamic button portal */}
-        <div className="p-4 border-b border-slate-100 bg-white flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-black text-slate-900 tracking-tight">Messages Inbox</h1>
-            <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider mt-0.5">🔏 End-to-End Encrypted Tunnel</p>
+  const submit = (e) => {
+    e.preventDefault();
+    const body = text;
+    if (!body.trim()) return;
+    setText("");
+    send(body);
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) submit(e); // Shift+Enter makes a new line
+  };
+
+  const onScroll = (e) => {
+    const el = e.currentTarget;
+    nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
+
+  const showList = !activeId; // on phones, one pane at a time
+
+  return (
+    <div className="mx-auto max-w-5xl px-2 py-4 sm:px-4">
+      <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
+        Pay only through Sokodigi. Escrow protects payments made in the app, not money sent outside it. Never share your delivery PIN before you have your item.
+      </p>
+      {notice && <p role="alert" className="mb-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{notice}</p>}
+
+      <div className="grid h-[72vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:grid-cols-[320px_1fr]">
+        {/* Conversation list */}
+        <aside className={`${showList ? "flex" : "hidden"} min-h-0 flex-col border-r border-slate-100 md:flex`}>
+          <h1 className="border-b border-slate-100 px-4 py-3 text-sm font-black text-slate-900">Messages</h1>
+          <div className="flex-1 overflow-y-auto">
+            {inboxLoading ? (
+              <p className="p-6 text-center text-xs text-slate-400">Loading…</p>
+            ) : inbox.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-400">
+                No conversations yet.
+                <br />
+                Open a product and tap “Inquire / Negotiate With Trader”.
+                <br />
+                <Link to={ROUTES.MARKETPLACE} className="mt-2 inline-block font-bold text-emerald-700 underline">Browse the marketplace</Link>
+              </div>
+            ) : (
+              inbox.map((c) => (
+                <button key={c.id} type="button" onClick={() => openThread(c.id)}
+                  className={`flex w-full items-center gap-3 border-b border-slate-50 px-4 py-3 text-left hover:bg-slate-50 ${c.id === activeId ? "bg-emerald-50/60" : ""}`}>
+                  <Avatar name={c.with.name} photo={c.with.photo} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="truncate text-xs font-black text-slate-800">{c.with.name}</p>
+                      <span className="shrink-0 text-[10px] text-slate-400">{timeLabel(c.lastMessage.at)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-xs text-slate-500">{c.lastMessage.mine ? "You: " : ""}{c.lastMessage.text}</p>
+                      {c.unread > 0 && (
+                        <span className="flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600 px-1 text-[9px] font-black text-white">{c.unread > 99 ? "99+" : c.unread}</span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              const targetId = prompt("Enter the User ID of the trader you want to message:");
-              if (targetId?.trim()) {
-                window.location.search = `?targetUser=${targetId.trim()}&initMsg=true`;
-              }
-            }}
-            className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition cursor-pointer"
-            title="Start new direct message thread"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/>
-            </svg>
-          </button>
-        </div>
+        </aside>
 
-        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-          {isLoadingInbox && conversations.length === 0 ? (
-            <div className="text-center py-10 text-xs text-slate-400 font-medium">Loading inbox conversations...</div>
-          ) : conversations.length === 0 ? (
-            <div className="text-center py-14 px-4 space-y-2">
-              <p className="text-sm font-bold text-slate-700">No active messages</p>
-              <p className="text-xs text-slate-400 max-w-[200px] mx-auto">Conversations with buyers and suppliers will populate right here.</p>
-            </div>
+        {/* Thread */}
+        <section className={`${showList ? "hidden" : "flex"} min-h-0 flex-col md:flex`}>
+          {!activeId ? (
+            <div className="flex flex-1 items-center justify-center text-xs text-slate-400">Choose a conversation to start chatting.</div>
           ) : (
-            conversations.map((convo) => {
-              const isActive = activeThread?._id === convo._id;
-              const hasUnread = convo.lastMessage?.recipientId === currentUserId && !convo.lastMessage?.isRead;
-              
-              return (
-                <button
-                  key={convo._id}
-                  onClick={() => handleSelectConversation(convo)}
-                  className={`w-full text-left p-3.5 rounded-2xl flex items-center gap-3 transition-all duration-200 cursor-pointer ${
-                    isActive ? "bg-slate-900 text-white shadow-md shadow-slate-900/5" : "bg-transparent hover:bg-white text-slate-700 hover:shadow-xs"
-                  }`}
-                >
-                  <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                    isActive ? "bg-emerald-500 text-slate-950" : "bg-slate-200 text-slate-600"
-                  }`}>
-                    {(convo.partnerName || "ST").substring(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline justify-between">
-                      <p className={`text-xs font-bold truncate ${isActive ? "text-white" : "text-slate-900"}`}>
-                        {convo.partnerName || "SokoDigi Merchant"}
-                      </p>
-                      <span className="text-[10px] shrink-0 font-medium text-slate-400">
-                        {new Date(convo.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <p className={`text-xs truncate mt-0.5 ${isActive ? "text-emerald-300/80" : "text-slate-400"} ${hasUnread ? "font-black text-slate-900" : "font-medium"}`}>
-                      {hasUnread ? "📢 Sent encrypted file..." : "Secure communication channel"}
-                    </p>
-                  </div>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {/* 💬 RIGHT-HAND INTERACTIVE REAL-TIME MESSAGING INTERFACE CONTEXT CONTAINER */}
-      <div className={`md:col-span-8 flex flex-col h-full bg-white ${!activeThread ? "hidden md:flex items-center justify-center text-center p-8" : "flex"}`}>
-        {activeThread ? (
-          <>
-            {/* 🎯 UPDATED HEADER: Display context meta elements alongside the clear data trash icon utility button */}
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => setActiveThread(null)} 
-                  className="md:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 mr-1"
-                  aria-label="Back to conversations list"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7"/>
-                  </svg>
-                </button>
-                
-                <div className="h-9 w-9 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
-                  {partnerMetadata.initials}
-                </div>
-                <div>
-                  <h2 className="text-xs font-black text-slate-900 tracking-tight">{partnerMetadata.name}</h2>
-                  <p className="text-[10px] text-emerald-600 font-bold flex items-center gap-1 mt-0.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                    E2EE Connection Confirmed
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={async () => {
-                  if (confirm("Are you sure you want to delete this chat history? This will clear local logs and device session caches permanently.")) {
-                    try {
-                      await chatEncryptionService.clearDeviceVault(currentUserId);
-                      alert("Cryptographic session storage wiped clean.");
-                      setActiveThread(null);
-                      window.location.href = "/messages";
-                    } catch (err) {
-                      console.error("Wipe operation failed:", err);
-                    }
-                  }
-                }}
-                className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                title="Wipe Local Key & Clear Logs"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 0v3M4 7h16"/>
-                </svg>
-              </button>
-            </div>
-
-            {/* CHAT LOG SCREEN COMPONENT INTERFACE LIST */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/30">
-              {isLoadingThread ? (
-                <div className="flex items-center justify-center h-full text-xs font-semibold text-slate-400">
-                  Syncing and decrypting secure communication ledger strings...
-                </div>
-              ) : (
-                <>
-                  <div className="mx-auto text-center my-2 max-w-xs">
-                    <span className="bg-slate-100 border border-slate-200 text-slate-400 text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md">
-                      🛡️ Session Verification Verified
-                    </span>
-                  </div>
-
-                  {messages.map((msg) => {
-                    const isMe = msg.senderId === currentUserId;
-                    return (
-                      <div key={msg._id} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                        <div className={`p-3 rounded-2xl text-xs max-w-md shadow-xs leading-relaxed font-medium break-words ${
-                          isMe 
-                            ? "bg-slate-900 text-white rounded-br-none" 
-                            : "bg-white border border-slate-200 text-slate-800 rounded-bl-none"
-                        }`}>
-                          {msg.decryptedText}
-                        </div>
-                        <span className="text-[9px] font-medium text-slate-400 mt-1 px-1">
-                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                    );
-                  })}
-
-                  {/* Partner Live Typing Indicator Bubble */}
-                  {isPartnerTyping && (
-                    <div className="flex flex-col items-start">
-                      <div className="p-3 bg-white border border-slate-200 text-slate-400 text-xs rounded-2xl rounded-bl-none shadow-xs font-medium flex items-center gap-1.5">
-                        <span>{partnerMetadata.name} is drafting a response</span>
-                        <div className="flex gap-0.5">
-                          <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                          <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                          <span className="h-1 w-1 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-                        </div>
-                      </div>
-                    </div>
+            <>
+              <header className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
+                <button type="button" onClick={() => setActiveId(null)} aria-label="Back to conversations"
+                  className="rounded-lg px-2 py-1 text-sm font-bold text-slate-500 hover:bg-slate-100 md:hidden">←</button>
+                <Avatar name={thread.with?.name} photo={thread.with?.photo} size="h-9 w-9" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-slate-900">{thread.with?.name || "…"}</p>
+                  {thread.with?.username && (
+                    <Link to={`/profile/${encodeURIComponent(thread.with.username)}`} className="text-[11px] font-semibold text-emerald-700 underline">View shop</Link>
                   )}
-                </>
-              )}
-            </div>
+                </div>
+              </header>
 
-            {/* Message composer */}
-            <form
-              onSubmit={handleSendMessage}
-              className="shrink-0 border-t border-slate-100 bg-white p-3 sm:p-4"
-            >
-              <div className="flex items-end gap-2">
-                <textarea
-                  value={typedMessage}
-                  onChange={handleInputChange}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      handleSendMessage(event);
-                    }
-                  }}
-                  placeholder={sharedKey ? "Write an encrypted message..." : "Establishing secure connection..."}
-                  disabled={!sharedKey || isLoadingThread}
-                  rows={1}
-                  className="min-h-[44px] max-h-32 flex-1 resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition focus:border-emerald-500 focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                />
-                <button
-                  type="submit"
-                  disabled={!typedMessage.trim() || !sharedKey || isLoadingThread}
-                  className="flex h-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 px-4 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Send
-                </button>
+              <div onScroll={onScroll} className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-slate-50/60 px-4 py-4">
+                {threadLoading && <p className="text-center text-xs text-slate-400">Loading…</p>}
+                {thread.hasMore && (
+                  <button type="button" onClick={loadEarlier} className="mx-auto block text-[11px] font-bold text-emerald-700 underline">Load earlier messages</button>
+                )}
+                {!threadLoading && thread.messages.length === 0 && (
+                  <p className="pt-10 text-center text-xs text-slate-400">Say hello 👋 and ask about the product, delivery or price.</p>
+                )}
+                {thread.messages.map((m) => (
+                  <div key={m.id} className={`flex ${m.mine ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.mine ? "bg-emerald-600 text-white" : "bg-white text-slate-800 border border-slate-100"} ${m.status === "sending" ? "opacity-60" : ""}`}>
+                      <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                      <p className={`mt-1 text-[10px] ${m.mine ? "text-emerald-100" : "text-slate-400"}`}>
+                        {m.status === "sending" ? "Sending…" : m.status === "failed" ? "" : timeLabel(m.at)}
+                      </p>
+                      {m.status === "failed" && (
+                        <p className="mt-1 text-[11px] font-bold text-red-100">
+                          {m.error}{" "}
+                          <button type="button" className="underline" onClick={() => send(m.text, m.id)}>Retry</button>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div ref={bottomRef} />
               </div>
-              <p className="mt-2 px-1 text-[10px] text-slate-400">
-                Messages are encrypted before transmission.
-              </p>
-            </form>
-          </>
-        ) : (
-          <div className="max-w-sm">
-            <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-              <svg className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z" />
-              </svg>
-            </div>
-            <h2 className="text-base font-black text-slate-800">Your secure inbox</h2>
-            <p className="mt-1 text-sm leading-relaxed text-slate-500">
-              Select a conversation or start a new message to connect with a buyer or supplier.
-            </p>
-          </div>
-        )}
+
+              <form onSubmit={submit} className="border-t border-slate-100 p-3">
+                <div className="flex items-end gap-2">
+                  <textarea value={text} onChange={(e) => setText(e.target.value)} onKeyDown={onKeyDown}
+                    rows={1} maxLength={MAX} placeholder="Type a message…" aria-label="Message"
+                    className="max-h-28 min-h-[40px] flex-1 resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none" />
+                  <button type="submit" disabled={!text.trim()}
+                    className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-40">Send</button>
+                </div>
+                {text.length > MAX - 200 && <p className="mt-1 text-right text-[10px] text-slate-400">{text.length}/{MAX}</p>}
+              </form>
+            </>
+          )}
+        </section>
       </div>
     </div>
   );
