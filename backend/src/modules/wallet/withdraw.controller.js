@@ -327,4 +327,5 @@ async function listWithdrawals(req, res) {
   }
 }
 
-module.exports = { requestWithdrawal, b2cResult, b2cTimeout, listWithdrawals };
+
+module.exports = { requestWithdrawal, b2cResult, b2cTimeout, listWithdrawals, completeWithdrawal, failWithdrawal };
