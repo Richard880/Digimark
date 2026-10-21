@@ -18,6 +18,8 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate, so
   const [unreadCount, setUnreadCount] = useState(0);
   const [recent, setRecent] = useState([]); // newest first
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  
   const dropdownRef = useRef(null);
 
   const signedIn = !!user;
@@ -46,6 +48,7 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate, so
     try {
       const { data } = await apiClient.get("/notifications/unread-count");
       setUnreadCount(Number(data.count) || 0);
+      apiClient.get("/chats/unread-count").then(({ data }) => setUnreadMessages(Number(data.count) || 0)).catch(() => {})
     } catch {
       /* the badge just keeps its last value */
     }
