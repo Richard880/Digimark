@@ -1,4 +1,4 @@
-import apiClient from "../../services/apiClient";
+import apiClient from "../../../services/apiClient";
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
