@@ -1,4 +1,4 @@
-const { synchronizeFirebaseUser } = require("./auth.service");
+const { synchronizeFirebaseUser, upgradeToNetwork } = require("./auth.service");
 const admin = require("../../config/firebaseAdmin");
 const User = require("../../models/User");
 const UserProfile = require("../../models/UserProfile");
