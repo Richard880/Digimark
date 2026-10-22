@@ -118,7 +118,7 @@ async function listProducts(req, res) {
     const { sellerId, status } = req.query;
     const { page, limit, skip } = paging(req);
     const match = {};
-
+       
     if (sellerId !== undefined) {
       if (!isValidId(sellerId)) return bad(res, "INVALID_SELLER_ID");
       match.sellerId = new mongoose.Types.ObjectId(sellerId);
@@ -127,6 +127,7 @@ async function listProducts(req, res) {
       if (!(isOwner && status === "all")) Object.assign(match, VISIBLE);
     } else {
       Object.assign(match, VISIBLE, { quantity: { $gt: 0 } });
+       if (typeof req.query.category === "string" && CATEGORIES.includes(req.query.category)) match.category = req.query.category;
     }
 
     const products = await Product.aggregate([
@@ -143,7 +144,10 @@ async function listProducts(req, res) {
           },
         },
       },
-      { $sort: { rankingScore: -1, createdAt: -1, _id: -1 } },
+           { $sort: req.query.sort === "price-asc" ? { price: 1, _id: -1 }
+             : req.query.sort === "price-desc" ? { price: -1, _id: -1 }
+             : req.query.sort === "newest" ? { createdAt: -1, _id: -1 }
+             : { rankingScore: -1, createdAt: -1, _id: -1 } },
       { $skip: skip },
       { $limit: limit },
     ]);
