@@ -37,6 +37,47 @@ export default function MyShopDashboard() {
   const [busyProductId, setBusyProductId] = useState(null);
   const [error, setError] = useState(null);
 
+
+  const [productSearch, setProductSearch] = useState("");
+const [stockFilter, setStockFilter] = useState("all");
+
+const listedCount = allProducts.filter(
+  (p) => p.status !== "UNLISTED"
+).length;
+
+const unlistedCount = allProducts.filter(
+  (p) => p.status === "UNLISTED"
+).length;
+
+const lowStockCount = allProducts.filter(
+  (p) => Number(p.quantity || 0) > 0 &&
+         Number(p.quantity || 0) <= 10
+).length;
+
+const outOfStockCount = allProducts.filter(
+  (p) => Number(p.quantity || 0) <= 0
+).length;
+
+const filteredProducts = allProducts.filter((product) => {
+  const query = productSearch.trim().toLowerCase();
+
+  const matchesSearch =
+    !query ||
+    String(product.name || "").toLowerCase().includes(query) ||
+    String(product.productCode || "").toLowerCase().includes(query) ||
+    String(product.category || "").toLowerCase().includes(query);
+
+  const quantity = Number(product.quantity || 0);
+
+  const matchesFilter =
+    stockFilter === "all" ||
+    (stockFilter === "listed" && product.status !== "UNLISTED") ||
+    (stockFilter === "unlisted" && product.status === "UNLISTED") ||
+    (stockFilter === "low" && quantity > 0 && quantity <= 10) ||
+    (stockFilter === "out" && quantity <= 0);
+
+  return matchesSearch && matchesFilter;
+});
   /**
    * Get Firebase ID token and construct auth headers
    * Used for all authenticated API calls to backend
@@ -493,7 +534,7 @@ export default function MyShopDashboard() {
   return (
     <div className="shop-dashboard min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 font-sans antialiased text-slate-600">
       {/* ============================= SIDEBAR ============================= */}
-      <aside className="sidebar fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 text-slate-300 shadow-2xl">
+     <aside className="sidebar fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 text-slate-300 shadow-2xl md:flex">
         <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/80 p-6">
           <h1 className="flex items-center gap-2 text-lg font-black tracking-tight text-white">
             🚀 Soko<span className="text-emerald-400">Digi</span>
@@ -557,35 +598,65 @@ export default function MyShopDashboard() {
       </aside>
 
       {/* ============================= MAIN CONTENT ============================= */}
-      <main className="main-content min-h-screen pl-64">
-        <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 shadow-md md:px-8">
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="home-btn inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition duration-300 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700"
-              title="Back to Home"
-            >
-              <span className="text-base">⌂</span>
-              Home
-            </button>
+     <main className="main-content min-h-screen min-w-0 pl-0 md:pl-64">
 
-            <div className="hidden items-center gap-2 sm:flex">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Dashboard
-              </span>
-              <span className="text-slate-300">/</span>
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                {activeTab === "inventory" ? "Warehouse Stock" : "Sales Orders"}
-              </span>
-            </div>
-          </div>
+<header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
+  <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-3 md:px-8">
+    <div className="flex min-w-0 items-center gap-3">
+      <button
+        type="button"
+        onClick={() => navigate("/")}
+        className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+      >
+        ← Home
+      </button>
 
-          <div className="hidden items-center gap-2 text-xs font-medium text-slate-400 md:flex">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
-            <span className="font-bold text-emerald-600">Operational</span>
-          </div>
-        </header>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-black text-slate-900">
+          My Shop
+        </p>
+        <p className="hidden text-xs text-slate-500 sm:block">
+          Inventory & order management
+        </p>
+      </div>
+    </div>
+
+    <button
+      type="button"
+      onClick={() => setIsModalOpen(true)}
+      className="shrink-0 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 sm:px-4"
+    >
+      + Add product
+    </button>
+  </div>
+
+  <nav className="grid grid-cols-2 gap-2 px-4 pb-3 md:hidden">
+    <button
+      type="button"
+      onClick={() => setActiveTab("inventory")}
+      className={`rounded-xl px-3 py-3 text-xs font-bold ${
+        activeTab === "inventory"
+          ? "bg-emerald-600 text-white"
+          : "bg-slate-100 text-slate-600"
+      }`}
+    >
+      📦 Inventory
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setActiveTab("orders")}
+      className={`rounded-xl px-3 py-3 text-xs font-bold ${
+        activeTab === "orders"
+          ? "bg-emerald-600 text-white"
+          : "bg-slate-100 text-slate-600"
+      }`}
+    >
+      📋 Sales orders
+    </button>
+  </nav>
+</header>
+
 
         <div className="content-area mx-auto max-w-7xl space-y-6 p-4 md:p-8">
           {/* Error Banner */}
@@ -607,177 +678,361 @@ export default function MyShopDashboard() {
             <>
               {/* ============================= INVENTORY TAB ============================= */}
               {activeTab === "inventory" && (
-                <section className="inventory-section overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md">
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-slate-100/50 p-6">
-                    <div>
-                      <h2 className="text-xl font-bold text-slate-900">
-                        Stock Registry
-                      </h2>
-                      <p className="mt-1 text-xs text-slate-500">
-                        Manage your products, prices, and store visibility.
-                      </p>
-                    </div>
+               
+<section className="inventory-section space-y-5">
+  {/* Inventory heading */}
+  <div className="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">
+        Merchant workspace
+      </p>
+      <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
+        My Inventory
+      </h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Manage products, prices and available stock.
+      </p>
+    </div>
 
-                    <span className="item-count rounded-full border border-emerald-200 bg-gradient-to-r from-emerald-50 to-emerald-100 px-4 py-2 text-sm font-bold text-emerald-700 shadow-sm">
-                      <span className="text-lg">{allProducts.length}</span> Items
-                    </span>
-                  </div>
+    <span className="rounded-full bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200">
+      {allProducts.length} products
+    </span>
+  </div>
 
-                  {allProducts.length === 0 ? (
-                    <div className="empty-state p-16 text-center">
-                      <div className="mb-4 text-5xl">📦</div>
-                      <p className="text-lg font-bold text-slate-700">
-                        Your stockroom is empty
-                      </p>
-                      <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500">
-                        Start building your inventory by adding your first product. Click "List New Asset" to get started!
-                      </p>
-                    </div>
+  {/* Overview cards */}
+  <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    {[
+      {
+        label: "Total products",
+        value: allProducts.length,
+        icon: "📦",
+      },
+      {
+        label: "Listed",
+        value: listedCount,
+        icon: "🟢",
+      },
+      {
+        label: "Low stock",
+        value: lowStockCount,
+        icon: "⚠️",
+      },
+      {
+        label: "Out of stock",
+        value: outOfStockCount,
+        icon: "⛔",
+      },
+    ].map((item) => (
+      <div
+        key={item.label}
+        className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-slate-500">{item.label}</span>
+          <span>{item.icon}</span>
+        </div>
+        <p className="mt-3 text-2xl font-black text-slate-900">
+          {item.value}
+        </p>
+      </div>
+    ))}
+  </div>
+
+  {/* Search and filters */}
+  <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <input
+      type="search"
+      value={productSearch}
+      onChange={(e) => setProductSearch(e.target.value)}
+      placeholder="Search product name, SKU or category..."
+      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
+    />
+
+    <div className="flex gap-2 overflow-x-auto pb-1">
+      {[
+        ["all", "All products"],
+        ["listed", "Listed"],
+        ["unlisted", "Unlisted"],
+        ["low", "Low stock"],
+        ["out", "Out of stock"],
+      ].map(([value, label]) => (
+        <button
+          key={value}
+          type="button"
+          onClick={() => setStockFilter(value)}
+          className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold transition ${
+            stockFilter === value
+              ? "bg-emerald-600 text-white"
+              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  </div>
+
+  {/* Product cards: mobile and tablet */}
+  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:hidden">
+    {filteredProducts.map((product, index) => {
+      const id = product._id || product.id;
+      const unlisted = isUnlisted(product);
+      const quantity = Number(product.quantity || 0);
+      const busy = busyProductId === id;
+
+      return (
+        <article
+          key={id || index}
+          className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        >
+          <div className="flex gap-3 p-4">
+            {product.imageUrl ? (
+              <img
+                src={product.imageUrl}
+                alt={product.name || "Product"}
+                loading="lazy"
+                className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 object-cover"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            ) : (
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl">
+                📦
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-start gap-2">
+                <h3 className="min-w-0 flex-1 break-words text-sm font-black text-slate-900">
+                  {product.name || "Unnamed product"}
+                </h3>
+
+                <span
+                  className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${
+                    unlisted
+                      ? "bg-amber-100 text-amber-800"
+                      : "bg-emerald-100 text-emerald-800"
+                  }`}
+                >
+                  {unlisted ? "Unlisted" : "Listed"}
+                </span>
+              </div>
+
+              <p className="mt-1 truncate text-xs text-slate-500">
+                {product.category || "General"} · {product.productCode || "No SKU"}
+              </p>
+
+              <p className="mt-2 text-lg font-black text-slate-900">
+                KES {Number(product.price || 0).toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 border-t border-slate-100 px-4 py-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                Stock
+              </p>
+              <p
+                className={`mt-1 text-sm font-black ${
+                  quantity <= 0
+                    ? "text-red-600"
+                    : quantity <= 10
+                    ? "text-amber-600"
+                    : "text-emerald-700"
+                }`}
+              >
+                {quantity <= 0
+                  ? "Out of stock"
+                  : quantity <= 10
+                  ? `${quantity} left · Low`
+                  : `${quantity} available`}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                Affiliate commission
+              </p>
+              <p className="mt-1 text-sm font-bold text-emerald-700">
+                KES {Number(product.affiliateCommission || 0).toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 border-t border-slate-100 p-3">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => handleOpenEditModal(product)}
+              className="rounded-lg border border-slate-200 px-2 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              ✏️ Edit
+            </button>
+
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => handleToggleProductVisibility(product)}
+              className="rounded-lg bg-emerald-50 px-2 py-2.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+            >
+              {busy ? "Saving…" : unlisted ? "Publish" : "Unlist"}
+            </button>
+
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => handleDeleteProduct(product)}
+              className="rounded-lg bg-red-50 px-2 py-2.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </div>
+        </article>
+      );
+    })}
+  </div>
+
+  {/* Product table: large screens */}
+  <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm xl:block">
+    <table className="w-full border-collapse text-left">
+      <thead>
+        <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+          <th className="p-4">Product</th>
+          <th className="p-4">SKU</th>
+          <th className="p-4">Price</th>
+          <th className="p-4">Commission</th>
+          <th className="p-4">Stock</th>
+          <th className="p-4">Status</th>
+          <th className="p-4 text-right">Actions</th>
+        </tr>
+      </thead>
+
+      <tbody className="divide-y divide-slate-100 text-sm">
+        {filteredProducts.map((product, index) => {
+          const id = product._id || product.id;
+          const unlisted = isUnlisted(product);
+          const busy = busyProductId === id;
+
+          return (
+            <tr key={id || index} className="hover:bg-slate-50">
+              <td className="p-4">
+                <div className="flex items-center gap-3">
+                  {product.imageUrl ? (
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name || "Product"}
+                      loading="lazy"
+                      className="h-11 w-11 rounded-lg object-cover"
+                    />
                   ) : (
-                    <div className="table-wrapper overflow-x-auto">
-                      <table className="products-table w-full border-collapse text-left">
-                        <thead>
-                          <tr className="border-b border-slate-100 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                            <th className="p-4 pl-6">Product Details</th>
-                            <th className="p-4">SKU / Code</th>
-                            <th className="p-4">Retail Price</th>
-                            <th className="p-4">Affiliate Commission</th>
-                            <th className="p-4">Stock</th>
-                            <th className="p-4 pr-6 text-right">Actions</th>
-                          </tr>
-                        </thead>
-
-                        <tbody className="divide-y divide-slate-100 text-sm">
-                          {allProducts.map((product, index) => {
-                            const productId = product._id || product.id;
-                            const unlisted = isUnlisted(product);
-                            const busy = busyProductId === productId;
-
-                            return (
-                              <tr
-                                key={productId || index}
-                                className={`product-row transition duration-200 ${
-                                  unlisted
-                                    ? "bg-amber-50/40 text-slate-400"
-                                    : "bg-white hover:bg-slate-50/60"
-                                }`}
-                              >
-                                <td className="p-4 pl-6">
-                                  <div className="flex items-center gap-3">
-                                    {product.imageUrl ? (
-                                      <img
-                                        src={product.imageUrl}
-                                        alt={product.name}
-                                        className="h-10 w-10 rounded-lg object-cover"
-                                        onError={(e) => {
-                                          e.target.style.display = "none";
-                                        }}
-                                      />
-                                    ) : (
-                                      <div className="h-10 w-10 rounded-lg border border-slate-300 bg-slate-200 flex items-center justify-center">
-                                        📷
-                                      </div>
-                                    )}
-                                    <div>
-                                      <span
-                                        className={`font-semibold ${
-                                          unlisted
-                                            ? "text-slate-400"
-                                            : "text-slate-900"
-                                        }`}
-                                      >
-                                        {product.name || "Unnamed Product"}
-                                      </span>
-                                      {product.category && (
-                                        <div className="text-xs text-slate-400">
-                                          {product.category}
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    {unlisted && (
-                                      <span className="ml-auto rounded-md border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-800">
-                                        Unlisted
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-
-                                <td className="p-4 font-mono text-xs font-semibold text-slate-600">
-                                  {product.productCode || "N/A"}
-                                </td>
-
-                                <td className="p-4 font-bold text-slate-900">
-                                  KES {Number(product.price || 0).toLocaleString()}
-                                </td>
-
-                                <td className="p-4 font-bold text-emerald-600">
-                                  KES {Number(
-                                    product.affiliateCommission || 0
-                                  ).toLocaleString()}
-                                </td>
-
-                                <td className="p-4">
-                                  <span
-                                    className={`status-badge ${getStockStatusClass(
-                                      product.quantity
-                                    )}`}
-                                  >
-                                    {product.quantity || 0}
-                                  </span>
-                                </td>
-
-                                <td className="p-4 pr-6">
-                                  <div className="flex items-center justify-end gap-1">
-                                    <button
-                                      type="button"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        handleToggleProductVisibility(product)
-                                      }
-                                      className={`action-btn rounded-lg border p-2 transition duration-200 disabled:cursor-wait disabled:opacity-50 ${
-                                        unlisted
-                                          ? "border-amber-300 bg-amber-100 text-amber-700 hover:bg-amber-200"
-                                          : "border-slate-300 bg-white text-slate-600 hover:bg-emerald-50 hover:text-emerald-600"
-                                      }`}
-                                      title={
-                                        unlisted
-                                          ? "Publish product"
-                                          : "Unlist product"
-                                      }
-                                    >
-                                      {unlisted ? "👁" : "◉"}
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      disabled={busy}
-                                      onClick={() => handleOpenEditModal(product)}
-                                      className="action-btn rounded-lg border border-slate-300 bg-white p-2 text-slate-600 transition duration-200 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50"
-                                      title="Edit product"
-                                    >
-                                      ✏️
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      disabled={busy}
-                                      onClick={() => handleDeleteProduct(product)}
-                                      className="action-btn rounded-lg border border-red-300 bg-white p-2 text-red-600 transition duration-200 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
-                                      title="Delete product"
-                                    >
-                                      🗑
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                    <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-100">
+                      📦
                     </div>
                   )}
-                </section>
+                  <div>
+                    <p className="font-bold text-slate-900">
+                      {product.name || "Unnamed product"}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {product.category || "General"}
+                    </p>
+                  </div>
+                </div>
+              </td>
+
+              <td className="p-4 font-mono text-xs">
+                {product.productCode || "—"}
+              </td>
+
+              <td className="p-4 font-bold text-slate-900">
+                KES {Number(product.price || 0).toLocaleString()}
+              </td>
+
+              <td className="p-4 font-semibold text-emerald-700">
+                KES {Number(product.affiliateCommission || 0).toLocaleString()}
+              </td>
+
+              <td className="p-4 font-bold">
+                {Number(product.quantity || 0)}
+              </td>
+
+              <td className="p-4">
+                <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${
+                  unlisted
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}>
+                  {unlisted ? "Unlisted" : "Listed"}
+                </span>
+              </td>
+
+              <td className="p-4">
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleOpenEditModal(product)}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleToggleProductVisibility(product)}
+                    className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                  >
+                    {busy ? "Saving…" : unlisted ? "Publish" : "Unlist"}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => handleDeleteProduct(product)}
+                    className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+
+  {/* Empty search/filter state */}
+  {filteredProducts.length === 0 && (
+    <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
+      <div className="text-4xl">📦</div>
+      <h3 className="mt-3 font-black text-slate-900">
+        {allProducts.length === 0
+          ? "Your inventory is empty"
+          : "No matching products"}
+      </h3>
+      <p className="mt-2 text-sm text-slate-500">
+        {allProducts.length === 0
+          ? "Add your first product to start building your shop."
+          : "Try another search term or change the stock filter."}
+      </p>
+
+      {allProducts.length === 0 && (
+        <button
+          type="button"
+          onClick={() => setIsModalOpen(true)}
+          className="mt-4 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700"
+        >
+          + Add your first product
+        </button>
+      )}
+    </div>
+  )}
+</section>
+
               )}
 
               {/* ============================= SALES ORDERS TAB ============================= */}
