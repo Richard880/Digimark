@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, Link } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import useAuth from "../../auth/hooks/useAuth";
 import apiClient from "../../../services/apiClient";
 import ROUTES, { productPath } from "../../../constants/routes";
+import { sizedImage } from "../../../utils/image";
 
 const REF_RE = /^[A-Za-z0-9_-]{8,32}$/;
 const PHONE_RE = /^(?:\+?254|0)[17]\d{8}$/;
@@ -18,16 +19,29 @@ const MESSAGES = {
   INVALID_QUANTITY: "Please choose a valid quantity.",
   AMOUNT_TOO_SMALL: "This order amount is too small to process.",
   TOO_MANY_REQUESTS: "You're going too fast. Please wait a minute and try again.",
-  NETWORK_ERROR:
-    "We couldn't confirm your order. Before trying again, check your wallet balance: if it dropped, your order went through.",
+  NETWORK_ERROR: "We couldn't confirm your order. Before trying again, check your wallet balance: if it dropped, your order went through.",
 };
 
-const fmt = (n) => `Ksh ${Number(n || 0).toLocaleString()}`;
+const fmt = (n) => `Ksh ${Number(n || 0).toLocaleString("en-KE")}`;
+
+function Steps({ current }) {
+  const steps = ["Product", "Delivery", "Done"];
+  return (
+    <ol className="mb-5 flex items-center gap-2 text-[11px] font-bold" aria-label="Checkout progress">
+      {steps.map((s, i) => (
+        <li key={s} className="flex items-center gap-2" aria-current={i === current ? "step" : undefined}>
+          <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-black ${i <= current ? "bg-emerald-700 text-white" : "bg-slate-200 text-slate-500"}`}>{i < current ? "✓" : i + 1}</span>
+          <span className={i === current ? "text-emerald-900" : "text-slate-400"}>{s}</span>
+          {i < steps.length - 1 && <span className="h-px w-6 bg-slate-300" aria-hidden="true" />}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 export default function CheckoutPage() {
   const { state } = useLocation(); // { productId, quantity, shareCode } from the product page
   const { auth } = useAuth();
-  const navigate = useNavigate();
   const submitting = useRef(false);
 
   const productId = typeof state?.productId === "string" ? state.productId : null;
@@ -39,7 +53,7 @@ export default function CheckoutPage() {
   const profile = auth.profile || {};
   const [form, setForm] = useState(() => ({
     fullName: [profile.firstName, profile.lastName].filter(Boolean).join(" "),
-    phoneNumber: profile.phoneNumber || "",
+    phoneNumber: profile.phoneNumber ? `0${String(profile.phoneNumber).slice(3)}` : "",
     county: profile.location?.county || "",
     subCounty: profile.location?.subCounty || "",
     deliveryNotes: "",
@@ -52,6 +66,7 @@ export default function CheckoutPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [placed, setPlaced] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   // Fresh price and stock from the server, plus the wallet balance
   useEffect(() => {
@@ -59,19 +74,14 @@ export default function CheckoutPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [p, w] = await Promise.all([
-          apiClient.get(`/products/${productId}`),
-          apiClient.get("/wallet/my-balance"),
-        ]);
+        const [p, w] = await Promise.all([apiClient.get(`/products/${productId}`), apiClient.get("/wallet/my-balance")]);
         if (cancelled) return;
         setProduct(p.data.product || null);
         setBalance(w.data.balance ?? 0);
       } catch (e) {
         console.error("Checkout load failed:", e);
         if (!cancelled) setLoadError(true);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      } finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, [productId]);
@@ -79,23 +89,18 @@ export default function CheckoutPage() {
   const setField = (name) => (e) => setForm((prev) => ({ ...prev, [name]: e.target.value }));
 
   if (!productId) {
-    return (
-      <div className="p-8 text-center text-xs text-slate-500">
-        No active checkout session.{" "}
-        <Link to={ROUTES.MARKETPLACE} className="underline text-emerald-700">Back to the marketplace</Link>
-      </div>
-    );
+    return <div className="p-8 text-center text-xs text-slate-500">No active checkout. <Link to={ROUTES.MARKETPLACE} className="font-bold text-emerald-700 underline">Back to the MarketHub</Link></div>;
   }
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="w-6 h-6 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" /></div>;
-  }
-  if (loadError || !product) {
     return (
-      <div className="p-8 text-center text-xs text-slate-500">
-        We couldn't load this product.{" "}
-        <Link to={ROUTES.MARKETPLACE} className="underline text-emerald-700">Back to the marketplace</Link>
+      <div className="mx-auto max-w-4xl space-y-4 px-4 py-6">
+        <div className="h-24 animate-pulse rounded-2xl bg-slate-100" />
+        <div className="h-72 animate-pulse rounded-2xl bg-slate-100" />
       </div>
     );
+  }
+  if (loadError || !product) {
+    return <div className="p-8 text-center text-xs text-slate-500">We couldn't load this product. <Link to={ROUTES.MARKETPLACE} className="font-bold text-emerald-700 underline">Back to the MarketHub</Link></div>;
   }
 
   const stock = product.quantity || 0;
@@ -104,26 +109,39 @@ export default function CheckoutPage() {
   const total = subtotal + delivery;
   const isOwner = auth.user?._id && String(auth.user._id) === String(product.sellerId);
   const short = balance !== null && balance < total;
+  const cannotPay = isOwner || stock < 1 || quantity > stock;
 
-  /* ───────── Success: the PIN must stay visible on the page ───────── */
+  /* ───────── Success: the PIN must stay visible ───────── */
   if (placed) {
+    const copyPin = async () => {
+      try { await navigator.clipboard.writeText(placed.deliveryReleasePin); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* the PIN is on screen anyway */ }
+    };
     return (
-      <div className="mx-auto max-w-md px-4 py-10 text-center space-y-4">
-        <h1 className="text-xl font-black text-slate-900">Order placed 🎉</h1>
-        <p className="text-sm text-slate-600">
-          Order <b>{placed.orderNumber}</b> · {fmt(placed.totalAmountLocked)} is held safely in escrow.
-        </p>
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-          <p className="text-[11px] font-bold uppercase text-emerald-700">Your delivery PIN</p>
-          <p className="font-mono text-4xl font-black tracking-[0.3em] text-emerald-800 my-2">{placed.deliveryReleasePin}</p>
-          <p className="text-xs text-slate-600">
-            Give this PIN to the seller <b>only after you receive your item</b>. They enter it to release the payment. Never share it before delivery.
-          </p>
+      <div className="mx-auto max-w-md space-y-5 px-4 py-8">
+        <Steps current={2} />
+        <div className="text-center">
+          <p className="text-4xl" aria-hidden="true">🎉</p>
+          <h1 className="mt-2 text-2xl font-black text-slate-900">Order placed</h1>
+          <p className="mt-1 text-sm text-slate-600">Order <b>{placed.orderNumber}</b> · {fmt(placed.totalAmountLocked)} is held safely in escrow.</p>
         </div>
-        <p className="text-[11px] text-slate-400">Write it down now. You can also find it later in your orders.</p>
-        <div className="flex gap-2 justify-center">
-          <Link to={ROUTES.MARKETPLACE} className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold">Keep shopping</Link>
-          <Link to={ROUTES.WALLET} className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold">View wallet</Link>
+
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center">
+          <p className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Your delivery PIN</p>
+          <p className="my-2 font-mono text-4xl font-black tracking-[0.3em] text-emerald-900">{placed.deliveryReleasePin}</p>
+          <button type="button" onClick={copyPin} className="rounded-full bg-white px-4 py-1.5 text-xs font-bold text-emerald-800 shadow-sm">{copied ? "Copied ✓" : "Copy PIN"}</button>
+          <p className="mt-3 text-xs leading-relaxed text-slate-600">Give this PIN to the seller <b>only after you receive your item</b>. Never share it before delivery.</p>
+        </div>
+
+        <ol className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4 text-xs text-slate-600">
+          <li><b className="text-slate-900">1.</b> The seller prepares and delivers your order.</li>
+          <li><b className="text-slate-900">2.</b> Check your item when it arrives.</li>
+          <li><b className="text-slate-900">3.</b> Give the seller your PIN to release the payment.</li>
+        </ol>
+        <p className="text-center text-[11px] text-slate-400">Lost your PIN? Open it again anytime under My orders.</p>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Link to={ROUTES.MY_PROFILE} className="flex min-h-11 items-center justify-center rounded-xl bg-emerald-700 text-xs font-bold text-white">My orders</Link>
+          <Link to={ROUTES.MARKETPLACE} className="flex min-h-11 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-700">Keep shopping</Link>
         </div>
       </div>
     );
@@ -152,47 +170,64 @@ export default function CheckoutPage() {
         shippingDetails: {
           fullName,
           phoneNumber: phone.startsWith("0") ? `254${phone.slice(1)}` : phone.replace(/^\+/, ""),
-          county,
-          subCounty,
+          county, subCounty,
           deliveryNotes: form.deliveryNotes.trim(),
         },
       });
       sessionStorage.removeItem(`sokodigi_ref_${product._id}`);
       setPlaced(data.order);
+      window.scrollTo?.({ top: 0 });
     } catch (err) {
       console.error("Checkout submission failure:", err);
       const d = err.response?.data || {};
-      setError(
-        err.response
-          ? { code: d.error || "REQUEST_FAILED", deficit: d.deficit, currentBalance: d.currentBalance }
-          : { code: "NETWORK_ERROR" }
-      );
+      setError(err.response ? { code: d.error || "REQUEST_FAILED", deficit: d.deficit, currentBalance: d.currentBalance } : { code: "NETWORK_ERROR" });
     } finally {
       submitting.current = false;
       setBusy(false);
     }
   };
 
-  const input = "w-full border border-slate-200 rounded-xl p-3 text-sm focus:outline-emerald-600";
-  const label = "block text-[11px] font-bold text-slate-500 uppercase mb-1";
+  const input = "min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-emerald-500 focus:outline-none";
+  const label = "mb-1 block text-[11px] font-bold uppercase text-slate-500";
+  const payLabel = busy ? "Securing your payment…" : `Pay ${fmt(total)} from wallet`;
+  const img = sizedImage(product.imageUrl, 200);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-      <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-6">Secure Escrow Checkout</h1>
+    <div className="mx-auto max-w-4xl px-4 pb-44 pt-5 sm:px-6 lg:pb-10">
+      <Steps current={1} />
+      <h1 className="mb-4 text-xl font-black text-slate-900">Secure checkout</h1>
 
-      <div className="grid gap-8 md:grid-cols-5">
-        <form onSubmit={handlePlaceOrder} className="md:col-span-3 space-y-4 bg-white border border-slate-200 p-6 rounded-2xl shadow-xs">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Delivery details</h2>
+      <div className="grid gap-5 lg:grid-cols-5 lg:gap-8">
+        {/* Summary: first on phones */}
+        <aside className="order-1 lg:order-2 lg:col-span-2">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:sticky lg:top-24">
+            <h2 className="mb-3 text-[11px] font-black uppercase tracking-wider text-slate-400">Your order</h2>
+            <div className="flex items-center gap-3">
+              {img ? <img src={img} alt="" className="h-14 w-14 shrink-0 rounded-xl border border-slate-200 bg-white object-cover" /> : <div className="h-14 w-14 shrink-0 rounded-xl border border-slate-200 bg-white" />}
+              <div className="min-w-0">
+                <Link to={productPath(product._id)} className="line-clamp-2 text-sm font-bold text-slate-900 hover:underline">{product.name}</Link>
+                <p className="text-xs text-slate-500">Qty {quantity} × {fmt(product.price)}</p>
+              </div>
+            </div>
+            <dl className="mt-4 space-y-2 border-t border-slate-200 pt-4 text-xs font-medium text-slate-600">
+              <div className="flex justify-between"><dt>Subtotal</dt><dd className="font-mono">{fmt(subtotal)}</dd></div>
+              <div className="flex justify-between"><dt>Delivery</dt><dd className="font-mono">{delivery > 0 ? fmt(delivery) : "Free"}</dd></div>
+              <div className="flex justify-between border-t border-slate-200 pt-2 text-sm font-black text-slate-900"><dt>Total</dt><dd className="font-mono text-emerald-700">{fmt(total)}</dd></div>
+              {balance !== null && <div className="flex justify-between text-[11px] text-slate-400"><dt>Wallet balance</dt><dd className="font-mono">{fmt(balance)}</dd></div>}
+            </dl>
+            <p className="mt-3 text-[11px] leading-relaxed text-slate-500">🔒 Your payment is held in escrow and released to the seller only when you give them your delivery PIN.</p>
+          </div>
+        </aside>
+
+        {/* Delivery form */}
+        <form id="checkout-form" onSubmit={handlePlaceOrder} className="order-2 space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:order-1 lg:col-span-3">
+          <h2 className="text-[11px] font-black uppercase tracking-wider text-slate-400">Delivery details</h2>
 
           {error && (
-            <div role="alert" className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-semibold space-y-1">
+            <div role="alert" className="space-y-1 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
               <p>{error.text || MESSAGES[error.code] || "Something went wrong. Please try again."}</p>
-              {error.code === "INSUFFICIENT_FUNDS" && error.deficit != null && (
-                <p>You need {fmt(error.deficit)} more. <Link to={ROUTES.WALLET} className="underline font-bold">Top up your wallet</Link></p>
-              )}
-              {error.code === "INSUFFICIENT_STOCK" && (
-                <p><Link to={productPath(product._id)} className="underline font-bold">Back to the product</Link></p>
-              )}
+              {error.code === "INSUFFICIENT_FUNDS" && error.deficit != null && <p>You need {fmt(error.deficit)} more. <Link to={ROUTES.WALLET} className="font-bold underline">Top up your wallet</Link></p>}
+              {error.code === "INSUFFICIENT_STOCK" && <p><Link to={productPath(product._id)} className="font-bold underline">Back to the product</Link></p>}
             </div>
           )}
 
@@ -202,9 +237,9 @@ export default function CheckoutPage() {
           </div>
           <div>
             <label className={label} htmlFor="phone">Phone number (for the delivery person)</label>
-            <input id="phone" type="tel" required autoComplete="tel" inputMode="tel" placeholder="0712345678" value={form.phoneNumber} onChange={setField("phoneNumber")} className={`${input} font-mono`} />
+            <input id="phone" type="tel" required autoComplete="tel" inputMode="tel" placeholder="0712345678" value={form.phoneNumber} onChange={setField("phoneNumber")} className={input} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className={label} htmlFor="county">County</label>
               <input id="county" required maxLength={40} placeholder="e.g. Kisumu" value={form.county} onChange={setField("county")} className={input} />
@@ -216,59 +251,32 @@ export default function CheckoutPage() {
           </div>
           <div>
             <label className={label} htmlFor="notes">Delivery notes (optional)</label>
-            <textarea id="notes" rows={2} maxLength={300} placeholder="Landmark, pickup station, gate colour…" value={form.deliveryNotes} onChange={setField("deliveryNotes")} className={`${input} resize-none`} />
+            <textarea id="notes" rows={2} maxLength={300} placeholder="Landmark, pickup station, gate colour…" value={form.deliveryNotes} onChange={setField("deliveryNotes")} className={`${input} resize-none py-2`} />
           </div>
 
-          {isOwner ? (
-            <p className="text-xs text-slate-500">This is your own product, so you can't order it.</p>
-          ) : stock < 1 ? (
-            <p className="text-xs font-bold text-red-600">This item is sold out.</p>
-          ) : (
-            <button
-              type="submit"
-              disabled={busy || short || quantity > stock}
-              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition mt-2 shadow-sm cursor-pointer"
-            >
-              {busy ? "Securing your payment…" : `Pay ${fmt(total)} from wallet`}
-            </button>
-          )}
-          {short && !isOwner && stock > 0 && (
-            <p className="text-xs text-amber-700">
-              Your wallet is {fmt(total - balance)} short. <Link to={ROUTES.WALLET} className="underline font-bold">Top up</Link>
-            </p>
-          )}
+          {isOwner ? <p className="text-xs text-slate-500">This is your own product, so you can't order it.</p>
+            : stock < 1 ? <p className="text-xs font-bold text-red-600">This item is sold out.</p>
+            : (
+              <button type="submit" disabled={busy || short || cannotPay} className="hidden min-h-12 w-full items-center justify-center rounded-xl bg-emerald-700 text-sm font-black text-white shadow-sm hover:bg-emerald-800 disabled:bg-slate-300 lg:flex">{payLabel}</button>
+            )}
+          {short && !cannotPay && <p className="text-xs font-semibold text-amber-700">Your wallet is {fmt(total - balance)} short. <Link to={ROUTES.WALLET} className="font-bold underline">Top up</Link></p>}
         </form>
+      </div>
 
-        <div className="md:col-span-2 space-y-4">
-          <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Your order</h2>
-            <div className="flex items-start space-x-3">
-              {product.imageUrl ? (
-                <img src={product.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover bg-white border border-slate-200 flex-shrink-0" />
-              ) : (
-                <div className="w-12 h-12 rounded-lg bg-white border border-slate-200 flex-shrink-0" />
-              )}
-              <div>
-                <h3 className="font-bold text-slate-900 text-sm line-clamp-1">{product.name}</h3>
-                <p className="text-xs text-slate-400 font-medium">Qty {quantity} × {fmt(product.price)}</p>
-              </div>
+      {/* Sticky pay bar: phones and tablets, above the bottom tab bar */}
+      {!cannotPay && (
+        <div className="fixed inset-x-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur lg:hidden" style={{ bottom: "calc(3.75rem + env(safe-area-inset-bottom))" }}>
+          <div className="mx-auto flex max-w-4xl items-center gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total</p>
+              <p className="truncate text-lg font-black text-emerald-800">{fmt(total)}</p>
             </div>
-            <div className="border-t border-slate-200 mt-4 pt-4 space-y-2 text-xs font-medium text-slate-600">
-              <div className="flex justify-between"><span>Subtotal</span><span className="font-mono">{fmt(subtotal)}</span></div>
-              <div className="flex justify-between"><span>Delivery</span><span className="font-mono">{fmt(delivery)}</span></div>
-              <div className="flex justify-between border-t border-slate-200 pt-2 font-bold text-slate-900 text-sm">
-                <span>Total</span><span className="font-mono text-emerald-600">{fmt(total)}</span>
-              </div>
-              {balance !== null && (
-                <div className="flex justify-between text-[11px] text-slate-400"><span>Wallet balance</span><span className="font-mono">{fmt(balance)}</span></div>
-              )}
-            </div>
-            <p className="mt-3 text-[11px] text-slate-400">
-              Your payment is held in escrow and only released to the seller when you give them your delivery PIN.
-            </p>
+            <button type="submit" form="checkout-form" disabled={busy || short} className="ml-auto min-h-12 flex-1 rounded-xl bg-emerald-700 px-6 text-sm font-black text-white hover:bg-emerald-800 disabled:bg-slate-300 sm:flex-none sm:px-10">
+              {busy ? "Securing…" : short ? "Top up to pay" : "Pay now"}
+            </button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
