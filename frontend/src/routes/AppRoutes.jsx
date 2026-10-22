@@ -16,6 +16,7 @@ import MembershipPage from "../features/membership/MembershipPage";
 import BecomeMarketerPage from "../features/membership/BecomeMarketerPage";
 
 import AdminDashboard from "../features/admin/AdminDashboard";
+import LegalPage from "../features/public/legal/LegalPage";
 
 import useAuth from "../features/auth/hooks/useAuth";
 import ROUTES from "../constants/routes";
@@ -97,6 +98,8 @@ export default function AppRoutes() {
           <Route path={ROUTES.PRODUCT_DETAILS} element={<ProductDetails />} />
           <Route path={ROUTES.PUBLIC_PROFILE} element={<Profile />} />
           <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
+          <Route path={ROUTES.TERMS} element={<LegalPage page="terms" />} />
+          <Route path={ROUTES.PRIVACY} element={<LegalPage page="privacy" />} />
 
           {/* Any signed-in account (buyers and marketers) */}
           <Route path={ROUTES.CHECKOUT} element={<RequireAuth><CheckoutPage /></RequireAuth>} />
