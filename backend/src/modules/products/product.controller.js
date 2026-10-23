@@ -7,6 +7,7 @@ const { PLATFORM_BP, AFFILIATE_BP } = require("../config/fees");
 const CATEGORIES = Product.schema.path("category").enumValues;
 const User = require("../../models/User");
 const UserProfile = require("../../models/UserProfile");
+const ManualSale = require("../../models/ManualSale");
 
 // =========================================================================
 // CONFIG & HELPERS
@@ -580,6 +581,109 @@ async function getSharedProducts(req, res) {
 }
 
 
+
+// PATCH /api/products/:id/stock { delta }: a RELATIVE change, so sales that happen meanwhile are never overwritten
+async function adjustStock(req, res) {
+  try {
+    if (!requireSeller(req, res)) return;
+    const { id } = req.params;
+    if (!isValidId(id)) return bad(res, "INVALID_PRODUCT_ID");
+    const delta = req.body?.delta;
+    if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > MAX_QTY) return bad(res, "INVALID_STOCK_CHANGE");
+
+    const filter = { _id: id, sellerId: req.user._id, quantity: delta < 0 ? { $gte: -delta } : { $lte: MAX_QTY - delta } };
+    const product = await Product.findOneAndUpdate(filter, { $inc: { quantity: delta } }, { new: true });
+    if (!product) return (await Product.exists({ _id: id, sellerId: req.user._id })) ? bad(res, "STOCK_CHANGE_NOT_POSSIBLE", 409) : bad(res, "PRODUCT_NOT_FOUND", 404);
+    return res.json({ ok: true, product });
+  } catch (error) {
+    return sendServerError(res, error, "Adjust stock");
+  }
+}
+
+// POST /api/products/:id/manual-sale: an offline sale. Works on unlisted products too.
+async function recordManualSale(req, res) {
+  try {
+    if (!requireSeller(req, res)) return;
+    const { id } = req.params;
+    if (!isValidId(id)) return bad(res, "INVALID_PRODUCT_ID");
+    const b = req.body || {};
+
+    const quantity = toInt(b.quantity);
+    if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > MAX_QTY) return bad(res, "INVALID_QUANTITY");
+    const clientRef = typeof b.clientRef === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(b.clientRef) ? b.clientRef : null;
+    if (!clientRef) return bad(res, "CLIENT_REF_REQUIRED");
+    const customerName = b.customerName ? str(b.customerName, 80) : "";
+    const note = b.note ? str(b.note, 200) : "";
+    if (customerName === null || note === null) return bad(res, "INVALID_TEXT");
+    const unitPrice = b.unitPrice === undefined || b.unitPrice === "" ? null : toInt(b.unitPrice);
+    if (unitPrice !== null && (!Number.isSafeInteger(unitPrice) || unitPrice < 1 || unitPrice > MAX_PRICE)) return bad(res, "INVALID_PRODUCT_PRICE");
+
+    const prior = await ManualSale.findOne({ sellerId: req.user._id, clientRef }).lean();
+    if (prior) return res.json({ ok: true, replay: true, sale: prior });
+
+    const sale = await mongoose.connection.transaction(async (session) => {
+      const p = await Product.findOneAndUpdate(
+        { _id: id, sellerId: req.user._id, quantity: { $gte: quantity } },
+        { $inc: { quantity: -quantity } },
+        { new: true, session }
+      );
+      if (!p) {
+        const exists = await Product.exists({ _id: id, sellerId: req.user._id }).session(session);
+        throw Object.assign(new Error(exists ? "INSUFFICIENT_STOCK" : "PRODUCT_NOT_FOUND"), { http: exists ? 409 : 404 });
+      }
+      const price = unitPrice ?? p.price;
+      const [created] = await ManualSale.create(
+        [{ sellerId: req.user._id, productId: p._id, productName: p.name, quantity, unitPrice: price, total: price * quantity, customerName, note, clientRef }],
+        { session }
+      );
+      return created;
+    });
+    return res.status(201).json({ ok: true, sale });
+  } catch (error) {
+    if (error.http) return bad(res, error.message, error.http);
+    if (error.code === 11000) { // the same request arrived twice at once
+      const prior = await ManualSale.findOne({ sellerId: req.user._id, clientRef: req.body?.clientRef }).lean();
+      if (prior) return res.json({ ok: true, replay: true, sale: prior });
+    }
+    return sendServerError(res, error, "Record manual sale");
+  }
+}
+
+// GET /api/products/manual-sales
+async function listManualSales(req, res) {
+  try {
+    if (!requireSeller(req, res)) return;
+    const sales = await ManualSale.find({ sellerId: req.user._id }).sort({ createdAt: -1 }).limit(50).select("-__v").lean();
+    return res.json({ ok: true, sales });
+  } catch (error) {
+    return sendServerError(res, error, "List manual sales");
+  }
+}
+
+// POST /api/products/manual-sales/:saleId/void: within 24 hours; puts the stock back
+async function voidManualSale(req, res) {
+  try {
+    if (!requireSeller(req, res)) return;
+    const { saleId } = req.params;
+    if (!isValidId(saleId)) return bad(res, "INVALID_ID");
+    const sale = await ManualSale.findOne({ _id: saleId, sellerId: req.user._id }).lean();
+    if (!sale) return bad(res, "SALE_NOT_FOUND", 404);
+    if (sale.voided) return bad(res, "ALREADY_VOIDED", 409);
+    if (Date.now() - new Date(sale.createdAt).getTime() > 24 * 3600 * 1000) return bad(res, "VOID_WINDOW_PASSED", 409);
+
+    await mongoose.connection.transaction(async (session) => {
+      const flipped = await ManualSale.findOneAndUpdate({ _id: sale._id, voided: false }, { $set: { voided: true, voidedAt: new Date() } }, { session });
+      if (!flipped) throw Object.assign(new Error("ALREADY_VOIDED"), { http: 409 });
+      await Product.updateOne({ _id: sale.productId }, { $inc: { quantity: sale.quantity } }, { session });
+    });
+    return res.json({ ok: true });
+  } catch (error) {
+    if (error.http) return bad(res, error.message, error.http);
+    return sendServerError(res, error, "Void manual sale");
+  }
+}
+
+
 module.exports = {
   generateProductCode,
   listProducts,
@@ -594,5 +698,9 @@ module.exports = {
   shareProduct,
   toggleProductShelf,
   getHeroBannerFeed,
-  getSharedProducts
+  getSharedProducts,
+  voidManualSale,
+  listManualSales,
+  recordManualSale,
+  adjustStock
 };
