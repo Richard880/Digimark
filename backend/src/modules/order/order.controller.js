@@ -322,12 +322,37 @@ await notify("ESCROW_REFUNDED", order.buyerId, { orderId: order._id, orderRef: o
   }
 }
 
+/** PATCH /api/orders/:orderNumber/confirm : seller confirms the order and releases it for delivery */
+async function confirmOrder(req, res) {
+  try {
+    const sellerId = req.user?._id;
+    if (!sellerId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    const { orderNumber } = req.params;
+    if (!isStr(orderNumber, 30)) throw fail("INVALID_ORDER_NUMBER");
+    const ref = orderNumber.toUpperCase();
+
+    // The status flip is the lock: it can only happen once
+    const o = await Order.findOneAndUpdate(
+      { orderNumber: ref, sellerId, orderStatus: "PROCESSING", isEscrowReleased: false },
+      { $set: { orderStatus: "DISPATCHED", dispatchedAt: new Date() } },
+      { new: true }
+    ).select("buyerId orderNumber");
+    if (!o) throw (await Order.exists({ orderNumber: ref, sellerId })) ? fail("ORDER_NOT_CONFIRMABLE", 409) : fail("ORDER_NOT_FOUND", 404);
+
+    await notify("ORDER_DISPATCHED", o.buyerId, { orderId: o._id, orderRef: o.orderNumber }, { actorId: sellerId });
+    return res.json({ ok: true, status: "DISPATCHED" });
+  } catch (err) {
+    return sendError(res, err, "confirmOrder");
+  }
+}
+
 module.exports = {
   listOrders,
   createOrder,
   getDeliveryPin,
   completeDelivery,
   cancelOrder,
+  confirmOrder,
   // Old names kept so your existing routes keep working. All use the same safe handler.
   releaseEscrowViaQrScan: completeDelivery,
   releaseEscrowViaPinVerification: completeDelivery,
