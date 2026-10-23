@@ -29,6 +29,7 @@ const EVENTS = {
   ORDER_PLACED: E("ORDERS", "New order", (c) => `Order #${c.orderRef} for ${money(c.amount)} was placed in your shop.`),
   ORDER_COMPLETED: E("ORDERS", "Order complete", (c) => `Order #${c.orderRef} was delivered. Thanks for shopping on Sokodigi.`),
   ORDER_CANCELLED: E("ORDERS", "Order cancelled", (c) => `Order #${c.orderRef} was cancelled.`),
+  ORDER_DISPATCHED: E("ORDERS", "Order on its way", (c) => `Order #${c.orderRef} was confirmed by the seller and is on its way. Give the seller your PIN only after it arrives.`),
 
   // Messages
   NEW_MESSAGE: E("MESSAGES", "New message", (c) => `${c.senderName || "Someone"} sent you a message.`, URL.messages),
