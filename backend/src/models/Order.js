@@ -74,6 +74,7 @@ const orderSchema = new mongoose.Schema(
     // EscrowAccount.status is the source of truth.
     isEscrowReleased: { type: Boolean, default: false },
     deliveredAt: Date,
+    dispatchedAt: Date,
     cancelledAt: Date,
   },
   { timestamps: true }
