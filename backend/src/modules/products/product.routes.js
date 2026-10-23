@@ -5,7 +5,8 @@ const authenticate = require("../../middleware/authenticate");
 const {
   listProducts, getPublicStoreProducts, getProductById, createProduct, updateProduct,
   updateProductStatus, purgeProductAsset, shareProduct, toggleProductShelf,
-  getSmartDiscoveries, getHeroBannerFeed, getSharedProducts,
+  getSmartDiscoveries, getHeroBannerFeed, getSharedProducts,listManualSales,voidManualSale,
+  recordManualSale,adjustStock
 } = require("./product.controller");
 
 const router = express.Router();
