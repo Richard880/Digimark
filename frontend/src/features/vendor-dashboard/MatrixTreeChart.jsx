@@ -4,7 +4,7 @@ import React from "react";
 export default function MatrixTreeChart({ generations = {} }) {
   // Normalize levels to an array matching your MAX_DEPTH constant boundary (4 levels)
   const levels = Object.entries(generations).map(([key, value]) => ({
-    label: key.replace("level_", "GENERATION ").toUpperCase(),
+    label:key.replace("level_", "LEVEL ").toUpperCase(),
     count: value,
   }));
 
