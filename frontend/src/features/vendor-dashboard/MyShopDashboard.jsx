@@ -1,1350 +1,587 @@
-import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import useAuth from "../auth/hooks/useAuth";
+import apiClient from "../../services/apiClient";
+import ROUTES, { productPath, profilePath } from "../../constants/routes";
+import { sizedImage } from "../../utils/image";
 import { uploadImageToCloudinary } from "../../utils/cloudinaryUploader";
 import AddProductModal from "./AddProductModal";
-import "./MyShopDashboard.css";
 
-const API_URL = import.meta.env.PROD
-  ? "" // Relative path in production
-  : (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/\/$/, "");
+const LOW = 10;
+const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
+const idOf = (v) => String(v?._id ?? v ?? "");
+const when = (d) => (d ? new Date(d).toLocaleString("en-KE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
+const isPublic = (p) => p.isShelved !== false && ["LISTED", "ACTIVE"].includes(p.status);
+const sameDay = (d) => new Date(d).toDateString() === new Date().toDateString();
 
+const CATEGORIES = [
+  ["phones-gadgets", "Phones & Gadgets"], ["tech-computing", "Tech & Computing"], ["apparel-fashion", "Apparel & Fashion"],
+  ["home-appliances", "Home Appliances"], ["beauty-personal-care", "Beauty & Care"], ["ankara-art", "Ankara & Art"], ["general", "General"],
+];
 
-const initialEditForm = {
-  name: "",
-  price: "",
-  affiliateCommission: "",
-  quantity: "",
-  deliveryFee: "",
-  category: "",
-  description: "",
-  imageUrl: "",
+const ERR = {
+  PRODUCT_HAS_OPEN_ORDERS: "This product has open orders. Unlist it instead, or finish those orders first.",
+  INSUFFICIENT_STOCK: "Not enough stock for that.",
+  STOCK_CHANGE_NOT_POSSIBLE: "That change would take stock below zero.",
+  INVALID_QUANTITY: "Enter a whole number of at least 1.",
+  INVALID_PRODUCT_PRICE: "Price must be a whole number of at least KES 50.",
+  INVALID_STOCK_CHANGE: "Enter a whole number, like 5 or -2.",
+  VOID_WINDOW_PASSED: "A sale can only be undone within 24 hours.",
+  ALREADY_VOIDED: "That sale was already undone.",
+  ORDER_NOT_CONFIRMABLE: "This order can't be confirmed any more.",
+  ORDER_NOT_FOUND: "Order not found.",
+  ORDER_NOT_CANCELLABLE: "This order can't be cancelled any more.",
+  INVALID_RELEASE_PIN: "That PIN is incorrect.",
+  TOO_MANY_ATTEMPTS: "Too many wrong attempts. Try again in 15 minutes.",
+  ALREADY_FULFILLED: "This order was already completed.",
+  INVALID_PIN_FORMAT: "Enter the 6-digit PIN.",
+  MARKETER_ACCOUNT_REQUIRED: "Your membership isn't active. Renew it to manage your shop.",
+  TOO_MANY_REQUESTS: "You're going too fast. Wait a moment.",
+  INVALID_CATEGORY: "Choose a valid category.",
+  INVALID_IMAGE_URL: "That photo couldn't be verified. Try another.",
+  NAME_REQUIRED: "Enter a product name.",
 };
+const errMsg = (e) => (!e.response ? "Couldn't reach Sokodigi. Check your connection." : ERR[e.response.data?.error] || "Something went wrong. Please try again.");
 
-export default function MyShopDashboard() {
-  const navigate = useNavigate();
-  const { auth } = useAuth();
+const input = "min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-emerald-500 focus:outline-none disabled:bg-slate-50";
+const lab = "mb-1 block text-[11px] font-bold uppercase text-slate-500";
+const btn = "min-h-10 rounded-xl px-3 text-xs font-bold disabled:opacity-50";
 
-  const [activeTab, setActiveTab] = useState("inventory");
-  const [allProducts, setAllProducts] = useState([]);
-  const [salesOrders, setSalesOrders] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [pinInputs, setPinInputs] = useState({});
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [editForm, setEditForm] = useState(initialEditForm);
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [busyProductId, setBusyProductId] = useState(null);
-  const [error, setError] = useState(null);
-
-
-  const [productSearch, setProductSearch] = useState("");
-const [stockFilter, setStockFilter] = useState("all");
-
-const listedCount = allProducts.filter(
-  (p) => p.status !== "UNLISTED"
-).length;
-
-const unlistedCount = allProducts.filter(
-  (p) => p.status === "UNLISTED"
-).length;
-
-const lowStockCount = allProducts.filter(
-  (p) => Number(p.quantity || 0) > 0 &&
-         Number(p.quantity || 0) <= 10
-).length;
-
-const outOfStockCount = allProducts.filter(
-  (p) => Number(p.quantity || 0) <= 0
-).length;
-
-const filteredProducts = allProducts.filter((product) => {
-  const query = productSearch.trim().toLowerCase();
-
-  const matchesSearch =
-    !query ||
-    String(product.name || "").toLowerCase().includes(query) ||
-    String(product.productCode || "").toLowerCase().includes(query) ||
-    String(product.category || "").toLowerCase().includes(query);
-
-  const quantity = Number(product.quantity || 0);
-
-  const matchesFilter =
-    stockFilter === "all" ||
-    (stockFilter === "listed" && product.status !== "UNLISTED") ||
-    (stockFilter === "unlisted" && product.status === "UNLISTED") ||
-    (stockFilter === "low" && quantity > 0 && quantity <= 10) ||
-    (stockFilter === "out" && quantity <= 0);
-
-  return matchesSearch && matchesFilter;
-});
-  /**
-   * Get Firebase ID token and construct auth headers
-   * Used for all authenticated API calls to backend
-   */
-  const getAuthHeaders = useCallback(
-    async (json = false) => {
-      try {
-        const token = await auth?.currentUser?.getIdToken();
-
-        if (!token) {
-          throw new Error("Your session has expired. Please sign in again.");
-        }
-
-        return {
-          Authorization: `Bearer ${token}`,
-          ...(json ? { "Content-Type": "application/json" } : {}),
-        };
-      } catch (err) {
-        console.error("❌ Auth header error:", err);
-        throw err;
-      }
-    },
-    [auth?.currentUser]
-  );
-
-  /**
-   * Parse API response and handle errors consistently
-   */
-  const readResponse = async (response) => {
-    let data = {};
-    try {
-      data = await response.json();
-    } catch {
-      console.warn("⚠️ Response body is not valid JSON");
-    }
-
-    if (!response.ok) {
-      const errorMsg =
-        data.reason ||
-        data.message ||
-        data.error ||
-        `Request failed with status ${response.status}`;
-      throw new Error(errorMsg);
-    }
-
-    return data;
-  };
-
-  /**
-   * FETCH SHOP DATA FROM BACKEND
-   * 
-   * Calls GET /api/products?status=all with Firebase auth token
-   * Backend controller (listProducts) checks:
-   * - If authenticated with Firebase token
-   * - Returns products where sellerId matches req.user._id
-   * - Includes both LISTED and UNLISTED products when status=all
-   */
-  const fetchShopData = useCallback(async () => {
-    // Don't fetch if user is not authenticated
-    if (!auth?.currentUser) {
-      console.log("⚠️ No authenticated user, skipping product fetch");
-      setAllProducts([]);
-      setSalesOrders([]);
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const headers = await getAuthHeaders();
-
-      console.log("📡 Fetching products from:", `${API_URL}/api/products?status=all`);
-
-      // Fetch products with status=all to include both listed and unlisted
-      const productsResponse = await fetch(
-        `${API_URL}/api/products?status=all`,
-        { headers }
-      );
-
-      const productsData = await readResponse(productsResponse);
-
-      // ✅ Backend controller returns { ok: true, feed: [...], categoryContext, count }
-      let products = [];
-      if (Array.isArray(productsData)) {
-        products = productsData;
-      } else if (productsData?.feed && Array.isArray(productsData.feed)) {
-        products = productsData.feed;
-      } else if (productsData?.products && Array.isArray(productsData.products)) {
-        products = productsData.products;
-      } else if (productsData?.data && Array.isArray(productsData.data)) {
-        products = productsData.data;
-      }
-
-      console.log(`✅ Loaded ${products.length} products from backend`);
-      setAllProducts(products);
-
-      // Try to fetch orders (optional endpoint, may not be implemented)
-      try {
-        const ordersResponse = await fetch(`${API_URL}/api/orders`, { headers });
-        const ordersData = await readResponse(ordersResponse);
-
-        let orders = [];
-        if (Array.isArray(ordersData)) {
-          orders = ordersData;
-        } else if (ordersData?.orders && Array.isArray(ordersData.orders)) {
-          orders = ordersData.orders;
-        } else if (ordersData?.feed && Array.isArray(ordersData.feed)) {
-          orders = ordersData.feed;
-        }
-
-        setSalesOrders(orders);
-      } catch (orderError) {
-        console.warn("⚠️ Orders endpoint not available:", orderError.message);
-        setSalesOrders([]);
-      }
-    } catch (error) {
-      console.error("❌ Failed to load shop dashboard:", error);
-      setError(error.message || "Unable to load your shop data.");
-      setAllProducts([]);
-      setSalesOrders([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [auth?.currentUser, getAuthHeaders]);
-
-  /**
-   * Fetch shop data when auth state changes
-   */
+function Sheet({ title, onClose, children }) {
   useEffect(() => {
-    fetchShopData();
-  }, [fetchShopData]);
+    const k = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-[3000] flex items-end justify-center bg-slate-900/60 sm:items-center sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label={title} className="max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5 shadow-xl sm:max-w-md sm:rounded-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-base font-black text-slate-900">{title}</h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100">✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+const Err = ({ text }) => (text ? <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{text}</p> : null);
 
-  /**
-   * TOGGLE PRODUCT VISIBILITY
-   * 
-   * Calls PATCH /api/products/:id/status
-   * Toggles between LISTED (visible) and UNLISTED (hidden)
-   * Backend validates: auth required + sellerId must match + valid status
-   */
-  const handleToggleProductVisibility = async (product) => {
-    const productId = product._id || product.id;
+/* ───────── Edit product ───────── */
+function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
+  const [f, setF] = useState({
+    name: product.name || "",
+    category: CATEGORIES.some(([v]) => v === product.category) ? product.category : "general",
+    price: String(product.price ?? ""),
+    deliveryFee: String(product.deliveryFee ?? 0),
+    description: product.description || "",
+  });
+  const [photo, setPhoto] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [armed, setArmed] = useState(false);
+  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
 
-    if (!productId) {
-      alert("This product has no valid ID.");
-      return;
-    }
+  const price = /^\d{1,8}$/.test(f.price.trim()) ? Number(f.price) : NaN;
+  const fee = f.deliveryFee.trim() === "" ? 0 : /^\d{1,6}$/.test(f.deliveryFee.trim()) ? Number(f.deliveryFee) : NaN;
+  const direct = Number.isInteger(price) ? price - Math.round(price * 0.01) : 0;
+  const viaPromoter = Number.isInteger(price) ? direct - Math.round(price * 0.05) : 0;
 
-    const previousStatus = product.status;
-    const targetStatus = previousStatus === "UNLISTED" ? "LISTED" : "UNLISTED";
-
-    setBusyProductId(productId);
-
-    // Optimistically update UI
-    setAllProducts((previous) =>
-      previous.map((item) =>
-        (item._id || item.id) === productId
-          ? { ...item, status: targetStatus, isShelved: targetStatus === "LISTED" }
-          : item
-      )
-    );
-
+  const save = async (e) => {
+    e.preventDefault();
+    if (!f.name.trim()) return setError(ERR.NAME_REQUIRED);
+    if (!Number.isInteger(price) || price < 50) return setError(ERR.INVALID_PRODUCT_PRICE);
+    if (!Number.isInteger(fee)) return setError("Delivery fee must be a whole number.");
+    setBusy(true); setError("");
     try {
-      const headers = await getAuthHeaders(true);
-
-      console.log(
-        `📡 Updating product ${productId} status to ${targetStatus}`
-      );
-
-      const response = await fetch(`${API_URL}/api/products/${productId}/status`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ status: targetStatus }),
-      });
-
-      const data = await readResponse(response);
-
-      // Update with server response
-      if (data.product) {
-        setAllProducts((previous) =>
-          previous.map((item) =>
-            (item._id || item.id) === productId ? data.product : item
-          )
-        );
-        console.log(`✅ Product ${productId} status updated to ${targetStatus}`);
-      }
-    } catch (error) {
-      console.error("❌ Failed to update product visibility:", error);
-
-      // Restore previous state on error
-      setAllProducts((previous) =>
-        previous.map((item) =>
-          (item._id || item.id) === productId
-            ? { ...item, status: previousStatus }
-            : item
-        )
-      );
-
-      alert(error.message || "Could not update product visibility.");
-    } finally {
-      setBusyProductId(null);
-    }
+      const body = { name: f.name.trim(), category: f.category, price, deliveryFee: fee, description: f.description.trim() };
+      if (photo) body.imageUrl = await uploadImageToCloudinary(photo, "products", getToken);
+      const { data } = await apiClient.put(`/products/${product._id}`, body);
+      onSaved(data.product);
+    } catch (x) {
+      setError(x.message === "UPLOAD_FAILED" ? "Photo upload failed. Check your connection." : x.response ? errMsg(x) : x.message || errMsg(x));
+    } finally { setBusy(false); }
   };
 
-  /**
-   * DELETE PRODUCT
-   * 
-   * Calls DELETE /api/products/:id (routes to purgeProductAsset controller)
-   * Backend validates: auth required + sellerId must match
-   */
-  const handleDeleteProduct = async (product) => {
-    const productId = product._id || product.id;
-
-    if (!productId) {
-      alert("This product has no valid ID.");
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Permanently delete "${product.name || "this product"}"? This action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
-    const previousProducts = [...allProducts];
-    setBusyProductId(productId);
-
-    // Optimistically remove from UI
-    setAllProducts((previous) =>
-      previous.filter((item) => (item._id || item.id) !== productId)
-    );
-
-    try {
-      const headers = await getAuthHeaders();
-
-      console.log(`📡 Deleting product ${productId}`);
-
-      const response = await fetch(`${API_URL}/api/products/${productId}`, {
-        method: "DELETE",
-        headers,
-      });
-
-      await readResponse(response);
-      console.log(`✅ Product ${productId} deleted`);
-      alert("Product deleted successfully.");
-    } catch (error) {
-      console.error("❌ Failed to delete product:", error);
-      // Restore on error
-      setAllProducts(previousProducts);
-      alert(error.message || "Could not delete this product.");
-    } finally {
-      setBusyProductId(null);
-    }
-  };
-
-  /**
-   * OPEN EDIT MODAL
-   * Populates form with current product data
-   */
-  const handleOpenEditModal = (product) => {
-    setSelectedProduct(product);
-
-    setEditForm({
-      name: product.name || "",
-      price: String(product.price ?? ""),
-      affiliateCommission: String(product.affiliateCommission ?? ""),
-      quantity: String(product.quantity ?? ""),
-      deliveryFee: String(product.deliveryFee ?? ""),
-      category: product.category || "",
-      description: product.description || "",
-      imageUrl: product.imageUrl || "",
-    });
-  };
-
-  /**
-   * HANDLE EDIT INPUT CHANGE
-   */
-  const handleEditInputChange = (event) => {
-    const { name, value } = event.target;
-
-    setEditForm((previous) => ({
-      ...previous,
-      [name]: value,
-    }));
-  };
-
-  /**
-   * SAVE PRODUCT EDIT
-   * 
-   * Calls PUT /api/products/:id (routes to updateProduct controller)
-   * Backend validates: auth required + sellerId must match + all fields are valid
-   */
-  const handleSaveProductEdit = async (event) => {
-    event.preventDefault();
-
-    if (!selectedProduct) return;
-
-    const productId = selectedProduct._id || selectedProduct.id;
-    const price = Number(editForm.price);
-    const commission = Number(editForm.affiliateCommission);
-    const quantity = Number(editForm.quantity);
-    const deliveryFee = Number(editForm.deliveryFee || 0);
-
-    // Validation
-    if (!editForm.name.trim()) {
-      alert("Enter a product name.");
-      return;
-    }
-
-    if (!Number.isFinite(price) || price <= 0) {
-      alert("Enter a valid retail price.");
-      return;
-    }
-
-    if (!Number.isFinite(commission) || commission < 0 || commission >= price) {
-      alert("The affiliate commission must be zero or more and less than the retail price.");
-      return;
-    }
-
-    if (!Number.isInteger(quantity) || quantity < 0) {
-      alert("Enter a valid whole-number quantity.");
-      return;
-    }
-
-    if (!Number.isFinite(deliveryFee) || deliveryFee < 0) {
-      alert("Enter a valid delivery fee.");
-      return;
-    }
-
-    setIsSavingEdit(true);
-
-    try {
-      const headers = await getAuthHeaders(true);
-
-      console.log(`📡 Updating product ${productId}`);
-
-      const response = await fetch(`${API_URL}/api/products/${productId}`, {
-        method: "PUT",
-        headers,
-        body: JSON.stringify({
-          name: editForm.name.trim(),
-          price,
-          affiliateCommission: commission,
-          quantity,
-          deliveryFee,
-          category: editForm.category.trim() || "general",
-          description: editForm.description.trim(),
-          imageUrl: editForm.imageUrl.trim(),
-        }),
-      });
-
-      const data = await readResponse(response);
-      const updatedProduct = data.product || data;
-
-      setAllProducts((previous) =>
-        previous.map((item) =>
-          (item._id || item.id) === productId
-            ? { ...item, ...updatedProduct }
-            : item
-        )
-      );
-
-      setSelectedProduct(null);
-      console.log(`✅ Product ${productId} updated`);
-      alert("Product updated successfully.");
-    } catch (error) {
-      console.error("❌ Failed to update product:", error);
-      alert(error.message || "Could not update the product.");
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
-  /**
-   * VERIFY DELIVERY PIN
-   * 
-   * Calls PATCH /api/orders/verify-release-pin
-   * This endpoint may not be implemented yet
-   */
- const handleVerifyDeliveryPin = async (orderNumber) => {
-  const code = pinInputs[orderNumber] || "";
-
-  // 🎯 CLEAR FORCE BYPASS: Simple check to see if it exists and is exactly 6 characters long
-  if (!code || code.length !== 6) {
-    alert("Please enter a valid 6-character delivery token.");
-    return;
-  }
-
-  try {
-    const headers = await getAuthHeaders(true);
-
-    const response = await fetch(
-      `${API_URL}/api/orders/${encodeURIComponent(orderNumber)}/fulfill-handshake`,
-      {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({
-          pin: String(code).trim() // Sends clean text to your fulfillOrderEscrowHandshake backend
-        }),
-      }
-    );
-
-    const data = await readResponse(response);
-
-    if (!response.ok) {
-      throw new Error(data.reason || data.error || "Verification mismatch encountered.");
-    }
-
-    setSalesOrders((previous) =>
-      previous.map((order) =>
-        order.orderNumber === orderNumber
-          ? { ...order, orderStatus: "DELIVERED" }
-          : order
-      )
-    );
-
-    setPinInputs((previous) => ({ ...previous, [orderNumber]: "" }));
-    alert(data.message || "🎉 Escrow split balances released successfully!");
-
-  } catch (error) {
-    console.error("❌ Delivery PIN verification failed:", error);
-    alert(error.message || "Could not verify the delivery PIN.");
-  }
-};
-
-
-  /**
-   * HANDLE PIN INPUT CHANGE
-   * Only accepts digits, max 6 characters
-   */
-  const handlePinInputChange = (orderNumber, value) => {
-    setPinInputs((previous) => ({
-      ...previous,
-      [orderNumber]: value.replace(/\D/g, "").slice(0, 6),
-    }));
-  };
-
-  /**
-   * CHECK IF PRODUCT IS UNLISTED
-   */
-  const isUnlisted = (product) => product.status === "UNLISTED";
-
-  /**
-   * GET STOCK STATUS BADGE CLASS
-   */
-  const getStockStatusClass = (quantity) => {
-    if (quantity > 10) return "stock-high";
-    if (quantity > 0) return "stock-medium";
-    return "stock-low";
+  const remove = async () => {
+    if (!armed) return setArmed(true);
+    setBusy(true); setError("");
+    try { await apiClient.delete(`/products/${product._id}`); onDeleted(product._id); }
+    catch (x) { setError(errMsg(x)); setArmed(false); } finally { setBusy(false); }
   };
 
   return (
-    <div className="shop-dashboard min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 font-sans antialiased text-slate-600">
-      {/* ============================= SIDEBAR ============================= */}
-     <aside className="sidebar fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 text-slate-300 shadow-2xl md:flex">
-        <div className="flex items-center justify-between border-b border-slate-800 bg-slate-950/80 p-6">
-          <h1 className="flex items-center gap-2 text-lg font-black tracking-tight text-white">
-            🚀 Soko<span className="text-emerald-400">Digi</span>
-          </h1>
-
-          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300 shadow-lg shadow-emerald-500/20">
-            PRO
-          </span>
+    <Sheet title="Edit product" onClose={busy ? () => {} : onClose}>
+      <form onSubmit={save} className="space-y-3">
+        <div><label className={lab}>Name</label><input className={input} maxLength={120} value={f.name} onChange={set("name")} /></div>
+        <div><label className={lab}>Category</label>
+          <select className={input} value={f.category} onChange={set("category")}>{CATEGORIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><label className={lab}>Price (KES)</label><input className={input} inputMode="numeric" value={f.price} onChange={set("price")} /></div>
+          <div><label className={lab}>Delivery fee</label><input className={input} inputMode="numeric" value={f.deliveryFee} onChange={set("deliveryFee")} /></div>
         </div>
-
-        <nav className="flex-1 space-y-1.5 overflow-y-auto p-4">
-          <button
-            type="button"
-            onClick={() => setActiveTab("inventory")}
-            className={`nav-btn w-full rounded-xl px-4 py-3 text-left text-xs font-bold transition duration-300 ${
-              activeTab === "inventory"
-                ? "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-600/50"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            📦 Warehouse Inventory
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("orders")}
-            className={`nav-btn w-full rounded-xl px-4 py-3 text-left text-xs font-bold transition duration-300 ${
-              activeTab === "orders"
-                ? "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-lg shadow-emerald-600/50"
-                : "text-slate-400 hover:bg-slate-800 hover:text-white"
-            }`}
-          >
-            📋 Sales Orders
-          </button>
-
-          <div className="mt-4 border-t border-slate-800/60 pt-4">
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(true)}
-              className="add-btn w-full rounded-xl border border-emerald-500/40 bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-3 text-xs font-bold text-emerald-300 transition duration-300 hover:border-emerald-400 hover:bg-gradient-to-r hover:from-emerald-900 hover:to-emerald-800 hover:text-white"
-            >
-              ➕ List New Asset
-            </button>
-          </div>
-        </nav>
-
-        <div className="user-profile flex items-center gap-3 border-t border-slate-800 bg-slate-950/60 p-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full border border-emerald-500/50 bg-gradient-to-br from-emerald-600 to-emerald-700 text-xs font-bold text-white shadow-lg">
-            {auth?.profile?.displayName?.charAt(0)?.toUpperCase() || "M"}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-bold text-white">
-              {auth?.profile?.brandName || "Active Merchant"}
-            </p>
-            <p className="truncate text-[10px] text-slate-500">
-              {auth?.currentUser?.email || ""}
-            </p>
-          </div>
+        {Number.isInteger(price) && (
+          <p className="rounded-xl bg-emerald-50 px-3 py-2 text-[11px] text-emerald-900">
+            You receive <b>{fmt(direct)}</b> per direct sale, or <b>{fmt(viaPromoter)}</b> when a promoter sells it (after the 1% Sokodigi fee and the 5% promoter bonus). Delivery fees are paid to you in full.
+          </p>
+        )}
+        <div><label className={lab}>Description</label><textarea className={`${input} resize-none py-2`} rows={3} maxLength={2000} value={f.description} onChange={set("description")} /></div>
+        <div><label className={lab}>Change photo (optional)</label>
+          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPhoto(e.target.files?.[0] || null)} className="block w-full text-xs text-slate-500" /></div>
+        <Err text={error} />
+        <div className="flex gap-2">
+          <button type="button" onClick={onClose} disabled={busy} className={`${btn} flex-1 bg-slate-100 text-slate-700`}>Cancel</button>
+          <button type="submit" disabled={busy} className={`${btn} flex-1 bg-emerald-700 text-white`}>{busy ? "Saving…" : "Save changes"}</button>
         </div>
-      </aside>
-
-      {/* ============================= MAIN CONTENT ============================= */}
-     <main className="main-content min-h-screen min-w-0 pl-0 md:pl-64">
-
-<header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur">
-  <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-3 md:px-8">
-    <div className="flex min-w-0 items-center gap-3">
-      <button
-        type="button"
-        onClick={() => navigate("/")}
-        className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-      >
-        ← Home
-      </button>
-
-      <div className="min-w-0">
-        <p className="truncate text-sm font-black text-slate-900">
-          My Shop
-        </p>
-        <p className="hidden text-xs text-slate-500 sm:block">
-          Inventory & order management
-        </p>
-      </div>
-    </div>
-
-    <button
-      type="button"
-      onClick={() => setIsModalOpen(true)}
-      className="shrink-0 rounded-xl bg-emerald-600 px-3 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 sm:px-4"
-    >
-      + Add product
-    </button>
-  </div>
-
-  <nav className="grid grid-cols-2 gap-2 px-4 pb-3 md:hidden">
-    <button
-      type="button"
-      onClick={() => setActiveTab("inventory")}
-      className={`rounded-xl px-3 py-3 text-xs font-bold ${
-        activeTab === "inventory"
-          ? "bg-emerald-600 text-white"
-          : "bg-slate-100 text-slate-600"
-      }`}
-    >
-      📦 Inventory
-    </button>
-
-    <button
-      type="button"
-      onClick={() => setActiveTab("orders")}
-      className={`rounded-xl px-3 py-3 text-xs font-bold ${
-        activeTab === "orders"
-          ? "bg-emerald-600 text-white"
-          : "bg-slate-100 text-slate-600"
-      }`}
-    >
-      📋 Sales orders
-    </button>
-  </nav>
-</header>
-
-
-        <div className="content-area mx-auto max-w-7xl space-y-6 p-4 md:p-8">
-          {/* Error Banner */}
-          {error && (
-            <div className="error-banner rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
-              ⚠️ {error}
-            </div>
-          )}
-
-          {/* Loading State */}
-          {isLoading ? (
-            <div className="loading-state flex flex-col items-center justify-center space-y-4 rounded-2xl border border-slate-200 bg-white py-32 shadow-sm">
-              <div className="loader h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600"></div>
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                Loading your shop...
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* ============================= INVENTORY TAB ============================= */}
-              {activeTab === "inventory" && (
-               
-<section className="inventory-section space-y-5">
-  {/* Inventory heading */}
-  <div className="flex flex-wrap items-end justify-between gap-3">
-    <div>
-      <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">
-        Merchant workspace
-      </p>
-      <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-900">
-        My Inventory
-      </h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Manage products, prices and available stock.
-      </p>
-    </div>
-
-    <span className="rounded-full bg-white px-3 py-2 text-xs font-bold text-slate-600 shadow-sm ring-1 ring-slate-200">
-      {allProducts.length} products
-    </span>
-  </div>
-
-  {/* Overview cards */}
-  <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-    {[
-      {
-        label: "Total products",
-        value: allProducts.length,
-        icon: "📦",
-      },
-      {
-        label: "Listed",
-        value: listedCount,
-        icon: "🟢",
-      },
-      {
-        label: "Low stock",
-        value: lowStockCount,
-        icon: "⚠️",
-      },
-      {
-        label: "Out of stock",
-        value: outOfStockCount,
-        icon: "⛔",
-      },
-    ].map((item) => (
-      <div
-        key={item.label}
-        className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-slate-500">{item.label}</span>
-          <span>{item.icon}</span>
-        </div>
-        <p className="mt-3 text-2xl font-black text-slate-900">
-          {item.value}
-        </p>
-      </div>
-    ))}
-  </div>
-
-  {/* Search and filters */}
-  <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-    <input
-      type="search"
-      value={productSearch}
-      onChange={(e) => setProductSearch(e.target.value)}
-      placeholder="Search product name, SKU or category..."
-      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100"
-    />
-
-    <div className="flex gap-2 overflow-x-auto pb-1">
-      {[
-        ["all", "All products"],
-        ["listed", "Listed"],
-        ["unlisted", "Unlisted"],
-        ["low", "Low stock"],
-        ["out", "Out of stock"],
-      ].map(([value, label]) => (
-        <button
-          key={value}
-          type="button"
-          onClick={() => setStockFilter(value)}
-          className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold transition ${
-            stockFilter === value
-              ? "bg-emerald-600 text-white"
-              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-          }`}
-        >
-          {label}
+        <button type="button" onClick={remove} disabled={busy} className={`${btn} w-full ${armed ? "bg-red-600 text-white" : "bg-red-50 text-red-700"}`}>
+          {armed ? "Tap again to delete permanently" : "Delete this product"}
         </button>
-      ))}
-    </div>
-  </div>
+        <p className="text-center text-[11px] text-slate-400">Don't want to delete it? Unlist it from the inventory instead.</p>
+      </form>
+    </Sheet>
+  );
+}
 
-  {/* Product cards: mobile and tablet */}
-  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:hidden">
-    {filteredProducts.map((product, index) => {
-      const id = product._id || product.id;
-      const unlisted = isUnlisted(product);
-      const quantity = Number(product.quantity || 0);
-      const busy = busyProductId === id;
+/* ───────── Adjust stock ───────── */
+function StockDialog({ product, onClose, onDone }) {
+  const [delta, setDelta] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const d = /^-?\d{1,6}$/.test(delta.trim()) ? Number(delta) : NaN;
+  const next = Number.isInteger(d) ? Number(product.quantity || 0) + d : null;
 
-      return (
-        <article
-          key={id || index}
-          className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-        >
-          <div className="flex gap-3 p-4">
-            {product.imageUrl ? (
-              <img
-                src={product.imageUrl}
-                alt={product.name || "Product"}
-                loading="lazy"
-                className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                }}
-              />
-            ) : (
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl">
-                📦
-              </div>
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!Number.isInteger(d) || d === 0) return setError(ERR.INVALID_STOCK_CHANGE);
+    setBusy(true); setError("");
+    try { const { data } = await apiClient.patch(`/products/${product._id}/stock`, { delta: d }); onDone(data.product); }
+    catch (x) { setError(errMsg(x)); } finally { setBusy(false); }
+  };
+  return (
+    <Sheet title={`Stock: ${product.name}`} onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        <p className="text-sm text-slate-600">In stock now: <b>{Number(product.quantity || 0)}</b></p>
+        <div className="flex flex-wrap gap-2">
+          {[5, 10, 20, -1].map((q) => (
+            <button key={q} type="button" onClick={() => setDelta(String(q))} className={`${btn} border border-slate-200 text-slate-700 hover:bg-emerald-50`}>{q > 0 ? `+${q}` : q}</button>
+          ))}
+        </div>
+        <div><label className={lab}>Add or remove (use a minus to remove)</label>
+          <input className={input} inputMode="numeric" value={delta} onChange={(e) => setDelta(e.target.value)} placeholder="e.g. 10 or -3" /></div>
+        {next !== null && <p className={`text-xs font-bold ${next < 0 ? "text-red-600" : "text-emerald-700"}`}>New stock: {next}</p>}
+        <Err text={error} />
+        <button type="submit" disabled={busy || next === null || next < 0} className={`${btn} w-full bg-emerald-700 text-white`}>{busy ? "Saving…" : "Update stock"}</button>
+      </form>
+    </Sheet>
+  );
+}
+
+/* ───────── Record a manual sale ───────── */
+function SaleDialog({ products, product, onClose, onDone }) {
+  const sellable = products.filter((p) => Number(p.quantity || 0) > 0);
+  const [selId, setSelId] = useState(product?._id || sellable[0]?._id || "");
+  const current = products.find((p) => p._id === selId);
+  const [qty, setQty] = useState("1");
+  const [unit, setUnit] = useState(String(current?.price ?? ""));
+  const [customer, setCustomer] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const ref = useRef(crypto.randomUUID().replace(/-/g, "")); // one reference per attempt, so a retry can't record the sale twice
+
+  const q = /^\d{1,6}$/.test(qty.trim()) ? Number(qty) : NaN;
+  const u = /^\d{1,8}$/.test(unit.trim()) ? Number(unit) : NaN;
+  const total = Number.isInteger(q) && Number.isInteger(u) ? q * u : null;
+
+  const pick = (id) => { setSelId(id); setUnit(String(products.find((p) => p._id === id)?.price ?? "")); };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!current) return setError("Choose a product.");
+    if (!Number.isInteger(q) || q < 1) return setError(ERR.INVALID_QUANTITY);
+    if (!Number.isInteger(u) || u < 1) return setError(ERR.INVALID_PRODUCT_PRICE);
+    if (q > Number(current.quantity || 0)) return setError(`Only ${current.quantity} in stock.`);
+    setBusy(true); setError("");
+    try {
+      const { data } = await apiClient.post(`/products/${selId}/manual-sale`, { quantity: q, unitPrice: u, customerName: customer.trim(), note: note.trim(), clientRef: ref.current });
+      onDone(data.sale);
+    } catch (x) { setError(errMsg(x)); } finally { setBusy(false); }
+  };
+
+  return (
+    <Sheet title="Record a sale" onClose={busy ? () => {} : onClose}>
+      {sellable.length === 0 ? <p className="text-sm text-slate-600">You have no products in stock to sell.</p> : (
+        <form onSubmit={submit} className="space-y-3">
+          <p className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600">For sales made outside the app (a walk-in customer, for example). Stock goes down and the sale is logged. It doesn't use escrow, and there's no Sokodigi fee.</p>
+          <div><label className={lab}>Product</label>
+            <select className={input} value={selId} onChange={(e) => pick(e.target.value)}>
+              {sellable.map((p) => <option key={p._id} value={p._id}>{p.name} ({p.quantity} in stock)</option>)}
+            </select></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className={lab}>Quantity</label><input className={input} inputMode="numeric" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
+            <div><label className={lab}>Price each (KES)</label><input className={input} inputMode="numeric" value={unit} onChange={(e) => setUnit(e.target.value)} /></div>
+          </div>
+          <div><label className={lab}>Customer (optional)</label><input className={input} maxLength={80} value={customer} onChange={(e) => setCustomer(e.target.value)} /></div>
+          <div><label className={lab}>Note (optional)</label><input className={input} maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. paid cash" /></div>
+          {total !== null && <p className="text-sm font-black text-emerald-800">Total: {fmt(total)}</p>}
+          <Err text={error} />
+          <button type="submit" disabled={busy} className={`${btn} w-full bg-emerald-700 text-white`}>{busy ? "Recording…" : "Record sale"}</button>
+        </form>
+      )}
+    </Sheet>
+  );
+}
+
+/* ───────── Product card ───────── */
+function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle }) {
+  const pub = isPublic(p);
+  const q = Number(p.quantity || 0);
+  const img = sizedImage(p.imageUrl, 200);
+  return (
+    <article className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex gap-3 p-4">
+        {img ? <img src={img} alt="" loading="lazy" className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 object-cover" /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl">📦</div>}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            <h3 className="min-w-0 flex-1 break-words text-sm font-black text-slate-900">{p.name || "Unnamed product"}</h3>
+            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${pub ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{pub ? "On MarketHub" : "Unlisted"}</span>
+          </div>
+          <p className="mt-0.5 truncate text-[11px] text-slate-500">{String(p.category || "general").replace(/-/g, " ")} · {p.productCode || "No SKU"}</p>
+          <p className="mt-1 text-lg font-black text-slate-900">{fmt(p.price)}</p>
+        </div>
+      </div>
+      <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5">
+        <p className={`text-sm font-black ${q <= 0 ? "text-red-600" : q <= LOW ? "text-amber-600" : "text-emerald-700"}`}>{q <= 0 ? "Out of stock" : q <= LOW ? `${q} left · low` : `${q} in stock`}</p>
+        <button type="button" onClick={() => onStock(p)} className="text-xs font-bold text-emerald-700 underline">Adjust stock</button>
+      </div>
+      <div className="grid grid-cols-3 gap-2 border-t border-slate-100 p-3">
+        <button type="button" disabled={busy || q < 1} onClick={() => onSale(p)} className={`${btn} bg-emerald-700 text-white`}>Record sale</button>
+        <button type="button" disabled={busy} onClick={() => onEdit(p)} className={`${btn} border border-slate-200 text-slate-700 hover:bg-slate-50`}>Edit</button>
+        <button type="button" disabled={busy} onClick={() => onToggle(p)} className={`${btn} ${pub ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}>{busy ? "Saving…" : pub ? "Unlist" : "List"}</button>
+      </div>
+    </article>
+  );
+}
+
+/* ───────── Order card ───────── */
+const STATUS = {
+  PROCESSING: ["New order", "bg-amber-100 text-amber-800"],
+  DISPATCHED: ["On the way", "bg-sky-100 text-sky-800"],
+  DELIVERED: ["Completed", "bg-emerald-100 text-emerald-800"],
+  CANCELLED: ["Cancelled", "bg-slate-200 text-slate-600"],
+};
+
+function OrderCard({ o, busy, pin, setPin, onConfirm, onCancel, onVerify }) {
+  const [label, tone] = STATUS[o.orderStatus] || [o.orderStatus, "bg-slate-100 text-slate-600"];
+  const ship = o.shippingDetails;
+  return (
+    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div><p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order</p><p className="font-mono text-sm font-bold text-slate-900">#{o.orderNumber}</p></div>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${tone}`}>{label}</span>
+      </div>
+
+      <ul className="mt-3 space-y-1 text-xs text-slate-700">
+        {(o.items || []).map((it, i) => <li key={`${it.productId}-${i}`} className="flex justify-between gap-3"><span>{it.name} × {it.quantity}</span><span className="font-semibold">{fmt(it.pricePaid * it.quantity)}</span></li>)}
+      </ul>
+
+      <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+        <span className="text-slate-500">{when(o.createdAt)}</span>
+        <span className="font-black text-emerald-800">You receive {fmt(o.financials?.totalWholesaleToShop)}</span>
+      </div>
+
+      {ship && o.orderStatus !== "CANCELLED" && (
+        <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
+          <p className="font-bold text-slate-800">Deliver to {ship.fullName}</p>
+          <p>{ship.phoneNumber} · {ship.subCounty}, {ship.county}</p>
+          {ship.deliveryNotes && <p className="mt-1 italic">{ship.deliveryNotes}</p>}
+        </div>
+      )}
+
+      {o.orderStatus === "PROCESSING" && (
+        <div className="mt-3 space-y-2">
+          <p className="text-[11px] text-slate-500">The buyer has paid. The money is held in escrow. Confirm to release this order for delivery and tell the buyer it's on its way.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" disabled={busy} onClick={() => onConfirm(o)} className={`${btn} bg-emerald-700 text-white`}>{busy ? "Working…" : "Confirm order"}</button>
+            <button type="button" disabled={busy} onClick={() => onCancel(o)} className={`${btn} bg-red-50 text-red-700`}>Decline & refund</button>
+          </div>
+        </div>
+      )}
+
+      {o.orderStatus === "DISPATCHED" && (
+        <div className="mt-3 space-y-2">
+          <p className="text-[11px] text-slate-500">When the buyer has their item, enter the 6-digit PIN they give you. That releases your payment.</p>
+          <div className="flex gap-2">
+            <input inputMode="numeric" maxLength={6} placeholder="Buyer's PIN" value={pin || ""} onChange={(e) => setPin(o.orderNumber, e.target.value.replace(/\D/g, "").slice(0, 6))}
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-center font-mono text-sm tracking-[0.3em] focus:border-emerald-500 focus:outline-none" />
+            <button type="button" disabled={busy || (pin || "").length !== 6} onClick={() => onVerify(o)} className={`${btn} shrink-0 bg-slate-900 text-white`}>Confirm delivery</button>
+          </div>
+          <button type="button" disabled={busy} onClick={() => onCancel(o)} className="text-[11px] font-bold text-red-600 underline">Cancel and refund the buyer</button>
+        </div>
+      )}
+
+      {o.orderStatus === "DELIVERED" && <p className="mt-3 text-xs font-bold text-emerald-700">✓ Delivered. {fmt(o.financials?.totalWholesaleToShop)} was added to your wallet.</p>}
+
+      {["PROCESSING", "DISPATCHED"].includes(o.orderStatus) && (
+        <Link to={`${ROUTES.MESSAGES}?targetUser=${idOf(o.buyerId)}`} className="mt-3 inline-block text-[11px] font-bold text-emerald-700 underline">💬 Message the buyer</Link>
+      )}
+    </article>
+  );
+}
+
+/* ───────── Page ───────── */
+export default function MyShopDashboard() {
+  const navigate = useNavigate();
+  const { auth } = useAuth();
+  const myId = auth.user?._id ? String(auth.user._id) : null;
+  const username = auth.profile?.username;
+
+  const [tab, setTab] = useState("inventory");
+  const [products, setProducts] = useState([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [orderFilter, setOrderFilter] = useState("all");
+  const [dialog, setDialog] = useState(null); // { type: "add" | "edit" | "stock" | "sale", product }
+  const [notice, setNotice] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+  const [pins, setPins] = useState({});
+  const noticeTimer = useRef(null);
+
+  const getToken = useCallback(() => auth.currentUser.getIdToken(), [auth.currentUser]);
+  const flash = (text, type = "ok") => {
+    setNotice({ text, type });
+    clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(null), 4000);
+  };
+  useEffect(() => () => clearTimeout(noticeTimer.current), []);
+
+  const loadProducts = useCallback(async (p = 1) => {
+    const { data } = await apiClient.get("/products", { params: { sellerId: myId, status: "all", limit: 50, page: p } });
+    const rows = data.feed || [];
+    setProducts((prev) => (p === 1 ? rows : [...prev, ...rows.filter((r) => !prev.some((x) => x._id === r._id))]));
+    setHasMore(rows.length === 50);
+    setPage(p);
+  }, [myId]);
+  const loadOrders = useCallback(async () => { const { data } = await apiClient.get("/orders", { params: { role: "seller", limit: 50 } }); setOrders(Array.isArray(data) ? data : []); }, []);
+  const loadSales = useCallback(async () => { const { data } = await apiClient.get("/products/manual-sales"); setSales(data.sales || []); }, []);
+
+  const loadAll = useCallback(async () => {
+    setLoading(true); setError("");
+    try { await Promise.all([loadProducts(1), loadOrders(), loadSales()]); }
+    catch (e) { console.error("Dashboard load failed:", e); setError(errMsg(e)); }
+    finally { setLoading(false); }
+  }, [loadProducts, loadOrders, loadSales]);
+  useEffect(() => { if (myId) loadAll(); }, [myId, loadAll]);
+
+  const swap = (p) => setProducts((prev) => prev.map((x) => (x._id === p._id ? { ...x, ...p } : x)));
+
+  const toggleListing = async (p) => {
+    setBusyId(p._id);
+    try {
+      const { data } = await apiClient.patch(`/products/${p._id}/status`, { status: isPublic(p) ? "UNLISTED" : "LISTED" });
+      swap(data.product);
+      flash(isPublic(p) ? "Unlisted. It's hidden from the MarketHub and your shop page, but still in your inventory." : "Listed. Customers can see and order it now.");
+    } catch (e) { flash(errMsg(e), "error"); } finally { setBusyId(null); }
+  };
+
+  const orderAction = async (o, run, okText) => {
+    setBusyId(o._id);
+    try { await run(); await Promise.all([loadOrders(), loadProducts(1)]); flash(okText); }
+    catch (e) { flash(errMsg(e), "error"); } finally { setBusyId(null); }
+  };
+  const num = (o) => encodeURIComponent(o.orderNumber);
+  const confirmOrder = (o) => orderAction(o, () => apiClient.patch(`/orders/${num(o)}/confirm`), "Order confirmed. The buyer was told it's on its way.");
+  const cancelOrder = (o) => window.confirm("Cancel this order? The buyer is refunded in full.") &&
+    orderAction(o, () => apiClient.patch(`/orders/${num(o)}/cancel`), "Order cancelled and the buyer refunded.");
+  const verifyPin = (o) => orderAction(o, async () => {
+    await apiClient.patch(`/orders/${num(o)}/fulfill-handshake`, { pin: pins[o.orderNumber] });
+    setPins((p) => ({ ...p, [o.orderNumber]: "" }));
+  }, "Delivery confirmed. Your payment was released to your wallet.");
+
+  const voidSale = async (s) => {
+    if (!window.confirm("Undo this sale? The stock goes back into your inventory.")) return;
+    setBusyId(s._id);
+    try { await apiClient.post(`/products/manual-sales/${s._id}/void`); await Promise.all([loadSales(), loadProducts(1)]); flash("Sale undone and stock restored."); }
+    catch (e) { flash(errMsg(e), "error"); } finally { setBusyId(null); }
+  };
+
+  const stats = useMemo(() => ({
+    newOrders: orders.filter((o) => o.orderStatus === "PROCESSING").length,
+    onTheWay: orders.filter((o) => o.orderStatus === "DISPATCHED").length,
+    lowStock: products.filter((p) => Number(p.quantity || 0) <= LOW).length,
+    todaySales: sales.filter((s) => !s.voided && sameDay(s.createdAt)).reduce((t, s) => t + s.total, 0),
+  }), [orders, products, sales]);
+
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return products.filter((p) => {
+      const n = Number(p.quantity || 0);
+      const okSearch = !q || [p.name, p.productCode, p.category].some((v) => String(v || "").toLowerCase().includes(q));
+      const okFilter = filter === "all" || (filter === "listed" && isPublic(p)) || (filter === "unlisted" && !isPublic(p)) || (filter === "low" && n > 0 && n <= LOW) || (filter === "out" && n <= 0);
+      return okSearch && okFilter;
+    });
+  }, [products, search, filter]);
+
+  const shownOrders = orders.filter((o) => orderFilter === "all" || o.orderStatus === orderFilter);
+
+  const tabs = [["inventory", "📦", "Inventory", 0], ["orders", "📋", "Orders", stats.newOrders], ["sales", "🧾", "Sales", 0]];
+  const chip = (active) => `shrink-0 rounded-full px-3.5 py-2 text-xs font-bold ${active ? "bg-emerald-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`;
+
+  if (!myId) return null;
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-24 md:pb-10">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur" style={{ paddingTop: "env(safe-area-inset-top)" }}>
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2">
+            <button type="button" onClick={() => navigate(ROUTES.HOME)} className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">← Home</button>
+            <div className="min-w-0"><p className="truncate text-sm font-black text-slate-900">{auth.profile?.brandName || "My shop"}</p><p className="hidden text-[11px] text-slate-500 sm:block">Inventory and orders</p></div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {username && <Link to={profilePath(username)} className="hidden rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:block">View my shop</Link>}
+            <button type="button" onClick={() => setDialog({ type: "add" })} className={`${btn} bg-emerald-700 text-white`}>+ Add product</button>
+          </div>
+        </div>
+        <nav className="mx-auto hidden max-w-6xl gap-1 px-6 md:flex" aria-label="Shop sections">
+          {tabs.map(([k, icon, label, badge]) => (
+            <button key={k} type="button" onClick={() => setTab(k)} aria-pressed={tab === k}
+              className={`border-b-2 px-4 py-3 text-xs font-black ${tab === k ? "border-emerald-700 text-emerald-800" : "border-transparent text-slate-400 hover:text-slate-700"}`}>
+              {icon} {label}{badge > 0 && <span className="ml-1.5 rounded-full bg-rose-500 px-1.5 text-[10px] text-white">{badge}</span>}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <main className="mx-auto max-w-6xl space-y-5 px-3 py-5 sm:px-6">
+        {notice && <p role={notice.type === "error" ? "alert" : "status"} className={`rounded-xl border px-4 py-3 text-xs font-bold ${notice.type === "error" ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{notice.text}</p>}
+        {error && (
+          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+            {error} <button type="button" onClick={loadAll} className="ml-2 underline">Try again</button>
+          </div>
+        )}
+
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Overview">
+          {[
+            ["New orders", stats.newOrders, "text-amber-600", () => { setTab("orders"); setOrderFilter("PROCESSING"); }],
+            ["On the way", stats.onTheWay, "text-sky-700", () => { setTab("orders"); setOrderFilter("DISPATCHED"); }],
+            ["Low or out of stock", stats.lowStock, "text-red-600", () => { setTab("inventory"); setFilter("low"); }],
+            ["Manual sales today", fmt(stats.todaySales), "text-emerald-700", () => setTab("sales")],
+          ].map(([label, value, tone, go]) => (
+            <button key={label} type="button" onClick={go} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-emerald-300">
+              <p className="text-[11px] font-bold text-slate-500">{label}</p>
+              <p className={`mt-2 truncate text-2xl font-black ${tone}`}>{value}</p>
+            </button>
+          ))}
+        </section>
+
+        {loading ? (
+          <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-36 animate-pulse rounded-2xl bg-slate-100" />)}</div>
+        ) : (
+          <>
+            {tab === "inventory" && (
+              <section className="space-y-4">
+                <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11px] leading-relaxed text-slate-600">
+                  <b className="text-slate-800">Unlisted</b> products stay in your inventory but are hidden from your shop page and the MarketHub, so customers can't order them. You can still record manual sales and adjust their stock. Open orders carry on as normal.
+                </p>
+                <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, SKU or category…" aria-label="Search inventory" className={input} />
+                  <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label="Filter inventory">
+                    {[["all", "All"], ["listed", "On MarketHub"], ["unlisted", "Unlisted"], ["low", "Low stock"], ["out", "Out of stock"]].map(([v, l]) => <button key={v} type="button" onClick={() => setFilter(v)} aria-pressed={filter === v} className={chip(filter === v)}>{l}</button>)}
+                  </div>
+                </div>
+
+                {shown.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {shown.map((p) => <ProductCard key={p._id} p={p} busy={busyId === p._id} onSale={(x) => setDialog({ type: "sale", product: x })} onStock={(x) => setDialog({ type: "stock", product: x })} onEdit={(x) => setDialog({ type: "edit", product: x })} onToggle={toggleListing} />)}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
+                    <p className="text-4xl" aria-hidden="true">📦</p>
+                    <h3 className="mt-3 font-black text-slate-900">{products.length === 0 ? "Your inventory is empty" : "No matching products"}</h3>
+                    <p className="mt-1 text-sm text-slate-500">{products.length === 0 ? "Add your first product to open your shop." : "Try another search or filter."}</p>
+                    {products.length === 0 && <button type="button" onClick={() => setDialog({ type: "add" })} className={`${btn} mt-4 bg-emerald-700 px-5 text-white`}>+ Add your first product</button>}
+                  </div>
+                )}
+                {hasMore && <div className="text-center"><button type="button" onClick={() => loadProducts(page + 1)} className={`${btn} border border-emerald-800/20 bg-white px-8 text-emerald-900`}>Show more products</button></div>}
+              </section>
             )}
 
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-start gap-2">
-                <h3 className="min-w-0 flex-1 break-words text-sm font-black text-slate-900">
-                  {product.name || "Unnamed product"}
-                </h3>
-
-                <span
-                  className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${
-                    unlisted
-                      ? "bg-amber-100 text-amber-800"
-                      : "bg-emerald-100 text-emerald-800"
-                  }`}
-                >
-                  {unlisted ? "Unlisted" : "Listed"}
-                </span>
-              </div>
-
-              <p className="mt-1 truncate text-xs text-slate-500">
-                {product.category || "General"} · {product.productCode || "No SKU"}
-              </p>
-
-              <p className="mt-2 text-lg font-black text-slate-900">
-                KES {Number(product.price || 0).toLocaleString()}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 border-t border-slate-100 px-4 py-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                Stock
-              </p>
-              <p
-                className={`mt-1 text-sm font-black ${
-                  quantity <= 0
-                    ? "text-red-600"
-                    : quantity <= 10
-                    ? "text-amber-600"
-                    : "text-emerald-700"
-                }`}
-              >
-                {quantity <= 0
-                  ? "Out of stock"
-                  : quantity <= 10
-                  ? `${quantity} left · Low`
-                  : `${quantity} available`}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                Affiliate commission
-              </p>
-              <p className="mt-1 text-sm font-bold text-emerald-700">
-                KES {Number(product.affiliateCommission || 0).toLocaleString()}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 border-t border-slate-100 p-3">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => handleOpenEditModal(product)}
-              className="rounded-lg border border-slate-200 px-2 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              ✏️ Edit
-            </button>
-
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => handleToggleProductVisibility(product)}
-              className="rounded-lg bg-emerald-50 px-2 py-2.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
-            >
-              {busy ? "Saving…" : unlisted ? "Publish" : "Unlist"}
-            </button>
-
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => handleDeleteProduct(product)}
-              className="rounded-lg bg-red-50 px-2 py-2.5 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
-            >
-              Delete
-            </button>
-          </div>
-        </article>
-      );
-    })}
-  </div>
-
-  {/* Product table: large screens */}
-  <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm xl:block">
-    <table className="w-full border-collapse text-left">
-      <thead>
-        <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-          <th className="p-4">Product</th>
-          <th className="p-4">SKU</th>
-          <th className="p-4">Price</th>
-          <th className="p-4">Commission</th>
-          <th className="p-4">Stock</th>
-          <th className="p-4">Status</th>
-          <th className="p-4 text-right">Actions</th>
-        </tr>
-      </thead>
-
-      <tbody className="divide-y divide-slate-100 text-sm">
-        {filteredProducts.map((product, index) => {
-          const id = product._id || product.id;
-          const unlisted = isUnlisted(product);
-          const busy = busyProductId === id;
-
-          return (
-            <tr key={id || index} className="hover:bg-slate-50">
-              <td className="p-4">
-                <div className="flex items-center gap-3">
-                  {product.imageUrl ? (
-                    <img
-                      src={product.imageUrl}
-                      alt={product.name || "Product"}
-                      loading="lazy"
-                      className="h-11 w-11 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-slate-100">
-                      📦
-                    </div>
-                  )}
-                  <div>
-                    <p className="font-bold text-slate-900">
-                      {product.name || "Unnamed product"}
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {product.category || "General"}
-                    </p>
-                  </div>
+            {tab === "orders" && (
+              <section className="space-y-4">
+                <ol className="flex flex-wrap gap-x-4 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11px] font-bold text-slate-500">
+                  <li>1. Buyer pays (held in escrow)</li><li>2. You confirm the order</li><li>3. You deliver</li><li>4. Buyer gives you the PIN</li><li>5. You're paid</li>
+                </ol>
+                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label="Filter orders">
+                  {[["all", "All"], ["PROCESSING", "New"], ["DISPATCHED", "On the way"], ["DELIVERED", "Completed"], ["CANCELLED", "Cancelled"]].map(([v, l]) => <button key={v} type="button" onClick={() => setOrderFilter(v)} aria-pressed={orderFilter === v} className={chip(orderFilter === v)}>{l}</button>)}
                 </div>
-              </td>
-
-              <td className="p-4 font-mono text-xs">
-                {product.productCode || "—"}
-              </td>
-
-              <td className="p-4 font-bold text-slate-900">
-                KES {Number(product.price || 0).toLocaleString()}
-              </td>
-
-              <td className="p-4 font-semibold text-emerald-700">
-                KES {Number(product.affiliateCommission || 0).toLocaleString()}
-              </td>
-
-              <td className="p-4 font-bold">
-                {Number(product.quantity || 0)}
-              </td>
-
-              <td className="p-4">
-                <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${
-                  unlisted
-                    ? "bg-amber-100 text-amber-800"
-                    : "bg-emerald-100 text-emerald-800"
-                }`}>
-                  {unlisted ? "Unlisted" : "Listed"}
-                </span>
-              </td>
-
-              <td className="p-4">
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => handleOpenEditModal(product)}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => handleToggleProductVisibility(product)}
-                    className="rounded-lg bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
-                  >
-                    {busy ? "Saving…" : unlisted ? "Publish" : "Unlist"}
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => handleDeleteProduct(product)}
-                    className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  </div>
-
-  {/* Empty search/filter state */}
-  {filteredProducts.length === 0 && (
-    <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
-      <div className="text-4xl">📦</div>
-      <h3 className="mt-3 font-black text-slate-900">
-        {allProducts.length === 0
-          ? "Your inventory is empty"
-          : "No matching products"}
-      </h3>
-      <p className="mt-2 text-sm text-slate-500">
-        {allProducts.length === 0
-          ? "Add your first product to start building your shop."
-          : "Try another search term or change the stock filter."}
-      </p>
-
-      {allProducts.length === 0 && (
-        <button
-          type="button"
-          onClick={() => setIsModalOpen(true)}
-          className="mt-4 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700"
-        >
-          + Add your first product
-        </button>
-      )}
-    </div>
-  )}
-</section>
-
-              )}
-
-              {/* ============================= SALES ORDERS TAB ============================= */}
-              {activeTab === "orders" && (
-                <section className="orders-section overflow-hidden rounded-2xl border border-slate-200/60 bg-white shadow-md">
-                  <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-slate-100/50 p-6">
-                    <h2 className="text-xl font-bold text-slate-900">
-                      Sales Orders
-                    </h2>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Verify customer delivery PINs for eligible orders.
-                    </p>
+                {shownOrders.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {shownOrders.map((o) => <OrderCard key={o._id} o={o} busy={busyId === o._id} pin={pins[o.orderNumber]} setPin={(n, v) => setPins((p) => ({ ...p, [n]: v }))} onConfirm={confirmOrder} onCancel={cancelOrder} onVerify={verifyPin} />)}
                   </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center"><p className="text-4xl" aria-hidden="true">📋</p><h3 className="mt-3 font-black text-slate-900">No orders here</h3><p className="mt-1 text-sm text-slate-500">Orders from customers will appear when they buy from your shop.</p></div>
+                )}
+              </section>
+            )}
 
-                  {salesOrders.length === 0 ? (
-                    <div className="empty-state p-16 text-center">
-                      <div className="mb-4 text-5xl">📋</div>
-                      <p className="text-lg font-bold text-slate-700">
-                        No transactions recorded
-                      </p>
-                      <p className="mt-2 text-sm text-slate-500">
-                        Your orders will appear here when customers purchase from your store.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="table-wrapper overflow-x-auto">
-                      <table className="orders-table w-full border-collapse text-left">
-                        <thead>
-                          <tr className="border-b border-slate-100 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                            <th className="p-4 pl-6">Order ID</th>
-                            <th className="p-4">Customer</th>
-                            <th className="p-4">Order Value</th>
-                            <th className="p-4">Status</th>
-                            <th className="p-4 pr-6 text-right">Verification</th>
-                          </tr>
-                        </thead>
-
-                        <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-                          {salesOrders.map((order, index) => {
-                            const orderKey =
-                              order.orderNumber || order._id || order.id || index;
-                            const delivered = order.orderStatus === "DELIVERED";
-
-                            return (
-                              <tr key={orderKey} className="transition duration-200 hover:bg-slate-50/60">
-                                <td className="p-4 pl-6 font-mono font-bold text-slate-900">
-                                  #{order.orderNumber || order._id || "N/A"}
-                                </td>
-
-                                <td className="p-4">
-                                  <div className="font-semibold text-slate-800">
-                                    {order.shippingDetails?.fullName ||
-                                      "Guest Account"}
-                                  </div>
-                                  <div className="mt-1 text-xs text-slate-500">
-                                    {order.shippingDetails?.phoneNumber ||
-                                      "No Contact"}
-                                  </div>
-                                </td>
-
-                                <td className="p-4 font-bold text-slate-900">
-                                  KES {Number(order.totalPrice || 0).toLocaleString()}
-                                </td>
-
-                                <td className="p-4">
-                                  <span
-                                    className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${
-                                      delivered
-                                        ? "border-emerald-200 bg-emerald-100 text-emerald-800"
-                                        : "border-amber-200 bg-amber-100 text-amber-800"
-                                    }`}
-                                  >
-                                    {delivered ? "✓ Delivered" : order.orderStatus || "Pending"}
-                                  </span>
-                                </td>
-
-                                <td className="p-4 pr-6 text-right">
-                                  {delivered ? (
-                                    <span className="font-bold text-emerald-600">
-                                      ✓ Completed
-                                    </span>
-                                  ) : (
-                                    <div className="flex items-center justify-end gap-2">
-                                      <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        maxLength={6}
-                                        placeholder="6-digit PIN"
-                                        value={pinInputs[order.orderNumber] || ""}
-                                        onChange={(event) =>
-                                          handlePinInputChange(
-                                            order.orderNumber,
-                                            event.target.value
-                                          )
-                                        }
-                                        className="w-28 rounded-lg border border-slate-300 px-3 py-2 text-center font-mono text-xs font-bold tracking-widest outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
-                                      />
-
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleVerifyDeliveryPin(order.orderNumber)
-                                        }
-                                        className="verify-btn rounded-lg bg-gradient-to-r from-slate-800 to-slate-900 px-4 py-2 text-xs font-bold uppercase tracking-wider text-white transition duration-200 hover:from-slate-700 hover:to-slate-800"
-                                      >
-                                        Verify PIN
-                                      </button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </section>
-              )}
-            </>
-          )}
-        </div>
+            {tab === "sales" && (
+              <section className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><h2 className="text-lg font-black text-slate-900">Manual sales</h2><p className="text-xs text-slate-500">Sales you made outside the app. They reduce your stock but don't use escrow or pay a Sokodigi fee.</p></div>
+                  <button type="button" onClick={() => setDialog({ type: "sale" })} className={`${btn} bg-emerald-700 text-white`}>+ Record a sale</button>
+                </div>
+                {sales.length > 0 ? (
+                  <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    {sales.map((s) => {
+                      const recent = Date.now() - new Date(s.createdAt).getTime() < 24 * 3600 * 1000;
+                      return (
+                        <li key={s._id} className={`flex flex-wrap items-center justify-between gap-3 p-4 text-xs ${s.voided ? "opacity-50" : ""}`}>
+                          <div className="min-w-0">
+                            <p className="font-black text-slate-900">{s.productName} × {s.quantity} {s.voided && <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-[10px]">Undone</span>}</p>
+                            <p className="text-slate-500">{when(s.createdAt)}{s.customerName ? ` · ${s.customerName}` : ""}{s.note ? ` · ${s.note}` : ""}</p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm font-black text-emerald-800">{fmt(s.total)}</span>
+                            {!s.voided && recent && <button type="button" disabled={busyId === s._id} onClick={() => voidSale(s)} className="font-bold text-red-600 underline disabled:opacity-50">Undo</button>}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center"><p className="text-4xl" aria-hidden="true">🧾</p><h3 className="mt-3 font-black text-slate-900">No manual sales yet</h3><p className="mt-1 text-sm text-slate-500">Record a walk-in sale to keep your stock accurate.</p></div>
+                )}
+              </section>
+            )}
+          </>
+        )}
       </main>
 
-      {/* ============================= ADD PRODUCT MODAL ============================= */}
+      {/* Bottom tab bar (phones) */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-slate-200 bg-white md:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }} aria-label="Shop sections">
+        {tabs.map(([k, icon, label, badge]) => (
+          <button key={k} type="button" onClick={() => setTab(k)} aria-pressed={tab === k} className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-bold ${tab === k ? "text-emerald-700" : "text-slate-500"}`}>
+            <span className="relative text-lg" aria-hidden="true">{icon}{badge > 0 && <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">{badge}</span>}</span>
+            {label}
+          </button>
+        ))}
+      </nav>
+
       <AddProductModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSuccess={(newProduct) => {
-          if (newProduct) {
-            setAllProducts((previous) => [newProduct, ...previous]);
-          } else {
-            fetchShopData();
-          }
-          setIsModalOpen(false);
-        }}
+        isOpen={dialog?.type === "add"}
+        onClose={() => setDialog(null)}
+        onSuccess={(np) => { if (np) setProducts((prev) => [np, ...prev]); else loadProducts(1); setDialog(null); flash("Product added to your inventory."); }}
         uploadImageToCloudinary={uploadImageToCloudinary}
       />
-
-      {/* ============================= EDIT PRODUCT MODAL ============================= */}
-      {selectedProduct && (
-        <div
-          className="modal-overlay fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/50 p-4 backdrop-blur-sm"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !isSavingEdit) {
-              setSelectedProduct(null);
-            }
-          }}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="edit-product-title"
-            className="modal-content my-auto w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
-          >
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h2
-                  id="edit-product-title"
-                  className="text-2xl font-bold text-slate-900"
-                >
-                  Edit Product
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Update your product information and availability.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                disabled={isSavingEdit}
-                onClick={() => setSelectedProduct(null)}
-                className="close-btn rounded-lg px-3 py-2 text-slate-500 transition hover:bg-slate-100"
-                aria-label="Close edit dialog"
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveProductEdit} className="space-y-5">
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
-                  Product Name
-                </label>
-                <input
-                  name="name"
-                  value={editForm.name}
-                  onChange={handleEditInputChange}
-                  required
-                  className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
-                  placeholder="e.g., Premium Laptop Stand"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">
-                    Retail Price (KES)
-                  </label>
-                  <input
-                    name="price"
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={editForm.price}
-                    onChange={handleEditInputChange}
-                    required
-                    className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
-                    placeholder="0.00"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">
-                    Affiliate Commission (KES)
-                  </label>
-                  <input
-                    name="affiliateCommission"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={editForm.affiliateCommission}
-                    onChange={handleEditInputChange}
-                    required
-                    className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
-                    placeholder="0.00"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">
-                    Quantity in Stock
-                  </label>
-                  <input
-                    name="quantity"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={editForm.quantity}
-                    onChange={handleEditInputChange}
-                    required
-                    className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
-                    placeholder="0"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-700">
-                    Delivery Fee (KES)
-                  </label>
-                  <input
-                    name="deliveryFee"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={editForm.deliveryFee}
-                    onChange={handleEditInputChange}
-                    className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
-                    placeholder="0.00"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
-                  Category
-                </label>
-                <input
-                  name="category"
-                  value={editForm.category}
-                  onChange={handleEditInputChange}
-                  className="form-input w-full rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
-                  placeholder="e.g., Electronics"
-                />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">
-                  Product Description
-                </label>
-                <textarea
-                  name="description"
-                  value={editForm.description}
-                  onChange={handleEditInputChange}
-                  rows={3}
-                  className="form-input w-full resize-y rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none transition focus:border-emerald-500 focus:shadow-md focus:shadow-emerald-200"
-                  placeholder="Describe your product..."
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
-                <button
-                  type="button"
-                  disabled={isSavingEdit}
-                  onClick={() => setSelectedProduct(null)}
-                  className="btn-cancel rounded-lg border border-slate-300 bg-slate-50 px-5 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={isSavingEdit}
-                  className="btn-save rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-5 py-2 text-sm font-bold text-white shadow-md shadow-emerald-600/30 transition duration-200 hover:from-emerald-700 hover:to-emerald-600 disabled:cursor-wait disabled:opacity-60"
-                >
-                  {isSavingEdit ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
+      {dialog?.type === "edit" && <EditDialog product={dialog.product} getToken={getToken} onClose={() => setDialog(null)} onSaved={(p) => { swap(p); setDialog(null); flash("Product updated."); }} onDeleted={(id) => { setProducts((prev) => prev.filter((x) => x._id !== id)); setDialog(null); flash("Product deleted."); }} />}
+      {dialog?.type === "stock" && <StockDialog product={dialog.product} onClose={() => setDialog(null)} onDone={(p) => { swap(p); setDialog(null); flash("Stock updated."); }} />}
+      {dialog?.type === "sale" && <SaleDialog products={products} product={dialog.product} onClose={() => setDialog(null)} onDone={() => { setDialog(null); Promise.all([loadSales(), loadProducts(1)]); flash("Sale recorded and stock updated."); }} />}
     </div>
   );
 }
