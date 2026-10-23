@@ -30,6 +30,12 @@ router.post("/:id/share", authenticate, perUser(30), shareProduct);
 router.patch("/:id/toggle-shelf", authenticate, perUser(60), toggleProductShelf);
 router.patch("/:id/status", authenticate, perUser(60), updateProductStatus);
 
+
+router.get("/manual-sales", authenticate, perUser(60), listManualSales);
+router.post("/manual-sales/:saleId/void", authenticate, perUser(20), voidManualSale);
+router.post("/:id/manual-sale", authenticate, perUser(30), recordManualSale);
+router.patch("/:id/stock", authenticate, perUser(60), adjustStock);
+
 /* Single product (wildcard last) */
 router.get("/:id", perIp(120), authenticate.optional, getProductById);
 router.put("/:id", authenticate, perUser(30), updateProduct);
