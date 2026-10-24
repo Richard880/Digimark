@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import apiClient from "../../../services/apiClient";
+import NotificationSettings from "../../../pwa/NotificationSettings"
 
 const typeOf = (n) => String(n?.type || "");
 const isEscrow = (n) => n?.category === "ESCROW";
@@ -74,7 +75,7 @@ if (filter === "MESSAGES") return n.category === "MESSAGES";
           </button>
         )}
       </div>
-
+      <div className="mb-6"><NotificationSettings /></div>
       <div className="flex gap-2 mb-6 bg-slate-100 p-1 rounded-xl max-w-sm">
         {["ALL", "ESCROW", "MESSAGES"].map((tab) => (
           <button
