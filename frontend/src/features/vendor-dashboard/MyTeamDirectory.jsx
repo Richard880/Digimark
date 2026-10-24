@@ -4,6 +4,7 @@ import useAuth from "../auth/hooks/useAuth";
 import apiClient from "../../services/apiClient";
 import ROUTES, { profilePath, registerPath } from "../../constants/routes";
 import { sizedImage } from "../../utils/image";
+import NetworkExplainerSheet from "../membership/NetworkExplainer"
 
 const LEVELS = [1, 2, 3, 4];
 const PERCENT = { 1: 25, 2: 15, 3: 9, 4: 6 };
@@ -19,6 +20,7 @@ export default function MyTeamDirectory() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("");
   const [copied, setCopied] = useState(false);
+  const [explainer, setExplainer] = useState(false);
 
   const load = useCallback(async (lvl, page = 1) => {
     setLoading(true); setError("");
@@ -113,6 +115,8 @@ export default function MyTeamDirectory() {
           <p className="mx-auto mt-1 max-w-xs text-xs text-slate-400">{level === 1 ? "Share your invite link to bring people in. New members are placed in your network automatically." : "Members join this level as your team grows."}</p>
         </div>
       )}
+      {explainer && <NetworkExplainerSheet onClose={() => setExplainer(false)} />}
+      <button type="button" onClick={() => setExplainer(true)} className="mb-4 text-[11px] font-bold text-emerald-700 underline">How the network works</button>
     </div>
   );
 }
