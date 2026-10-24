@@ -45,6 +45,10 @@
       "destination": "/backend/api/index.js"
     },
     {
+      "source": "/icons/(.*)",
+      "destination": "/frontend/icons/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/frontend/$1"
     }
