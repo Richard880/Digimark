@@ -4,6 +4,7 @@ import useAuth from "../../auth/hooks/useAuth";
 import apiClient from "../../../services/apiClient";
 import ROUTES, { productPath } from "../../../constants/routes";
 import { sizedImage } from "../../../utils/image";
+import PushAsk from "../../../pwa/PushAsk
 
 const REF_RE = /^[A-Za-z0-9_-]{8,32}$/;
 const PHONE_RE = /^(?:\+?254|0)[17]\d{8}$/;
@@ -124,7 +125,7 @@ export default function CheckoutPage() {
           <h1 className="mt-2 text-2xl font-black text-slate-900">Order placed</h1>
           <p className="mt-1 text-sm text-slate-600">Order <b>{placed.orderNumber}</b> · {fmt(placed.totalAmountLocked)} is held safely in escrow.</p>
         </div>
-
+            <PushAsk reason="Get an alert when the seller confirms your order and when it's on its way." />
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center">
           <p className="text-[11px] font-black uppercase tracking-wider text-emerald-700">Your delivery PIN</p>
           <p className="my-2 font-mono text-4xl font-black tracking-[0.3em] text-emerald-900">{placed.deliveryReleasePin}</p>
