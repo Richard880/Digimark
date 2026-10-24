@@ -6,6 +6,7 @@ import ROUTES, { productPath, profilePath } from "../../constants/routes";
 import { sizedImage } from "../../utils/image";
 import { uploadImageToCloudinary } from "../../utils/cloudinaryUploader";
 import AddProductModal from "./AddProductModal";
+import OnboardingChecklist from "../onboarding/OnboardingChecklist";
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -465,7 +466,7 @@ export default function MyShopDashboard() {
             {error} <button type="button" onClick={loadAll} className="ml-2 underline">Try again</button>
           </div>
         )}
-
+          <OnboardingChecklist compact />
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Overview">
           {[
             ["New orders", stats.newOrders, "text-amber-600", () => { setTab("orders"); setOrderFilter("PROCESSING"); }],
