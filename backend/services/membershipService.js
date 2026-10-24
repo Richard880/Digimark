@@ -96,7 +96,9 @@ function resolvePayouts(path, amount, eligible) {
  * First payment = activation (matrix placement + membership number).
  * Later payments = 30-day renewals. Everything happens in ONE transaction.
  */
-async function payMembership({ userId, planKey, idempotencyKey }) {
+const EXPLAINER_VERSION = "2026-10"; // bump this whenever NetworkExplainer.jsx changes materially
+
+async function payMembership({ userId, planKey, idempotencyKey, ack = false }) {
   const plan = PLANS[planKey];
   if (!plan) throw new MembershipError("INVALID_PLAN");
   if (String(userId) === PLATFORM_ID) throw new MembershipError("NOT_APPLICABLE", 400);
@@ -111,6 +113,7 @@ async function payMembership({ userId, planKey, idempotencyKey }) {
       }
 
       const isActivation = user.membershipStatus === "pending";
+      if (isActivation && !ack) throw new MembershipError("EXPLAINER_NOT_ACKNOWLEDGED", 400);
       const expires = user.membershipExpiresAt;
       const running = !isActivation && expires && expires > now;
       if (running && expires - now > RENEW_WINDOW_DAYS * DAY) throw new MembershipError("NOT_DUE_YET", 409);
@@ -121,8 +124,16 @@ async function payMembership({ userId, planKey, idempotencyKey }) {
 
       // Unique indexes make a duplicate request fail right here, before any money moves
       const [pay] = await MembershipPayment.create(
-        [{ userId, plan: planKey, amount, kind: isActivation ? "activation" : "renewal",
-           periodStart, periodEnd, idempotencyKey, payouts: [] }],
+        [{ userId,
+          plan: planKey,
+          amount, 
+          kind: isActivation ? "activation" : "renewal",
+          periodStart,
+          periodEnd,
+          acknowledgedExplainer: isActivation, 
+          explainerVersion: isActivation ? EXPLAINER_VERSION : "", 
+          idempotencyKey, 
+          payouts: [] }],
         { session }
       );
       const ref = String(pay._id);
