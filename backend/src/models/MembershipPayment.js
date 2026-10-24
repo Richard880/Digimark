@@ -21,6 +21,8 @@ const schema = new Schema(
     periodStart: { type: Date, required: true },
     periodEnd: { type: Date, required: true },
     idempotencyKey: { type: String, required: true },
+    acknowledgedExplainer: { type: Boolean, default: false },
+    explainerVersion: { type: String, default: "" },
     payouts: [payoutSchema], // audit trail of exactly where every shilling went
   },
   { timestamps: true }
