@@ -3,6 +3,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import AuthContext from "./AuthContext";
 import { auth as firebaseAuth } from "../../../firebase";
 import { getMe, login as apiLogin, logout as apiLogout, destinationFor } from "../authApi";
+import { detachDevice } from "../../../pwa/push";
 
 const EMPTY = {
   currentUser: null, // the Firebase user (use .getIdToken())
@@ -80,11 +81,13 @@ const login = useCallback(async (a, b) => {
   return { user: data.user, destination: destinationFor(data.user) };
 }, []);
 
-  const logout = useCallback(async () => {
-    ++seq.current;
-    await apiLogout();
-    setAuth({ ...EMPTY });
-  }, []);
+ const logout = useCallback(async () => {
+  ++seq.current;
+  await detachDevice(); // while the sign-in still works, so the server can drop this phone
+   try { sessionStorage.removeItem("sokodigi_push_synced"); } catch { /* ignore */ }
+  await apiLogout();
+  setAuth({ ...EMPTY });
+}, []);
 
   // refreshProfile(true) also reloads Firebase (after the user verifies their email)
   const refreshProfile = useCallback(
