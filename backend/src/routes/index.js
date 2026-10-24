@@ -15,6 +15,7 @@ router.use("/search", require("./search.routes"));
 router.use("/chats", require("../modules/chats/chat.routes"));
 
 router.use("/onboarding", require("../modules/onboarding/onboarding.routes"));
+router.use("/push", require("../modules/push/push.routes"));
 
 router.use("/admin", require("../modules/admin/admin.routes"));
 
