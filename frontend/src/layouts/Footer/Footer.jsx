@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import brand from "../../constants/brand";
 import ROUTES from "../../constants/routes";
 import useAuth from "../../features/auth/hooks/useAuth";
+import { InstallLink } from "../../pwa/InstallPrompt";
+
 
 const VALUES = [
   ["🛍️", "Shop"],
@@ -83,6 +85,7 @@ export default function Footer() {
                 <span className="text-slate-400">Contact us (coming soon)</span>
               )}
             </li>
+            <li><InstallLink className="transition hover:text-emerald-800 hover:underline" /></li>
           </Column>
         </div>
 
