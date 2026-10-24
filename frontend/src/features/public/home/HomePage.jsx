@@ -4,6 +4,8 @@ import heroBg from "../../../assets/hero-bg.jpeg";
 import useAuth from "../../auth/hooks/useAuth";
 import apiClient from "../../../services/apiClient";
 import ROUTES, { productPath } from "../../../constants/routes";
+import WelcomeSheet from "../../onboarding/WelcomeSheet";
+import OnboardingChecklist from "../../onboarding/OnboardingChecklist";
 
 const CATEGORIES = [
   ["phones-gadgets", "📱", "Phones & Gadgets"],
@@ -73,6 +75,7 @@ export default function HomePage() {
 
   return (
     <div className="bg-white">
+      <WelcomeSheet onSignIn={onAuthClick} />
       {/* HERO */}
       <section className="relative overflow-hidden bg-emerald-950 text-white">
         <img src={heroBg} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover opacity-25" />
@@ -104,6 +107,10 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {signedIn && (
+  <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6"><OnboardingChecklist /></div>
+)}
 
       {/* TRUST BAR */}
       <section className="border-b border-slate-100 bg-emerald-50/50">
