@@ -37,6 +37,13 @@ const userSchema = new Schema(
     lastActiveDay: { type: String, default: null },
     chatSeenAt: { type: Date, default: null },
     onboardingDismissedAt: { type: Date, default: null },
+    pushPrefs: {
+  ESCROW: { type: Boolean, default: true },
+  ORDERS: { type: Boolean, default: true },
+  MESSAGES: { type: Boolean, default: true },
+  SYSTEM: { type: Boolean, default: true },
+},
+pushHideDetails: { type: Boolean, default: false },
     lastChatEmailAt: { type: Date, default: null },
     chatEmailAlerts: { type: Boolean, default: true },
     activityScore: { type: Number, default: 0, min: 0, max: 5 },
