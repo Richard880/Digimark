@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import apiClient from "../../services/apiClient";
 import useAuth from "../auth/hooks/useAuth";
 import ROUTES from "../../constants/routes";
+import { NetworkExplainerSheet } from "./NetworkExplainer";
 
 const DAY = 24 * 3600 * 1000;
 const RENEW_WINDOW_DAYS = 7; // must match RENEW_WINDOW_DAYS in the backend plans config
@@ -19,6 +20,7 @@ const MESSAGES = {
   TOO_MANY_REQUESTS: "You're going too fast. Please wait a minute and try again.",
   PAYMENT_ALREADY_RECORDED: "That payment was already recorded. Refreshing your status.",
   NETWORK_ERROR: "Couldn't confirm the payment. Check your wallet balance before trying again: if it dropped, your payment went through.",
+  EXPLAINER_NOT_ACKNOWLEDGED: "Please read how the network works and tick the box to continue.",
 };
 const FIELD_LABELS = { brandName: "brand name", brandCategory: "brand category", phoneNumber: "phone number", address: "address", county: "county" };
 
@@ -44,10 +46,14 @@ export default function MembershipPage() {
   const [loadError, setLoadError] = useState(false);
   const [paying, setPaying] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [ack, setAck] = useState(false);
+  const [explainer, setExplainer] = useState(false);
   const [error, setError] = useState(null);
   const [done, setDone] = useState(false);
   const keyRef = useRef(null); // one Idempotency-Key per payment attempt, kept across retries
 
+  useEffect(() => { if (confirming) setAck(false); }, [confirming]);
+  
   const load = useCallback(async () => {
     setLoading(true); setLoadError(false);
     try {
@@ -72,7 +78,8 @@ export default function MembershipPage() {
     setConfirming(false); setError(null); setPaying(true);
     if (!keyRef.current) keyRef.current = crypto.randomUUID().replace(/-/g, "");
     try {
-      await apiClient.post("/membership/pay", { plan: plan.key }, { headers: { "Idempotency-Key": keyRef.current } });
+      // await apiClient.post("/membership/pay", { plan: plan.key }, { headers: { "Idempotency-Key": keyRef.current } });
+      await apiClient.post("/membership/pay", { plan: plan.key, ack: me?.status === "pending" ? ack : undefined }, { headers: { "Idempotency-Key": keyRef.current } });
       keyRef.current = null;
       setDone(true);
       await refreshProfile(); // updates auth.destination without a reload
@@ -172,6 +179,7 @@ export default function MembershipPage() {
           {LEVELS.map(([l, pct]) => <div key={l} className="rounded-xl bg-emerald-50 p-2"><p className="text-[10px] font-bold text-emerald-700">Level {l}</p><p className="text-base font-black text-emerald-900">{pct}%</p></div>)}
         </div>
         <p className="mt-2 text-[11px] leading-relaxed text-slate-500">Commissions are paid only to active members who meet the monthly activity checks, and depend on your network's membership payments. Earnings are not guaranteed.</p>
+         <button type="button" onClick={() => setExplainer(true)} className="mt-3 text-xs font-bold text-emerald-700 underline">How the network works, in plain words</button>
       </section>
 
       {/* Messages */}
@@ -231,22 +239,39 @@ export default function MembershipPage() {
       </div>
 
       {/* Confirmation */}
-      {confirming && plan && (
-        <div className="fixed inset-0 z-[3000] flex items-end justify-center bg-slate-900/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-label="Confirm payment">
-          <div className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-5 shadow-xl">
-            <h3 className="text-base font-black text-slate-900">{first ? "Activate your membership" : "Renew your membership"}</h3>
-            <p className="text-sm text-slate-600">
-              Pay <b>{fmt(plan.fee)}</b> from your wallet for <b>{plan.name}</b> ({plan.days} days).
-              {first ? " Your shop goes live and you're placed in the network." : ` Your membership extends to ${fmtDate(new Date((expires && running ? expires.getTime() : Date.now()) + plan.days * DAY))}.`}
-            </p>
-            <p className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500">Membership fees aren't refundable once paid. Your wallet after payment: {fmt(balance - plan.fee)}.</p>
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setConfirming(false)} className="min-h-11 flex-1 rounded-xl bg-slate-100 text-sm font-bold text-slate-700">Cancel</button>
-              <button type="button" onClick={pay} className="min-h-11 flex-1 rounded-xl bg-emerald-700 text-sm font-black text-white">Pay {fmt(plan.fee)}</button>
-            </div>
-          </div>
-        </div>
+{confirming && plan && (
+  <div className="fixed inset-0 z-[3000] flex items-end justify-center bg-slate-900/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-label="Confirm payment">
+    <div className="max-h-[92vh] w-full max-w-sm space-y-3 overflow-y-auto rounded-2xl bg-white p-5 shadow-xl">
+      <h3 className="text-base font-black text-slate-900">{first ? "Activate your membership" : "Renew your membership"}</h3>
+      <p className="text-sm text-slate-600">
+        Pay <b>{fmt(plan.fee)}</b> from your wallet for <b>{plan.name}</b> ({plan.days} days).
+        {first ? " Your shop goes live and you're placed in the network." : ` Your membership extends to ${fmtDate(new Date((expires && running ? expires.getTime() : Date.now()) + plan.days * DAY))}.`}
+      </p>
+
+      {first && (
+        <>
+          <ul className="space-y-1.5 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-900">
+            <li>• Membership is a monthly cost, paid whether or not you earn.</li>
+            <li>• Network earnings come only from real people joining and paying. They are not guaranteed.</li>
+            <li>• You may earn little or nothing from the network.</li>
+          </ul>
+          <button type="button" onClick={() => setExplainer(true)} className="text-xs font-bold text-emerald-700 underline">Read how the network works</button>
+          <label className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-3 text-xs text-slate-700">
+            <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-emerald-700" />
+            <span>I've read this and understand that membership is a cost and earnings aren't guaranteed.</span>
+          </label>
+        </>
       )}
+
+      <p className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500">Membership fees aren't refundable once paid. Your wallet after payment: {fmt(balance - plan.fee)}.</p>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setConfirming(false)} className="min-h-11 flex-1 rounded-xl bg-slate-100 text-sm font-bold text-slate-700">Cancel</button>
+        <button type="button" onClick={pay} disabled={first && !ack} className="min-h-11 flex-1 rounded-xl bg-emerald-700 text-sm font-black text-white disabled:opacity-40">Pay {fmt(plan.fee)}</button>
+      </div>
+    </div>
+  </div>
+)}
+{explainer && <NetworkExplainerSheet onClose={() => setExplainer(false)} fee={plan?.fee} planName={plan?.name} />}
     </div>
   );
 }
