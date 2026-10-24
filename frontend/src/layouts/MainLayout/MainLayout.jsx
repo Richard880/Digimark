@@ -9,6 +9,7 @@ import { captureReferral } from "../../utils/referral";
 import styles from "./MainLayout.module.css";
 import InstallPrompt from "../../pwa/InstallPrompt";
 import PWAStatus from "../../pwa/PWAStatus";
+import PushSync from "../../pwa/PushSync";
 
 
 export default function MainLayout() {
@@ -100,6 +101,7 @@ export default function MainLayout() {
       <Footer />
      <InstallPrompt />
       <PWAStatus />
+      <PushSync />
     </div>
   );
 }
