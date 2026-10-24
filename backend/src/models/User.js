@@ -36,6 +36,7 @@ const userSchema = new Schema(
     eligibilityCheckedAt: { type: Date, default: null },
     lastActiveDay: { type: String, default: null },
     chatSeenAt: { type: Date, default: null },
+    onboardingDismissedAt: { type: Date, default: null },
     lastChatEmailAt: { type: Date, default: null },
     chatEmailAlerts: { type: Boolean, default: true },
     activityScore: { type: Number, default: 0, min: 0, max: 5 },
