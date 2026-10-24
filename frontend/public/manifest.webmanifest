@@ -1,0 +1,24 @@
+{
+  "name": "Sokodigi",
+  "short_name": "Sokodigi",
+  "description": "Kenya's trusted digital market. Shop safely, sell confidently, grow together.",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#065f46",
+  "lang": "en-KE",
+  "categories": ["shopping", "business"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "MarketHub", "url": "/marketplace" },
+    { "name": "Wallet", "url": "/wallet" },
+    { "name": "Messages", "url": "/messages" }
+  ]
+}
