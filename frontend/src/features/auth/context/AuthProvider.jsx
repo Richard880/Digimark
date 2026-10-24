@@ -6,16 +6,16 @@ import { getMe, login as apiLogin, logout as apiLogout, destinationFor } from ".
 import { detachDevice } from "../../../pwa/push";
 
 const EMPTY = {
-  currentUser: null, // the Firebase user (use .getIdToken())
-  user: null,        // database user: accountCategory, membershipStatus, role...
-  profile: null,     // database profile: username, brandName, profilePhoto...
+  currentUser: null,     // The Firebase user object (call .getIdToken())
+  user: null,            // Database user account details (category, status, role)
+  profile: null,         // Database user profile (username, brand name, avatar image)
   role: null,
   permissions: [],
   loading: false,
-  authenticated: false, // true only when the Firebase login AND the database account both exist
+  authenticated: false,  // True only when both Firebase and internal database synchronization match
   synced: false,
-  loadError: null,      // set when the server was unreachable (the user stays signed in)
-  destination: "home",  // "home" | "membership" | "dashboard" | "suspended"
+  loadError: null,       // Network/Unreachable server fallback flag (maintains active login)
+  destination: "home",   // Routing targets: "home" | "membership" | "dashboard" | "suspended"
   referral: null,
 };
 
@@ -35,26 +35,27 @@ const build = (currentUser, data) => ({
 
 function AuthProvider({ children }) {
   const [auth, setAuth] = useState({ ...EMPTY, loading: true });
-  const seq = useRef(0); // only the newest request may update the state
+  const seq = useRef(0); // Sequence lock: blocks race conditions from overlapping updates
 
   const hydrate = useCallback(async (fbUser, { reload = false } = {}) => {
     const mine = ++seq.current;
     try {
       if (reload) {
         await fbUser.reload();
-        await fbUser.getIdToken(true); // so the token carries email_verified = true
+        await fbUser.getIdToken(true); // Refreshes token claims immediately (e.g. email_verified)
       }
       const data = await getMe();
       if (mine === seq.current) setAuth(build(fbUser, data));
       return data;
     } catch (e) {
       if (mine !== seq.current) return null;
+      
       if (e.status === 401 || e.code === "ACCOUNT_DISABLED") {
-        await apiLogout().catch(() => {}); // a real auth failure: sign out
+        await apiLogout().catch(() => {}); // Graceful exit on structural authorization failure
         setAuth({ ...EMPTY });
       } else {
-        // Server or network problem: stay signed in, show a retry state, never log the user out
-        console.error("Profile load failed:", e);
+        // Safe Fallback: Keeps user signed into Firebase but flags network connectivity errors
+        console.error("Profile synchronization fallback triggered:", e);
         setAuth({ ...EMPTY, currentUser: fbUser, loadError: "PROFILE_LOAD_FAILED" });
       }
       return null;
@@ -62,45 +63,64 @@ function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    return onAuthStateChanged(firebaseAuth, (fbUser) => {
+    const unsubscribe = onAuthStateChanged(firebaseAuth, async (fbUser) => {
       if (!fbUser) {
         ++seq.current;
         setAuth({ ...EMPTY });
         return;
       }
-      hydrate(fbUser); // read-only lookup: during signup it simply reports synced:false until sync finishes
+      // 🟢 Fix: Execute inside your sequential tracking scope safely
+      await hydrate(fbUser).catch((err) => console.error("AuthState hydration failure:", err));
     });
+
+    return () => unsubscribe();
   }, [hydrate]);
 
-  // login(email, password) or login({ email, password })
-const login = useCallback(async (a, b) => {
-  const creds = typeof a === "object" ? a : { email: a, password: b };
-  const data = await apiLogin(creds.email, creds.password, !!creds.rememberMe);
-  ++seq.current; // anything still loading is now stale
-  setAuth(build(firebaseAuth.currentUser, data));
-  return { user: data.user, destination: destinationFor(data.user) };
-}, []);
+  // Supports legacy destructured calls: login(email, password) or login({ email, password })
+  const login = useCallback(async (credentialsOrEmail, optionalPassword) => {
+    const creds = typeof credentialsOrEmail === "object" 
+      ? credentialsOrEmail 
+      : { email: credentialsOrEmail, password: optionalPassword };
 
- const logout = useCallback(async () => {
-  ++seq.current;
-  await detachDevice(); // while the sign-in still works, so the server can drop this phone
-   try { sessionStorage.removeItem("sokodigi_push_synced"); } catch { /* ignore */ }
-  await apiLogout();
-  setAuth({ ...EMPTY });
-}, []);
+    const data = await apiLogin(creds.email, creds.password, !!creds.rememberMe);
+    ++seq.current; // Immediately deprecate any resolving profile hydrations
+    setAuth(build(firebaseAuth.currentUser, data));
+    return { user: data.user, destination: destinationFor(data.user) };
+  }, []);
 
-  // refreshProfile(true) also reloads Firebase (after the user verifies their email)
-  const refreshProfile = useCallback(
-    async (a, b) => {
-      const fb = firebaseAuth.currentUser;
-      if (!fb) return null;
-      const data = await hydrate(fb, { reload: a === true || b === true });
-      return data?.profile ?? null;
-    },
-    [hydrate]
-  );
+  const logout = useCallback(async () => {
+    ++seq.current; // Cancel pending actions
+    
+    // Disconnect device tokens from push notifications before authorization breaks
+    await detachDevice().catch((err) => console.warn("Push token cleanup skipped:", err));
+    
+    try { 
+      sessionStorage.removeItem("sokodigi_push_synced"); 
+    } catch (e) {
+      /* Safe isolation for restrictive mobile sandbox environments */ 
+    }
+    
+    await apiLogout();
+    setAuth({ ...EMPTY });
+  }, []);
 
-  const value = useMemo(() => ({ auth, login, logout, refreshProfile }), [auth, login, logout, refreshProfile]);
+  // Force refreshes local context fields (useful for post-email verification workflows)
+  const refreshProfile = useCallback(async (forceReloadOption) => {
+    const fb = firebaseAuth.currentUser;
+    if (!fb) return null;
+    
+    const shouldReload = forceReloadOption === true || (typeof forceReloadOption === "object" && forceReloadOption?.reload);
+    const data = await hydrate(fb, { reload: !!shouldReload });
+    return data?.profile ?? null;
+  }, [hydrate]);
+
+  const value = useMemo(() => ({ 
+    auth, 
+    login, 
+    logout, 
+    refreshProfile 
+  }), [auth, login, logout, refreshProfile]);
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
