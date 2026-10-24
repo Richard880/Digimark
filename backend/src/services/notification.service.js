@@ -1,5 +1,7 @@
 const Notification = require("../models/Notification");
 const { EVENTS } = require("./notificationEvents");
+const { sendPush } = require("./push.service");
+
 
 let io = null;
 const init = (ioInstance) => { io = ioInstance; };
@@ -42,6 +44,8 @@ async function notify(type, recipients, ctx = {}, { actorId, includeActor = fals
         });
       }
     }
+    // ...inside notify(), right after the `if (io) { ... }` block:
+    await sendPush(docs); // awaited so serverless hosts don't cut it off; it never throws
     return docs;
   } catch (err) {
     console.error(`❌ [Notifications] ${type} failed:`, err.message);
