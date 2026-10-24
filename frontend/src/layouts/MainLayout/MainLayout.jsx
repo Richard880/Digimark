@@ -7,6 +7,9 @@ import Footer from "../Footer/Footer";
 import AuthModal from "../../features/auth/AuthModal";
 import { captureReferral } from "../../utils/referral";
 import styles from "./MainLayout.module.css";
+import InstallPrompt from "../../pwa/InstallPrompt";
+import PWAStatus from "../../pwa/PWAStatus";
+
 
 export default function MainLayout() {
   const { auth, logout } = useAuth();
@@ -95,6 +98,8 @@ export default function MainLayout() {
       </main>
 
       <Footer />
+     <InstallPrompt />
+      <PWAStatus />
     </div>
   );
 }
