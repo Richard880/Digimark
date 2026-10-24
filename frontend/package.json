@@ -30,7 +30,8 @@
     "react-router-dom": "^7.18.3",
     "zod": "^4.5.4",
     "socket.io-client": "^4.8.1",
-    "qrcode.react": "^4.2.0"
+    "qrcode.react": "^4.2.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
