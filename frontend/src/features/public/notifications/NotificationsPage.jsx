@@ -1,14 +1,12 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import apiClient from "../../../services/apiClient";
-import NotificationSettings from "../../../pwa/NotificationSettings"
+import NotificationSettings from "../../../pwa/NotificationSettings";
 
-const typeOf = (n) => String(n?.type || "");
 const isEscrow = (n) => n?.category === "ESCROW";
 
-
-// Only follow links inside the app, never external or script URLs
-const safeLink = (url) => (typeof url === "string" && url.startsWith("/") && !url.startsWith("//") ? url : "#");
+// Only follow links inside the app workspace layout, preventing third-party script vulnerabilities
+const safeLink = (url) => (typeof url === "string" && url.startsWith("/") && !url.startsWith("//") ? url : "");
 
 function formatWhen(value) {
   const d = new Date(value);
@@ -20,23 +18,28 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  const [filter, setFilter] = useState("ALL"); // ALL, ESCROW, MESSAGES
+  const [filter, setFilter] = useState("ALL"); // ALL | ESCROW | MESSAGES
 
   useEffect(() => {
     let cancelled = false;
+    
     (async () => {
       try {
         const { data } = await apiClient.get("/notifications");
         if (cancelled) return;
-        setNotifications(Array.isArray(data) ? data : data?.notifications || []);
+        
+        // 🟢 Robust Normalization fallback regardless of backend key structures
+        const list = Array.isArray(data) ? data : data?.notifications || [];
+        setNotifications(list);
         setLoadError(false);
       } catch (err) {
-        console.error("Failed to load notifications:", err);
+        console.error("Failed to fetch account notifications:", err);
         if (!cancelled) setLoadError(true);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
     })();
+
     return () => { cancelled = true; };
   }, []);
 
@@ -45,14 +48,27 @@ export default function NotificationsPage() {
       await apiClient.post("/notifications/mark-all-read");
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     } catch (err) {
-      console.error("Failed to update read states:", err);
+      console.error("Failed to bulk clear read states:", err);
+    }
+  };
+
+  // 🟢 Enhanced UX: Mark an individual item as read instantly upon tracking click action
+  const handleItemClick = async (notif) => {
+    if (notif.isRead) return;
+    const targetId = notif._id || notif.id;
+    try {
+      await apiClient.post(`/notifications/${targetId}/read`);
+      setNotifications((prev) =>
+        prev.map((n) => ((n._id || n.id) === targetId ? { ...n, isRead: true } : n))
+      );
+    } catch (err) {
+      console.error("Failed to dismiss single notification status:", err);
     }
   };
 
   const filteredNotifications = notifications.filter((n) => {
     if (filter === "ESCROW") return isEscrow(n);
-// ...in the filter:
-if (filter === "MESSAGES") return n.category === "MESSAGES";
+    if (filter === "MESSAGES") return n.category === "MESSAGES";
     return true;
   });
 
@@ -75,7 +91,11 @@ if (filter === "MESSAGES") return n.category === "MESSAGES";
           </button>
         )}
       </div>
-      <div className="mb-6"><NotificationSettings /></div>
+
+      <div className="mb-6">
+        <NotificationSettings />
+      </div>
+
       <div className="flex gap-2 mb-6 bg-slate-100 p-1 rounded-xl max-w-sm">
         {["ALL", "ESCROW", "MESSAGES"].map((tab) => (
           <button
@@ -107,36 +127,60 @@ if (filter === "MESSAGES") return n.category === "MESSAGES";
         <div className="space-y-3">
           {filteredNotifications.map((notif) => {
             const escrowAlert = isEscrow(notif);
+            const itemId = notif._id || notif.id; // 🟢 Robust mapping identifier fallback
+            const destinationUrl = safeLink(notif.actionUrl);
+            
+            // Layout wrapper block
+            const cardClasses = `block p-4 rounded-2xl border transition-all duration-200 text-left relative group ${
+              notif.isRead
+                ? "bg-white border-slate-100 hover:border-slate-200"
+                : "bg-gradient-to-r from-emerald-50/20 to-transparent border-emerald-100/70 hover:border-emerald-200"
+            }`;
+
+            const cardInnerContent = (
+              <div className="flex items-start gap-4">
+                <div
+                  className={`h-8 w-8 rounded-xl flex items-center justify-center text-xs shrink-0 ${
+                    escrowAlert ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-600"
+                  }`}
+                >
+                  {escrowAlert ? "💳" : "💬"}
+                </div>
+
+                <div className="flex-1 min-w-0 pr-4">
+                  <div className="flex items-center gap-2">
+                    <h3 className={`text-xs font-black tracking-tight ${notif.isRead ? "text-slate-800" : "text-slate-900"}`}>
+                      {notif.title}
+                    </h3>
+                    {!notif.isRead && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />}
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">{notif.message}</p>
+                  <span className="text-[10px] font-semibold text-slate-400 block mt-2">{formatWhen(notif.createdAt)}</span>
+                </div>
+              </div>
+            );
+
+            // 🟢 Conditional Rendering: Render as standard un-linked div if there is no redirect url path
+            if (!destinationUrl) {
+              return (
+                <div 
+                  key={itemId} 
+                  onClick={() => handleItemClick(notif)} 
+                  className={`${cardClasses} cursor-default`}
+                >
+                  {cardInnerContent}
+                </div>
+              );
+            }
+
             return (
               <Link
-                key={notif._id}
-                to={safeLink(notif.actionUrl)}
-                className={`block p-4 rounded-2xl border transition-all duration-200 text-left relative group ${
-                  notif.isRead
-                    ? "bg-white border-slate-100 hover:border-slate-200"
-                    : "bg-gradient-to-r from-emerald-50/20 to-transparent border-emerald-100/70 hover:border-emerald-200"
-                }`}
+                key={itemId}
+                to={destinationUrl}
+                onClick={() => handleItemClick(notif)}
+                className={cardClasses}
               >
-                <div className="flex items-start gap-4">
-                  <div
-                    className={`h-8 w-8 rounded-xl flex items-center justify-center text-xs shrink-0 ${
-                      escrowAlert ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-600"
-                    }`}
-                  >
-                    {escrowAlert ? "💳" : "💬"}
-                  </div>
-
-                  <div className="flex-1 min-w-0 pr-4">
-                    <div className="flex items-center gap-2">
-                      <h3 className={`text-xs font-black tracking-tight ${notif.isRead ? "text-slate-800" : "text-slate-900"}`}>
-                        {notif.title}
-                      </h3>
-                      {!notif.isRead && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />}
-                    </div>
-                    <p className="text-xs text-slate-500 font-medium leading-relaxed mt-1">{notif.message}</p>
-                    <span className="text-[10px] font-semibold text-slate-400 block mt-2">{formatWhen(notif.createdAt)}</span>
-                  </div>
-                </div>
+                {cardInnerContent}
               </Link>
             );
           })}
