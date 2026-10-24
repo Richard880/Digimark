@@ -60,6 +60,8 @@ const userSchema = new Schema(
 userSchema.index({ sponsorId: 1, membershipStartedAt: 1 });
 userSchema.index({ accountCategory: 1, membershipStatus: 1, eligibilityCheckedAt: 1 });
 
+userSchema.index({ referredBy: 1 });
+
 // Indexes (unique ones above already create theirs)
 userSchema.index({ sponsorId: 1 });
 userSchema.index({ parentId: 1 });
