@@ -31,7 +31,7 @@ async function pay(req, res) {
       return res.status(400).json({ error: "INVALID_PLAN" });
     }
 
-    const r = await payMembership({ userId: req.user._id, planKey, idempotencyKey: key });
+    const r = await payMembership({ userId: req.user._id, planKey, idempotencyKey: key, ack: req.body?.ack === true });
     return res.status(r.replay ? 200 : 201).json({
       ok: true, plan: r.plan, amount: r.amount, expiresAt: r.periodEnd, activated: !!r.activated,
     });
