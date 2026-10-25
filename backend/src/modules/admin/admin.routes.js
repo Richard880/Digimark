@@ -16,6 +16,7 @@ const { completeWithdrawal, failWithdrawal } = require("../wallet/withdraw.contr
 const { refundEscrowToBuyer, releaseEscrowToVendor, EscrowError } = require("../wallet/escrow.service");
 const Report = require("../../models/Report");
 const Dispute = require("../../models/Dispute");
+const ReconciliationRun = require("../../models/ReconciliationRun");
 
 
 const router = express.Router();
@@ -72,15 +73,28 @@ async function withNames(rows) {
 
 /* ───────── Overview ───────── */
 router.get("/overview", h(async (_req, res) => {
-  const [wd, tu, frozen, suspended] = await Promise.all([
+  // 1. Resolve all admin monitoring document checks concurrently
+  const [wd, tu, frozen, suspended, disputesOpen, recon, reportsOpen] = await Promise.all([
     Withdrawal.countDocuments(stuckWithdrawals()),
     MpesaTopUp.countDocuments(stuckTopups()),
     Wallet.countDocuments({ isFrozen: true }),
     User.countDocuments({ membershipStatus: "suspended" }),
-    disputesOpen
+    Dispute.countDocuments({ status: "open" }),
+    ReconciliationRun.findOne().sort({ at: -1 }).select("at ok issues").lean(),
+    Report.countDocuments({ status: "open" })
   ]);
-  res.json({ ok: true, withdrawalsNeedingAttention: wd, topupsNeedingAttention: tu, frozenWallets: frozen, suspendedMembers: suspended });
-  reportsOpen: await Report.countDocuments({ status: "open" })
+
+  // 2. Return clean, formatted tracking states to the admin panel UI layout
+  res.json({
+    ok: true,
+    withdrawalsNeedingAttention: wd,
+    topupsNeedingAttention: tu,
+    frozenWallets: frozen,
+    suspendedMembers: suspended,
+    disputesOpen,
+    reportsOpen,
+    reconciliation: recon ? { at: recon.at, ok: recon.ok, issues: recon.issues } : null
+  });
 }));
 
 /* ───────── Withdrawals ───────── */
@@ -156,11 +170,20 @@ router.post("/topups/:id/resolve", h(async (req, res) => {
 
   // The receipt has a unique index, so the same M-Pesa payment can never credit two wallets
   await mongoose.connection.transaction(async (session) => {
-    const flipped = await MpesaTopUp.findOneAndUpdate(
-      { _id: t._id, status: { $in: ["REVIEW", "PENDING"] } },
-      { $set: { status: "COMPLETED", completedAt: new Date(), mpesaReceipt: receipt } },
-      { new: true, session }
-    );
+   
+const flipped = await MpesaTopUp.findOneAndUpdate(
+  { _id: t._id, status: { $in: ["REVIEW", "PENDING"] } },
+  {
+    $set: {
+      status: "COMPLETED",
+      completedAt: new Date(),
+      mpesaReceipt: receipt,
+      amount,
+    },
+  },
+  { new: true, session }
+);
+
     if (!flipped) throw E("ALREADY_SETTLED", 409);
     const w = await Wallet.findOneAndUpdate(
       { userId: t.userId },
@@ -410,6 +433,9 @@ router.post("/disputes/:id/resolve", h(async (req, res) => {
   await audit(req, `dispute_${outcome}`, "dispute", d0._id, note, { order: d0.orderNumber, amount: d0.amount });
   res.json({ ok: true });
 }));
+
+
+
 
 
 module.exports = router;
