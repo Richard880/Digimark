@@ -479,6 +479,7 @@ export default function MyShopDashboard() {
               <p className={`mt-2 truncate text-2xl font-black ${tone}`}>{value}</p>
             </button>
           ))}
+          <PushAsk reason="Get alerted the moment a customer places an order, so you can confirm it fast." />
         </section>
 
         {loading ? (
