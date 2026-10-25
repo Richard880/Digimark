@@ -7,7 +7,8 @@ import { sizedImage } from "../../utils/image";
 import { uploadImageToCloudinary } from "../../utils/cloudinaryUploader";
 import AddProductModal from "./AddProductModal";
 import OnboardingChecklist from "../onboarding/OnboardingChecklist";
-import PushAsk from "../../pwa/PushAsk"
+import PushAsk from "../../pwa/PushAsk";
+import OrderDispute from "../orders/OrderDispute";
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -271,6 +272,7 @@ const STATUS = {
   DISPATCHED: ["On the way", "bg-sky-100 text-sky-800"],
   DELIVERED: ["Completed", "bg-emerald-100 text-emerald-800"],
   CANCELLED: ["Cancelled", "bg-slate-200 text-slate-600"],
+  DISPUTED: ["Disputed", "bg-rose-100 text-rose-800"]
 };
 
 function OrderCard({ o, busy, pin, setPin, onConfirm, onCancel, onVerify }) {
@@ -321,7 +323,9 @@ function OrderCard({ o, busy, pin, setPin, onConfirm, onCancel, onVerify }) {
           <button type="button" disabled={busy} onClick={() => onCancel(o)} className="text-[11px] font-bold text-red-600 underline">Cancel and refund the buyer</button>
         </div>
       )}
-
+      
+       <OrderDispute order={o} role="seller" onChanged={loadOrders} />
+      
       {o.orderStatus === "DELIVERED" && <p className="mt-3 text-xs font-bold text-emerald-700">✓ Delivered. {fmt(o.financials?.totalWholesaleToShop)} was added to your wallet.</p>}
 
       {["PROCESSING", "DISPATCHED"].includes(o.orderStatus) && (
@@ -432,7 +436,7 @@ export default function MyShopDashboard() {
 
   const shownOrders = orders.filter((o) => orderFilter === "all" || o.orderStatus === orderFilter);
 
-  const tabs = [["inventory", "📦", "Inventory", 0], ["orders", "📋", "Orders", stats.newOrders], ["sales", "🧾", "Sales", 0]];
+  const tabs = [["inventory", "📦", "Inventory", 0], ["orders", "📋", "Orders", stats.newOrders], ["sales", "🧾", "Sales", 0], ["DISPUTED", "Disputed"]];
   const chip = (active) => `shrink-0 rounded-full px-3.5 py-2 text-xs font-bold ${active ? "bg-emerald-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`;
 
   if (!myId) return null;
