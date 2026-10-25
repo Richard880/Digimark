@@ -222,10 +222,14 @@ export default function ProductDetails() {
 
           {notice && <p role="status" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-700">{notice}</p>}
 
-          {isOwner ? (
-            <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">This is your own product, so you can't order it. Customers see this page.</p>
-              <ShareButton type="product" targetIdentifier={product._id} />
-          ) : (
+         {isOwner ? (
+  <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
+    <p>This is your own product, so you cannot purchase it. Feel free to share it with your networks.</p>
+    <div className="mt-2">
+      <ShareButton type="product" targetIdentifier={product._id} />
+    </div>
+  </div>
+) : (
             <div className="mt-5 space-y-3">
         <ShareButton type="product" targetIdentifier={product._id} />
               <button type="button" onClick={handleBuy} disabled={soldOut}
