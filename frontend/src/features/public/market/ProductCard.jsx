@@ -86,23 +86,28 @@ export default function ProductCard({ product }) {
           {Number.isFinite(rating) && rating > 0 && <span className="font-bold text-slate-600"><span className="text-amber-500" aria-hidden="true">★</span> {rating.toFixed(1)}</span>}
         </div>
 
-        <div className="mt-auto pt-1">
-          <div className="flex flex-wrap items-baseline gap-x-2">
-            <span className="text-xl font-black tracking-tight text-emerald-900">{formatKsh(price)}</span>
-            {hasOffer && <span className="text-xs font-semibold text-slate-400 line-through">{formatKsh(originalPrice)}</span>}
+        <div className="mt-auto pt-2 flex items-end justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className="text-xl font-black tracking-tight text-emerald-900">{formatKsh(price)}</span>
+              {hasOffer && <span className="text-xs font-semibold text-slate-400 line-through">{formatKsh(originalPrice)}</span>}
+            </div>
+            
+            <p className="mt-0.5 text-[11px] font-semibold text-slate-500 truncate">
+              {delivery > 0 ? `+ ${formatKsh(delivery)} del.` : <span className="text-emerald-700">Free delivery</span>}
+              {inStock && stock > 5 && <span className="text-slate-400"> · {stock.toLocaleString("en-KE")} items</span>}
+            </p>
           </div>
-          <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
-            {delivery > 0 ? `+ ${formatKsh(delivery)} delivery` : <span className="text-emerald-700">Free delivery</span>}
-            {inStock && stock > 5 && <span className="text-slate-400"> · {stock.toLocaleString("en-KE")} in stock</span>}
-          </p>
-           <ShareButton type="product" targetIdentifier={product._id} />
+
+          {/* 🟢 FIXED: Isolated z-index container blocks click propagation up to the absolute link card layer */}
+          <div className="relative z-10 shrink-0 mb-0.5">
+            <ShareButton type="product" targetIdentifier={id} />
+          </div>
         </div>
         
-  
-        
-        {/* Visual button: the stretched link above handles the tap */}
+        {/* Visual button: the stretched link above handles the card tap */}
         <span aria-hidden="true"
-          className={`mt-1 inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-xs font-extrabold ${inStock ? "bg-emerald-700 text-white group-hover:bg-emerald-800" : "bg-slate-200 text-slate-500"}`}>
+          className={`mt-2 inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-xs font-extrabold ${inStock ? "bg-emerald-700 text-white group-hover:bg-emerald-800" : "bg-slate-200 text-slate-500"}`}>
           {inStock ? "Buy now" : "Sold out"}
         </span>
       </div>
