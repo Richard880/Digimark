@@ -98,10 +98,20 @@ async function listOrders(req, res) {
 
 /** POST /api/orders : price & stock from DB, funds -> escrow, all-or-nothing */
 async function createOrder(req, res) {
-  try {
+  let idemKey = null;
+  
+    // ...the rest of your existing code, unchanged...
+ try {
     const buyerId = req.user?._id;
     if (!buyerId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
 
+    idemKey = req.get("Idempotency-Key");
+    if (!/^[A-Za-z0-9_-]{16,64}$/.test(idemKey || "")) throw fail("IDEMPOTENCY_KEY_REQUIRED");
+    const prior = await Order.findOne({ buyerId, idempotencyKey: idemKey }).select("+escrowReleasePin orderNumber financials");
+    if (prior) {
+      return res.status(200).json({ ok: true, replay: true, order: { orderNumber: prior.orderNumber, totalAmountLocked: prior.financials.totalRetailPaid, deliveryReleasePin: prior.escrowReleasePin } });
+    }
+   
    const { productId, shareCode, shippingDetails: sd } = req.body || {};
     
   const quantity = req.body?.quantity === undefined ? 1 : req.body.quantity;
@@ -186,7 +196,9 @@ async function createOrder(req, res) {
             deliveryFeePaid: delivery,
           },
           orderStatus: "PROCESSING", // safe: funds are held in this same transaction
+          idempotencyKey: idemKey
         }],
+      
         { session }
       );
       return created;
@@ -204,7 +216,11 @@ async function createOrder(req, res) {
         deliveryReleasePin: order.escrowReleasePin, // shown to the buyer only
       },
     });
-  } catch (err) {
+    } catch (err) {
+    if (err.code === 11000 && idemKey) { // two identical requests arrived at once: the second one is rolled back, so return the first
+      const prior = await Order.findOne({ buyerId: req.user._id, idempotencyKey: idemKey }).select("+escrowReleasePin orderNumber financials");
+      if (prior) return res.status(200).json({ ok: true, replay: true, order: { orderNumber: prior.orderNumber, totalAmountLocked: prior.financials.totalRetailPaid, deliveryReleasePin: prior.escrowReleasePin } });
+    }
     return sendError(res, err, "createOrder");
   }
 }
