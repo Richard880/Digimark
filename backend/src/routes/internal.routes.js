@@ -2,6 +2,8 @@ const express = require("express");
 const crypto = require("crypto");
 const { runEligibilitySweep } = require("../modules/membership/eligibility.service");
 const { runExpirySweep } = require("../modules/membership/expiry.service");
+const { runOrderTimers } = require("../modules/order/orderTimers.service");
+const { runReconciliation } = require("../modules/admin/reconcile.service");
 
 const router = express.Router();
 
@@ -13,20 +15,37 @@ function authorized(req) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-// The one scheduled job (Vercel Cron sends "Authorization: Bearer <CRON_SECRET>")
+
+
+router.get("/orders", async (req, res) => {
+  if (!authorized(req)) return res.sendStatus(404);
+  try { return res.json({ ok: true, ...(await runOrderTimers(Number(process.env.CRON_BUDGET_MS) || 8000)) }); }
+  catch (e) { console.error("❌ order timers:", e.stack || e.message); return res.status(500).json({ error: "JOB_FAILED" }); }
+});
+
+router.get("/reconcile", async (req, res) => {
+  if (!authorized(req)) return res.sendStatus(404);
+  try { return res.json({ ok: true, ...(await runReconciliation()) }); }
+  catch (e) { console.error("❌ reconcile:", e.stack || e.message); return res.status(500).json({ error: "JOB_FAILED" }); }
+});
+
+// replace the existing /daily route
 router.get("/daily", async (req, res) => {
   if (!authorized(req)) return res.sendStatus(404);
   try {
     const total = Number(process.env.CRON_BUDGET_MS) || 8000;
-    const expiryBudget = Math.floor(total * 0.4);
-    const expiry = await runExpirySweep(expiryBudget);
-    const eligibility = await runEligibilitySweep(Math.max(1000, total - expiryBudget));
-    return res.json({ ok: true, expiry, eligibility });
+    const orders = await runOrderTimers(Math.floor(total * 0.4));
+    const expiry = await runExpirySweep(Math.floor(total * 0.2));
+    const eligibility = await runEligibilitySweep(Math.max(1000, Math.floor(total * 0.4)));
+    const reconciliation = await runReconciliation();
+    return res.json({ ok: true, orders, expiry, eligibility, reconciliation });
   } catch (e) {
     console.error("❌ daily job:", e.stack || e.message);
     return res.status(500).json({ error: "JOB_FAILED" });
   }
 });
+
+
 
 // Manual runs while testing
 router.get("/expiry", async (req, res) => {
