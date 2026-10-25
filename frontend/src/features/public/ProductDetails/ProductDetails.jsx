@@ -222,29 +222,29 @@ export default function ProductDetails() {
 
           {notice && <p role="status" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-700">{notice}</p>}
 
-         {isOwner ? (
+        
+{/* 🟢 UNIVERSAL SHARE BUTTON CONTAINER: Visible to any guest, customer, or owner */}
+<div className="mt-5">
+  <ShareButton type="product" targetIdentifier={product._id} />
+</div>
+
+{/* Action Panel for Buying / Store management notifications */}
+{isOwner ? (
   <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
     <p>This is your own product, so you cannot purchase it. Feel free to share it with your networks.</p>
-    <div className="mt-2">
-      <ShareButton type="product" targetIdentifier={product._id} />
-    </div>
   </div>
 ) : (
-            <div className="mt-5 space-y-3">
-        <ShareButton type="product" targetIdentifier={product._id} />
-              <button type="button" onClick={handleBuy} disabled={soldOut}
-                className="hidden min-h-12 w-full items-center justify-center rounded-xl bg-emerald-700 text-sm font-black text-white shadow-sm transition hover:bg-emerald-800 disabled:bg-slate-300 lg:flex">
-                {soldOut ? "Sold out" : `Buy now · ${fmt(total)}`}
-              </button>
-              <button type="button" onClick={handleChat}
-                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-emerald-800/20 bg-white text-sm font-bold text-emerald-900 transition hover:bg-emerald-50">
-                💬 Message the seller
-              </button>
-              
-              
-            </div>
-      
-          )}
+  <div className="mt-3 space-y-3">
+    <button type="button" onClick={handleBuy} disabled={soldOut}
+      className="hidden min-h-12 w-full items-center justify-center rounded-xl bg-emerald-700 text-sm font-black text-white shadow-sm transition hover:bg-emerald-800 disabled:bg-slate-300 lg:flex">
+      {soldOut ? "Sold out" : `Buy now · ${fmt(total)}`}
+    </button>
+    <button type="button" onClick={handleChat}
+      className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-emerald-800/20 bg-white text-sm font-bold text-emerald-900 transition hover:bg-emerald-50">
+      💬 Message the seller
+    </button>
+  </div>
+)}
           
         </div>
       </div>
