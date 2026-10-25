@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { productPath, profilePath } from "src/constants/routes";
+import { productPath, profilePath } from "../../../constants/routes";
 
 export default function ShareButton({ type, targetIdentifier }) {
   const [copied, setCopied] = useState(false);
