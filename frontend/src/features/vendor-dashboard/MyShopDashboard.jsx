@@ -7,6 +7,7 @@ import { sizedImage } from "../../utils/image";
 import { uploadImageToCloudinary } from "../../utils/cloudinaryUploader";
 import AddProductModal from "./AddProductModal";
 import OnboardingChecklist from "../onboarding/OnboardingChecklist";
+import PushAsk from "../../pwa/PushAsk"
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
