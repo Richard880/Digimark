@@ -24,6 +24,7 @@ async function evaluateUsers(users, now = new Date()) {
   const orderMatch = {
     isEscrowReleased: true,
     deliveredAt: { $gte: since },
+    settledBy: { $nin: ["auto", "admin"] },
     "financials.totalRetailPaid": { $gte: C.MIN_ORDER_AMOUNT },
   };
 
