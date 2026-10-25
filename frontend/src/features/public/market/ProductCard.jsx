@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { productPath } from "../../../constants/routes";
+import ShareButton from "../ProductDetails/ShareButton";
+
+function ProductCard({ product }) {
+  return (
+   
+  );
+}
+
 
 const formatKsh = (v) => `KSh ${Number(v || 0).toLocaleString("en-KE")}`;
 
@@ -95,7 +103,17 @@ export default function ProductCard({ product }) {
             {inStock && stock > 5 && <span className="text-slate-400"> · {stock.toLocaleString("en-KE")} in stock</span>}
           </p>
         </div>
-
+        
+             <div className="product-card border p-4 rounded-3xl">
+      <img src={product.image} alt={product.name} />
+      <h3>{product.name}</h3>
+      <div className="flex justify-between items-center mt-4">
+        <span className="font-bold">KES {product.price}</span>
+        {/* Pass the dynamic product ID directly */}
+        <ShareButton type="product" targetIdentifier={product._id} />
+      </div>
+    </div>
+        
         {/* Visual button: the stretched link above handles the tap */}
         <span aria-hidden="true"
           className={`mt-1 inline-flex min-h-11 items-center justify-center rounded-xl px-3 text-xs font-extrabold ${inStock ? "bg-emerald-700 text-white group-hover:bg-emerald-800" : "bg-slate-200 text-slate-500"}`}>
