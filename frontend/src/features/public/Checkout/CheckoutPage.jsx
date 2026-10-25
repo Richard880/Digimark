@@ -119,6 +119,7 @@ export default function CheckoutPage() {
     };
     return (
       <div className="mx-auto max-w-md space-y-5 px-4 py-8">
+        <PushAsk reason="Get an alert when the seller confirms your order and when it's on its way." />
         <Steps current={2} />
         <div className="text-center">
           <p className="text-4xl" aria-hidden="true">🎉</p>
