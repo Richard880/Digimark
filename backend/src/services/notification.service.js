@@ -1,6 +1,9 @@
 const Notification = require("../models/Notification");
 const { EVENTS } = require("./notificationEvents");
 const { sendPush } = require("./push.service");
+const User = require("../models/User");
+
+
 
 
 let io = null;
@@ -53,10 +56,19 @@ async function notify(type, recipients, ctx = {}, { actorId, includeActor = fals
   }
 }
 
+async function notifyAdmins(text) {
+  try {
+    const admins = await User.find({ role: { $in: ["admin", "super_admin"] }, isActive: true }).select("_id").lean();
+    return await notify("ADMIN_ALERT", admins.map((a) => a._id), { text });
+  } catch (e) { console.error("❌ notifyAdmins:", e.message); return []; }
+}
+
+
+
 const emitTo = (userId, event, payload) => {
   if (io) io.to(roomFor(userId)).emit(event, payload);
 };
 
-module.exports = { init, notify, roomFor, emitTo };
+module.exports = { init, notify, notifyAdmins, roomFor, emitTo };
 
 
