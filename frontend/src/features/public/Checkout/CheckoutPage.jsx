@@ -10,7 +10,6 @@ import PushAsk from "../../../pwa/PushAsk";
 const REF_RE = /^[A-Za-z0-9_-]{8,32}$/;
 const PHONE_RE = /^(?:\+?254|0)[17]\d{8}$/;
 
-
 const MESSAGES = {
   INSUFFICIENT_FUNDS: "Your wallet balance is too low for this order.",
   INSUFFICIENT_STOCK: "Sorry, there isn't enough stock left for that quantity.",
@@ -22,9 +21,9 @@ const MESSAGES = {
   INVALID_QUANTITY: "Please choose a valid quantity.",
   AMOUNT_TOO_SMALL: "This order amount is too small to process.",
   TOO_MANY_REQUESTS: "You're going too fast. Please wait a minute and try again.",
+  /* 🟢 FIX: Correctly balanced standard double quotes at both ends */
   NETWORK_ERROR: "We couldn’t confirm your order. It’s safe to tap Pay again: you won’t be charged twice.",
 };
-
 
 const fmt = (n) => `Ksh ${Number(n || 0).toLocaleString("en-KE")}`;
 
