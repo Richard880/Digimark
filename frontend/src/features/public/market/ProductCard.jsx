@@ -3,11 +3,7 @@ import { Link } from "react-router-dom";
 import { productPath } from "../../../constants/routes";
 import ShareButton from "../ProductDetails/ShareButton";
 
-function ProductCard({ product }) {
-  return (
-   
-  );
-}
+
 
 
 const formatKsh = (v) => `KSh ${Number(v || 0).toLocaleString("en-KE")}`;
