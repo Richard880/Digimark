@@ -17,6 +17,7 @@ const PAGES = {
       ["Acceptable use", "Do not sell illegal or counterfeit goods, harass others, attempt to defraud users, or misuse the platform. We may suspend accounts that break these rules."],
       ["Disputes and liability", "If there is a problem with an order, contact the seller first, then Sokodigi support. To the extent the law allows, Sokodigi is not liable for the quality of items sold by sellers or for losses from payments made outside the platform."],
       ["Changes", "We may update these terms. Continued use after an update means you accept it."],
+      ["Delivery protection, timers and disputes", "If a seller doesn't confirm a paid order within 48 hours, the order is cancelled and the buyer is refunded. After a seller confirms an order, the buyer has 7 days to give the delivery PIN or report a problem. If neither happens, the payment is released to the seller automatically. If a buyer or seller reports a problem, the payment is held while Sokodigi support reviews both sides and decides to refund the buyer or release to the seller. Our decision is final within the platform."],
     ],
   },
   privacy: {
