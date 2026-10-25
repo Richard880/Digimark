@@ -14,7 +14,7 @@ const ManualSale = require("../../models/ManualSale");
 // =========================================================================
 const VALID_PRODUCT_STATUSES = ["LISTED", "UNLISTED", "ACTIVE"];
 const VISIBLE = { status: { $in: ["LISTED", "ACTIVE"] }, isShelved: true }; // ACTIVE = legacy
-const OPEN_ORDER_STATES = ["PENDING_PAYMENT", "PROCESSING", "DISPATCHED"];
+const OPEN_ORDER_STATES = ["PENDING_PAYMENT", "PROCESSING", "DISPATCHED", "DISPUTED"];
 const ALWAYS_PRIVATE = ["wholesalePrice", "resellerWholesaleCost", "internalNotes", "metrics", "merchantId"];
 
 const MIN_PRICE = 50;
