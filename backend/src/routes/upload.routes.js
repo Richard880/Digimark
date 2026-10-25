@@ -16,7 +16,7 @@ cloudinary.config({
 
 const router = express.Router();
 
-const FOLDERS = { products: "sokodigi/products", profiles: "sokodigi/profiles", chat: "sokodigi/chat" };
+const FOLDERS = { products: "sokodigi/products", profiles: "sokodigi/profiles", chat: "sokodigi/chat", disputes: "sokodigi/disputes" };
 
 // Runs after authenticate, so each user gets their own allowance
 const signLimiter = rateLimit({
