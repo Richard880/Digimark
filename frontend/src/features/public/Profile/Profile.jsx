@@ -13,6 +13,7 @@ import AvatarMenuModal from "./AvatarMenuModal";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 
 import ShareButton from "../ProductDetails/ShareButton";
+import OrderDispute from "../../orders/OrderDispute";
 
 
 
@@ -35,6 +36,7 @@ const STATUS = {
   DISPATCHED: ["On the way", "bg-sky-100 text-sky-800"],
   DELIVERED: ["Completed", "bg-emerald-100 text-emerald-800"],
   CANCELLED: ["Cancelled", "bg-slate-200 text-slate-600"],
+  DISPUTED: ["Under review", "bg-rose-100 text-rose-800"]
 };
 
 const field = "min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-emerald-500 focus:outline-none";
@@ -178,6 +180,8 @@ function OrderCard({ order, myId, onChanged }) {
         <span className="font-black text-emerald-800">{amountLabel} {money(amount)}</span>
       </div>
 
+      {(role === "buyer" || role === "seller") && <OrderDispute order={order} role={role} onChanged={onChanged} />}
+      
       {role === "buyer" && open && (
         <div className="mt-3 space-y-2">
           <p className="text-[11px] leading-relaxed text-slate-500">
