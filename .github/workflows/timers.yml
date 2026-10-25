@@ -1,0 +1,14 @@
+name: order-timers
+on:
+  schedule:
+    - cron: "7 * * * *"   # hourly (GitHub may start it a few minutes late)
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run order timers
+        run: |
+          curl --fail --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/internal/orders"
