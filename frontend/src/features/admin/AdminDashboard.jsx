@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import apiClient from "../../services/apiClient";
+import { Link, useNavigate } from "react-router-dom";
+import ROUTES from "src/constants/routes"; // Verify this exact relative import path matches your directory
+
+
 
 const money = (n) => `Ksh ${Number(n || 0).toLocaleString()}`;
 const when = (d) => (d ? new Date(d).toLocaleString("en-KE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
@@ -65,7 +69,9 @@ export default function AdminDashboard() {
   const [dialog, setDialog] = useState(null);
   const [loadErr, setLoadErr] = useState("");
   const [reports, setReports] = useState([]); 
-  
+
+  const navigate = useNavigate();
+
  useEffect(() => {
   if (tab !== "reports") return;
 
@@ -117,31 +123,32 @@ export default function AdminDashboard() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
 
-      <div className="mb-4 flex flex-wrap gap-2">
-  <button
-    type="button"
-    onClick={() => window.history.back()}
-    className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-  >
-    ← Back
-  </button>
+    <div className="flex items-center gap-2">
+      {/* 1. Back Action: Best handled via state navigation history utilities */}
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+      >
+        ← Back
+      </button>
 
-  <button
-    type="button"
-    onClick={() => window.location.href = "/profile"}
-    className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700"
-  >
-    My Profile
-  </button>
+      {/* 2. My Profile link point using static ROUTES binding */}
+      <Link
+        to={ROUTES.MY_PROFILE}
+        className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 inline-block text-center"
+      >
+        My Profile
+      </Link>
 
-  <button
-    type="button"
-    onClick={() => window.location.href = "/"}
-    className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800"
-  >
-    MarketHub
-  </button>
-</div>
+      {/* 3. MarketHub link point using static HOME endpoint mapping */}
+      <Link
+        to={ROUTES.HOME}
+        className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800 inline-block text-center"
+      >
+        MarketHub
+      </Link>
+    </div>
       
       <h1 className="text-xl font-black text-slate-900">Admin</h1>
       {loadErr && <p role="alert" className="mt-2 text-xs font-bold text-red-600">Error: {loadErr}</p>}
