@@ -6,6 +6,7 @@ import ROUTES, { productPath } from "../../../constants/routes";
 import { sizedImage } from "../../../utils/image";
 import PushAsk from "../../../pwa/PushAsk";
 
+
 const REF_RE = /^[A-Za-z0-9_-]{8,32}$/;
 const PHONE_RE = /^(?:\+?254|0)[17]\d{8}$/;
 
@@ -20,7 +21,7 @@ const MESSAGES = {
   INVALID_QUANTITY: "Please choose a valid quantity.",
   AMOUNT_TOO_SMALL: "This order amount is too small to process.",
   TOO_MANY_REQUESTS: "You're going too fast. Please wait a minute and try again.",
-  NETWORK_ERROR: "We couldn't confirm your order. Before trying again, check your wallet balance: if it dropped, your order went through.",
+  NETWORK_ERROR: "We couldn’t confirm your order. It’s safe to tap Pay again: you won’t be charged twice.”,
 };
 
 const fmt = (n) => `Ksh ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -149,45 +150,87 @@ export default function CheckoutPage() {
     );
   }
 
-  const handlePlaceOrder = async (e) => {
-    e.preventDefault();
-    if (submitting.current) return; // a ref blocks a double-tap before state updates
-    setError(null);
+ const handlePlaceOrder = async (e) => {
+  e.preventDefault();
+  
+  // 1. Double-Tap Prevention Guard
+  if (submitting.current) return;
+  setError(null);
 
-    const fullName = form.fullName.trim();
-    const phone = form.phoneNumber.replace(/[\s-]/g, "");
-    const county = form.county.trim();
-    const subCounty = form.subCounty.trim();
-    if (!fullName || !county || !subCounty) return setError({ code: "SHIPPING_DETAILS_INVALID" });
-    if (!PHONE_RE.test(phone)) return setError({ code: "SHIPPING_DETAILS_INVALID", text: "Enter a valid Kenyan phone number, e.g. 0712345678." });
-    if (quantity > stock) return setError({ code: "INSUFFICIENT_STOCK" });
+  // 2. Client-Side Shipping & Data Validation Checks (Must run first!)
+  const fullName = form.fullName.trim();
+  const phone = form.phoneNumber.replace(/[\s-]/g, "");
+  const county = form.county.trim();
+  const subCounty = form.subCounty.trim();
+  
+  if (!fullName || !county || !subCounty) {
+    return setError({ code: "SHIPPING_DETAILS_INVALID", text: "Please fill out all required shipping details." });
+  }
+  if (!PHONE_RE.test(phone)) {
+    return setError({ code: "SHIPPING_DETAILS_INVALID", text: "Enter a valid Kenyan phone number, e.g. 0712345678." });
+  }
+  if (quantity > stock) {
+    return setError({ code: "INSUFFICIENT_STOCK", text: "Requested quantity exceeds available market stock." });
+  }
 
-    submitting.current = true;
-    setBusy(true);
-    try {
-      const { data } = await apiClient.post("/orders", {
+  // 3. Validation Passed: Engage Safe Processing Locks
+  submitting.current = true;
+  setBusy(true);
+
+  // 4. Idempotency Key Provisioning Scope
+  if (!keyRef.current) {
+    keyRef.current = crypto.randomUUID().replace(/-/g, "");
+  }
+
+  // 5. Execute Single Network Transaction Payload
+  try {
+    const formattedPhone = phone.startsWith("0") ? `254${phone.slice(1)}` : phone.replace(/^\+/, "");
+    
+    const { data } = await apiClient.post(
+      "/orders", 
+      {
         productId: product._id,
         quantity,
-        shareCode, // omitted when undefined. Prices and promoter ids are never sent.
+        shareCode, // Omitted gracefully on backend if undefined
         shippingDetails: {
           fullName,
-          phoneNumber: phone.startsWith("0") ? `254${phone.slice(1)}` : phone.replace(/^\+/, ""),
-          county, subCounty,
+          phoneNumber: formattedPhone,
+          county, 
+          subCounty,
           deliveryNotes: form.deliveryNotes.trim(),
         },
-      });
-      sessionStorage.removeItem(`sokodigi_ref_${product._id}`);
-      setPlaced(data.order);
-      window.scrollTo?.({ top: 0 });
-    } catch (err) {
-      console.error("Checkout submission failure:", err);
-      const d = err.response?.data || {};
-      setError(err.response ? { code: d.error || "REQUEST_FAILED", deficit: d.deficit, currentBalance: d.currentBalance } : { code: "NETWORK_ERROR" });
-    } finally {
-      submitting.current = false;
-      setBusy(false);
+      },
+      { 
+        headers: { "Idempotency-Key": keyRef.current } 
+      }
+    );
+
+    // Transaction Success: Clear keys and wipe context sessions safely
+    keyRef.current = null;
+    sessionStorage.removeItem(`sokodigi_ref_${product._id}`);
+    
+    setPlaced(data.order);
+    window.scrollTo?.({ top: 0, behavior: "smooth" });
+  } catch (err) {
+    console.error("Sokodigi checkout submission failure:", err);
+    
+    // 🟢 Keep the same Idempotency-Key on standard network fallbacks so a retry safely completes the transaction
+    if (err.response && (err.response.status === 400 || err.response.status === 422)) {
+      keyRef.current = null; // Wipe key ONLY on unrecoverable bad payload requests
     }
-  };
+
+    const d = err.response?.data || {};
+    setError(
+      err.response 
+        ? { code: d.error || "REQUEST_FAILED", deficit: d.deficit, currentBalance: d.currentBalance } 
+        : { code: "NETWORK_ERROR", text: "Network slow. Tap again to securely retry transaction tracking." }
+    );
+  } finally {
+    // Release view interactions regardless of mutation outcome status flags
+    submitting.current = false;
+    setBusy(false);
+  }
+};
 
   const input = "min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-emerald-500 focus:outline-none";
   const label = "mb-1 block text-[11px] font-bold uppercase text-slate-500";
