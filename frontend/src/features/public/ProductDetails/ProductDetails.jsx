@@ -4,6 +4,7 @@ import useAuth from "../../auth/hooks/useAuth";
 import apiClient from "../../../services/apiClient";
 import ROUTES from "../../../constants/routes";
 import { sizedImage } from "../../../utils/image";
+import ShareButton from "./ShareButton";
 
 const REF_RE = /^[A-Za-z0-9_-]{8,32}$/;
 const fmt = (n) => `Ksh ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -233,8 +234,21 @@ export default function ProductDetails() {
                 className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-emerald-800/20 bg-white text-sm font-bold text-emerald-900 transition hover:bg-emerald-50">
                 💬 Message the seller
               </button>
+              
+               <div className="product-card border p-4 rounded-3xl">
+      <img src={product.image} alt={product.name} />
+      <h3>{product.name}</h3>
+      <div className="flex justify-between items-center mt-4">
+        <span className="font-bold">KES {product.price}</span>
+        {/* Pass the dynamic product ID directly */}
+        <ShareButton type="product" targetIdentifier={product._id} />
+      </div>
+    </div>
+              
             </div>
+      
           )}
+          
         </div>
       </div>
 
