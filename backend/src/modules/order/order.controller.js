@@ -5,6 +5,8 @@ const Product = require("../../models/Product");
 const ShareLink = require("../../models/ShareLink");
 const { notify } = require("../../services/notification.service");
 const User = require("../../models/User");
+const C = require("../../config/orders");
+
 
 const {
   holdOrderFunds,
@@ -16,7 +18,7 @@ const {
 const MAX_QTY = 100;
 const MAX_PIN_ATTEMPTS = 5;
 const PIN_LOCK_MS = 15 * 60 * 1000;
-const STATUSES = ["PENDING_PAYMENT", "PROCESSING", "DISPATCHED", "DELIVERED", "CANCELLED"];
+const STATUSES = ["PENDING_PAYMENT", "PROCESSING", "DISPATCHED", "DISPUTED", "DELIVERED", "CANCELLED"];
 const OPEN = ["PROCESSING", "DISPATCHED"];
 
 const fail = (code, status = 400, extra) => new EscrowError(code, status, extra);
@@ -47,6 +49,19 @@ async function resolvePromoter(shareCode, productId, buyerId) {
   return link.promoterId;
 }
 
+
+const withDeadlines = (o) => {
+  const t = (d, ms) => (d ? new Date(new Date(d).getTime() + ms) : null);
+  return {
+    ...o,
+    deadlines: {
+      confirmBy: o.orderStatus === "PROCESSING" ? t(o.createdAt, C.CONFIRM_WINDOW_MS) : null,
+      autoReleaseAt: o.orderStatus === "DISPATCHED" ? t(o.dispatchedAt, C.PROTECTION_MS) : null,
+      sellerDisputeAt: o.orderStatus === "DISPATCHED" ? t(o.dispatchedAt, C.SELLER_DISPUTE_AFTER_MS) : null,
+    },
+  };
+};
+// then:  const safe = orders.map(withDeadlines).map((o) => same(o.buyerId, me) || same(o.sellerId, me) ? o : { ...o, shippingDetails: undefined, buyerId: undefined });
 /** GET /api/orders : orders where I am buyer, seller or promoter */
 async function listOrders(req, res) {
   try {
@@ -269,7 +284,7 @@ async function completeDelivery(req, res) {
       // The status flip is the lock: only one request can ever win this
       const claimed = await Order.findOneAndUpdate(
         { _id: order._id, isEscrowReleased: false, orderStatus: { $in: OPEN } },
-        { $set: { orderStatus: "DELIVERED", isEscrowReleased: true, deliveredAt: new Date(), pinAttempts: 0 } },
+        { $set: { orderStatus: "DELIVERED", isEscrowReleased: true, deliveredAt: new Date(), pinAttempts: 0, settledBy: "pin" } },
         { session }
       );
       if (!claimed) throw fail("ALREADY_FULFILLED", 409);
