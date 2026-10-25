@@ -64,12 +64,15 @@ const orderSchema = new mongoose.Schema(
       deliveryFeePaid: int({ default: 0 }),           // informational: included in retail, paid to seller
     },
 
-    orderStatus: {
-      type: String,
-      enum: ["PENDING_PAYMENT", "PROCESSING", "DISPATCHED", "DELIVERED", "CANCELLED"],
-      default: "PENDING_PAYMENT",
-      index: true,
-    },
+   orderStatus: { type: String, enum: ["PENDING_PAYMENT", "PROCESSING", "DISPATCHED", "DISPUTED", "DELIVERED", "CANCELLED"], default: "PENDING_PAYMENT", index: true },
+
+// add next to deliveredAt:
+cancelReason: { type: String, maxlength: 60 },
+settledBy: { type: String, enum: ["pin", "auto", "admin"] },
+statusBeforeDispute: String,
+disputeId: { type: mongoose.Schema.Types.ObjectId },
+reminders: { confirm: Date, deliver1: Date, deliver2: Date },
+idempotencyKey: { type: String, maxlength: 64, immutable: true },
     // Set to true ONLY inside the same transaction that releases escrow.
     // EscrowAccount.status is the source of truth.
     isEscrowReleased: { type: Boolean, default: false },
@@ -93,5 +96,9 @@ orderSchema.index({ buyerId: 1, deliveredAt: 1 });
 orderSchema.index({ sellerId: 1, orderStatus: 1 });
 orderSchema.index({ buyerId: 1, createdAt: -1 });
 orderSchema.index({ promoterId: 1, createdAt: -1 });
+// with the other indexes:
+orderSchema.index({ buyerId: 1, idempotencyKey: 1 }, { unique: true, partialFilterExpression: { idempotencyKey: { $type: "string" } } });
+orderSchema.index({ orderStatus: 1, createdAt: 1 });
+orderSchema.index({ orderStatus: 1, dispatchedAt: 1 });
 
 module.exports = mongoose.models.Order || mongoose.model("Order", orderSchema);
