@@ -3,9 +3,6 @@ import { Link } from "react-router-dom";
 import { productPath } from "../../../constants/routes";
 import ShareButton from "../ProductDetails/ShareButton";
 
-
-
-
 const formatKsh = (v) => `KSh ${Number(v || 0).toLocaleString("en-KE")}`;
 
 // Cloudinary can resize on the fly: smaller images load much faster on phones
@@ -98,17 +95,10 @@ export default function ProductCard({ product }) {
             {delivery > 0 ? `+ ${formatKsh(delivery)} delivery` : <span className="text-emerald-700">Free delivery</span>}
             {inStock && stock > 5 && <span className="text-slate-400"> · {stock.toLocaleString("en-KE")} in stock</span>}
           </p>
+           <ShareButton type="product" targetIdentifier={product._id} />
         </div>
         
-             <div className="product-card border p-4 rounded-3xl">
-      <img src={product.image} alt={product.name} />
-      <h3>{product.name}</h3>
-      <div className="flex justify-between items-center mt-4">
-        <span className="font-bold">KES {product.price}</span>
-        {/* Pass the dynamic product ID directly */}
-        <ShareButton type="product" targetIdentifier={product._id} />
-      </div>
-    </div>
+  
         
         {/* Visual button: the stretched link above handles the tap */}
         <span aria-hidden="true"
