@@ -4,7 +4,7 @@ import useAuth from "../../auth/hooks/useAuth";
 import apiClient from "../../../services/apiClient";
 import ROUTES, { productPath } from "../../../constants/routes";
 import { sizedImage } from "../../../utils/image";
-import PushAsk from "../../../pwa/PushAsk
+import PushAsk from "../../../pwa/PushAsk";
 
 const REF_RE = /^[A-Za-z0-9_-]{8,32}$/;
 const PHONE_RE = /^(?:\+?254|0)[17]\d{8}$/;
