@@ -13,8 +13,10 @@ const MpesaTopUp = require("../../models/MpesaTopUp");
 const AdminAction = require("../../models/AdminAction");
 const { notify } = require("../../services/notification.service");
 const { completeWithdrawal, failWithdrawal } = require("../wallet/withdraw.controller");
-const { refundEscrowToBuyer, EscrowError } = require("../wallet/escrow.service");
+const { refundEscrowToBuyer, releaseEscrowToVendor, EscrowError } = require("../wallet/escrow.service");
 const Report = require("../../models/Report");
+const Dispute = require("../../models/Dispute");
+
 
 const router = express.Router();
 const PLATFORM_ID = process.env.PLATFORM_WALLET_USER_ID;
@@ -75,6 +77,7 @@ router.get("/overview", h(async (_req, res) => {
     MpesaTopUp.countDocuments(stuckTopups()),
     Wallet.countDocuments({ isFrozen: true }),
     User.countDocuments({ membershipStatus: "suspended" }),
+    disputesOpen
   ]);
   res.json({ ok: true, withdrawalsNeedingAttention: wd, topupsNeedingAttention: tu, frozenWallets: frozen, suspendedMembers: suspended });
   reportsOpen: await Report.countDocuments({ status: "open" })
@@ -345,5 +348,68 @@ router.post("/reports/:id/resolve", h(async (req, res) => {
 router.get("/audit", h(async (_req, res) => {
   res.json({ ok: true, items: await AdminAction.find().sort({ createdAt: -1 }).limit(100).select("-__v").lean() });
 }));
+
+
+/* ───────── Disputes ───────── */
+router.get("/disputes", h(async (req, res) => {
+  const status = ["open", "withdrawn", "refunded", "released"].includes(req.query.status) ? req.query.status : "open";
+  const rows = await Dispute.find({ status }).sort({ createdAt: 1 }).limit(50).select("-__v").lean();
+  const since = new Date(Date.now() - 90 * 86400000);
+  const [byBuyer, bySeller, profs] = await Promise.all([
+    Dispute.aggregate([{ $match: { createdAt: { $gte: since }, buyerId: { $in: rows.map((r) => r.buyerId) } } }, { $group: { _id: "$buyerId", n: { $sum: 1 } } }]),
+    Dispute.aggregate([{ $match: { createdAt: { $gte: since }, sellerId: { $in: rows.map((r) => r.sellerId) } } }, { $group: { _id: "$sellerId", n: { $sum: 1 } } }]),
+    UserProfile.find({ userId: { $in: rows.flatMap((r) => [r.buyerId, r.sellerId]) } }).select("userId username brandName displayName").lean(),
+  ]);
+  const nm = new Map(profs.map((p) => [String(p.userId), p.brandName || p.displayName || p.username]));
+  const nb = new Map(byBuyer.map((x) => [String(x._id), x.n]));
+  const ns = new Map(bySeller.map((x) => [String(x._id), x.n]));
+  res.json({
+    ok: true,
+    items: rows.map((r) => ({
+      ...r,
+      buyerName: nm.get(String(r.buyerId)) || String(r.buyerId),
+      sellerName: nm.get(String(r.sellerId)) || String(r.sellerId),
+      buyerDisputes90d: nb.get(String(r.buyerId)) || 0,    // a high count can mean abuse
+      sellerDisputes90d: ns.get(String(r.sellerId)) || 0,  // a high count can mean a bad seller
+    })),
+  });
+}));
+
+// body: { outcome: "refund" | "release", note }
+router.post("/disputes/:id/resolve", h(async (req, res) => {
+  if (!isId(req.params.id)) throw E("INVALID_ID");
+  const note = reason(req.body?.note);
+  if (!note) throw E("NOTE_REQUIRED");
+  const outcome = req.body?.outcome;
+  if (!["refund", "release"].includes(outcome)) throw E("INVALID_ACTION");
+
+  const d0 = await Dispute.findById(req.params.id).lean();
+  if (!d0) throw E("NOT_FOUND", 404);
+  if (same(d0.buyerId, req.user._id) || same(d0.sellerId, req.user._id)) throw E("CANNOT_RESOLVE_OWN_REQUEST", 403);
+
+  await mongoose.connection.transaction(async (session) => {
+    const d = await Dispute.findOneAndUpdate(
+      { _id: d0._id, status: "open" },
+      { $set: { status: outcome === "refund" ? "refunded" : "released", resolution: { by: req.user._id, note, at: new Date() } },
+        $push: { messages: { by: "admin", userId: req.user._id, text: `Decision: ${outcome === "refund" ? "refund to the buyer" : "release to the seller"}. ${note}`.slice(0, 1000), images: [], createdAt: new Date() } } },
+      { session }
+    );
+    if (!d) throw E("ALREADY_SETTLED", 409);
+    const set = outcome === "refund"
+      ? { orderStatus: "CANCELLED", cancelledAt: new Date(), cancelReason: "DISPUTE_REFUND" }
+      : { orderStatus: "DELIVERED", isEscrowReleased: true, deliveredAt: new Date(), settledBy: "admin" };
+    const o = await Order.findOneAndUpdate({ _id: d0.orderId, orderStatus: "DISPUTED", isEscrowReleased: false }, { $set: set }, { session });
+    if (!o) throw E("ORDER_NOT_DISPUTED", 409);
+    if (outcome === "refund") await refundEscrowToBuyer(o._id, session); // no automatic restock: the item may have shipped
+    else await releaseEscrowToVendor(o._id, session);
+  });
+
+  const ctx = { orderId: d0.orderId, orderRef: d0.orderNumber, amount: d0.amount, outcome };
+  await notify("DISPUTE_RESOLVED", d0.buyerId, { ...ctx, audience: "buyer" });
+  await notify("DISPUTE_RESOLVED", d0.sellerId, { ...ctx, audience: "seller" });
+  await audit(req, `dispute_${outcome}`, "dispute", d0._id, note, { order: d0.orderNumber, amount: d0.amount });
+  res.json({ ok: true });
+}));
+
 
 module.exports = router;
