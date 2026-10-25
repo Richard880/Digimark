@@ -12,6 +12,10 @@ import LegDistributionCards from "../../vendor-dashboard/LegDistributionCards";
 import AvatarMenuModal from "./AvatarMenuModal";
 import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 
+import ShareButton from "../ProductDetails/ShareButton";
+
+
+
 const money = (n) => `KSh ${Number(n || 0).toLocaleString("en-KE")}`;
 const idOf = (v) => String(v?._id ?? v ?? "");
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
@@ -54,6 +58,20 @@ function Sheet({ title, onClose, children }) {
     </div>
   );
 }
+
+function ShopProfileHeader({ memberProfile }) {
+  return (
+    <div className="bg-slate-50 p-6 rounded-3xl border flex justify-between items-center">
+      <div>
+        <h2 className="text-xl font-black">{memberProfile.brandName || "Member Shop"}</h2>
+        <p className="text-xs text-slate-400">@{memberProfile.username}</p>
+      </div>
+      {/* Pass the vendor's username directly */}
+      <ShareButton type="profile" targetIdentifier={memberProfile.username} />
+    </div>
+  );
+}
+
 
 /* ───────── Edit profile ───────── */
 function EditProfileSheet({ brand, isMarketer, onClose, onSaved }) {
