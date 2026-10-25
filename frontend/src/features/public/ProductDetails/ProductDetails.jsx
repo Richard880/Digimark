@@ -224,8 +224,10 @@ export default function ProductDetails() {
 
           {isOwner ? (
             <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">This is your own product, so you can't order it. Customers see this page.</p>
+              <ShareButton type="product" targetIdentifier={product._id} />
           ) : (
             <div className="mt-5 space-y-3">
+        <ShareButton type="product" targetIdentifier={product._id} />
               <button type="button" onClick={handleBuy} disabled={soldOut}
                 className="hidden min-h-12 w-full items-center justify-center rounded-xl bg-emerald-700 text-sm font-black text-white shadow-sm transition hover:bg-emerald-800 disabled:bg-slate-300 lg:flex">
                 {soldOut ? "Sold out" : `Buy now · ${fmt(total)}`}
@@ -235,15 +237,6 @@ export default function ProductDetails() {
                 💬 Message the seller
               </button>
               
-               <div className="product-card border p-4 rounded-3xl">
-      <img src={product.image} alt={product.name} />
-      <h3>{product.name}</h3>
-      <div className="flex justify-between items-center mt-4">
-        <span className="font-bold">KES {product.price}</span>
-        {/* Pass the dynamic product ID directly */}
-        <ShareButton type="product" targetIdentifier={product._id} />
-      </div>
-    </div>
               
             </div>
       
