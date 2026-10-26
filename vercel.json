@@ -31,34 +31,30 @@
       }
     },
     {
-      "src": "/backend/api/index.cjs",
+
+      "src": "backend/api/index.cjs",
       "use": "@vercel/node"
     }
   ],
   "rewrites": [
     {
-
+      
       "source": "/cloudinary-assets/:path*",
       "destination": "https://cloudinary.com*"
     },
     {
-   
+      
       "source": "/api/(.*)",
-      "destination": "/backend/api/index.cjs"
+      "destination": "backend/api/index.cjs"
     },
- {
+    {
       "source": "/icons/(.*)",
       "destination": "/icons/$1"
     },
-   
     {
-      "source": "/((?!api|icons|cloudinary-assets).*)" ,
+
+      "source": "/((?!api|icons|cloudinary-assets).*)",
       "destination": "/index.html"
-    },
-    
-    {
-      "source": "/(.*)",
-      "destination": "/frontend/$1"
     }
   ]
 }
