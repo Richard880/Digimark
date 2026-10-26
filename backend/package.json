@@ -1,16 +1,10 @@
 {
   "name": "sokodigi-backend",
   "version": "1.0.0",
-  "description": "Sokodigi Hybrid Market Engine Backend API",
-  "main": "api/index.js",
-  "type": "module",
   "private": true,
-  "scripts": {
-    "start": "node api/index.js",
-    "dev": "nodemon api/index.js",
-    "build": "echo 'Backend build complete'",
-    "migrate:products": "node scripts/migrateJsonProducts.js"
-  },
+  "main": "server.js",
+  
+  "type": "commonjs",
   "dependencies": {
     "@upstash/ratelimit": "^2.2.0",
     "@upstash/redis": "^1.39.0",
@@ -18,18 +12,16 @@
     "cloudinary": "^2.5.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1",
+    "express": "^4.19.2",
     "express-rate-limit": "^7.2.0",
     "firebase-admin": "^13.5.0",
     "flexsearch": "^0.8.212",
     "fs-extra": "^11.4.0",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.9.5",
-    "multer": "^2.3.0",
-    "sharp": "^0.35.4",
+    "mongoose": "^8.3.1",
+    "multer": "^2.3.0-goforbroke",
+    "sharp": "^0.33.3",
+    "socket.io": "^4.8.3",
     "web-push": "^3.6.7"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
   }
 }
