@@ -41,7 +41,8 @@ const TYPE = {
   breakage: ["🏦", "Unclaimed commission"],
 };
 
-const WITHDRAWAL_STATUS = { PENDING_PAYOUT: "Sending", SUBMITTED: "Sent to M-Pesa", COMPLETED: "Paid", FAILED: "Failed, refunded", REVIEW: "Under review" };
+const WITHDRAWAL_STATUS = { PENDING_PAYOUT: "Sending", SUBMITTED: "Sent to M-Pesa", COMPLETED: "Paid", FAILED: "Failed, refunded", REVIEW: "Under review", 
+AWAITING_APPROVAL: "Awaiting approval", };
 
 function errText(err) {
   if (!err.response) return MESSAGES.NETWORK_ERROR;
@@ -158,10 +159,15 @@ export default function Wallet() {
     setWithdrawBusy(true); setWithdrawNote(null);
     if (!withdrawKey.current) withdrawKey.current = crypto.randomUUID().replace(/-/g, "");
     try {
-      await apiClient.post("/wallet/withdraw", { amount }, { headers: { "Idempotency-Key": withdrawKey.current } });
-      withdrawKey.current = null;
-      setWithdrawAmount("");
-      setWithdrawNote({ type: "ok", text: "Withdrawal started. The money reaches your M-Pesa within a few minutes." });
+     const { data } = await apiClient.post("/wallet/withdraw", { amount }, { headers: { "Idempotency-Key": withdrawKey.current } });
+        withdrawKey.current = null;
+        setWithdrawAmount("");
+        setWithdrawNote({
+          type: "ok",
+          text: data.withdrawal?.status === "AWAITING_APPROVAL"
+            ? "Large withdrawals are checked by our team for your safety. Yours was received and is usually approved within a few hours."
+            : "Withdrawal started. The money reaches your M-Pesa within a few minutes.",
+        });
       await load();
     } catch (err) {
       console.error("Withdrawal failed:", err);
