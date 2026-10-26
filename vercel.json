@@ -50,6 +50,10 @@
       "source": "/icons/(.*)",
       "destination": "/frontend/icons/$1"
     },
+     {
+      "source": "/((?!api|icons|cloudinary-assets).*)" ,
+      "destination": "/frontend/index.html"
+    },
     {
       "source": "/(.*)",
       "destination": "/frontend/$1"
