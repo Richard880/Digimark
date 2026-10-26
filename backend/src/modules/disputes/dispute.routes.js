@@ -5,7 +5,7 @@ const { perUser } = require("../../middleware/limits");
 const Order = require("../../models/Order");
 const Dispute = require("../../models/Dispute");
 const { notify, notifyAdmins } = require("../../services/notification.service");
-const C = require("../../config/orders");
+const C = require("../config/orders");
 
 const router = express.Router();
 const BUYER_REASONS = ["not_received", "not_as_described", "damaged", "other"];
