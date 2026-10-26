@@ -1,6 +1,8 @@
 const express = require("express");
 const rateLimit = require("express-rate-limit"); // npm i express-rate-limit
 const router = express.Router();
+const mpesaIp = require("../../middleware/mpesaIp");
+
 
 const {
   getMyWalletDetails,
@@ -106,5 +108,8 @@ if (process.env.NODE_ENV !== "production" || process.env.ALLOW_DEV_TOPUP === "tr
 router.post("/pay-callback/:secret", mpesaCallback);
 router.post("/b2c-result/:secret", b2cResult);
 router.post("/b2c-timeout/:secret", b2cTimeout);
+router.post("/pay-callback/:secret", mpesaIp, mpesaCallback);
+router.post("/b2c-result/:secret", mpesaIp, b2cResult);
+router.post("/b2c-timeout/:secret", mpesaIp, b2cTimeout);
 
 module.exports = router;
