@@ -6,7 +6,7 @@ const Order = require("../../models/Order");
 const Dispute = require("../../models/Dispute");
 const ReconciliationRun = require("../../models/ReconciliationRun");
 const { notifyAdmins } = require("../../services/notification.service");
-const C = require("../../config/orders");
+const C = require("../config/orders");
 
 const H = 3600 * 1000, D = 24 * H;
 const total = (rows, k = "total") => rows[0]?.[k] || 0;
