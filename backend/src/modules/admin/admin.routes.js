@@ -47,8 +47,14 @@ const h = (fn) => async (req, res) => {
 };
 
 // Anyone who isn't a verified admin gets the same 404 as a page that doesn't exist
-const adminOnly = (req, res, next) =>
-  ADMIN_ROLES.includes(req.user?.role) && req.firebaseUser?.email_verified ? next() : res.sendStatus(404);
+const adminOnly = (req, res, next) => {
+  if (!ADMIN_ROLES.includes(req.user?.role) || !req.firebaseUser?.email_verified) return res.sendStatus(404);
+  // Once admins use a second factor, require it for every admin request
+  if (process.env.ADMIN_REQUIRE_MFA === "true" && !req.firebaseUser?.firebase?.sign_in_second_factor) {
+    return res.status(403).json({ error: "MFA_REQUIRED" });
+  }
+  next();
+};
 
 router.use(authenticate.strict, adminOnly,
   rateLimit({ windowMs: 60 * 1000, limit: 90, keyGenerator: (req) => String(req.user._id), message: { error: "TOO_MANY_REQUESTS" } }));
