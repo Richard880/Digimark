@@ -41,7 +41,7 @@
       }
     },
     {
-      "src": "backend/api/index.js",
+      "src": "backend/api/index.cjs",
       "use": "@vercel/node"
     }
   ],
@@ -52,7 +52,7 @@
     },
     {
       "source": "/api/(.*)",
-      "destination": "/backend/api/index.js"
+      "destination": "/backend/api/index.cjs"
     },
     {
       "source": "/icons/(.*)",
