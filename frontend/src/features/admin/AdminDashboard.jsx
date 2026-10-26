@@ -69,6 +69,9 @@ export default function AdminDashboard() {
   const [dialog, setDialog] = useState(null);
   const [loadErr, setLoadErr] = useState("");
   const [reports, setReports] = useState([]); 
+  const [disputes, setDisputes] = useState([]);
+  
+
 
   const navigate = useNavigate();
 
@@ -87,6 +90,11 @@ export default function AdminDashboard() {
 
   loadReports();
 }, [tab]);
+
+  const loadDisputes = useCallback(async () => {
+  try { setDisputes((await apiClient.get("/admin/disputes")).data.items); } catch (e) { setLoadErr(errCode(e)); }
+}, []);
+useEffect(() => { if (tab === "disputes") loadDisputes(); }, [tab, loadDisputes]);
 
   const loadAttention = useCallback(async () => {
     try {
@@ -112,6 +120,7 @@ export default function AdminDashboard() {
   const done = () => {
     setDialog(null);
     loadAttention();
+    if (tab === "disputes") loadDisputes();
     if (member) openMember(member.user._id);
   };
 
@@ -153,16 +162,64 @@ export default function AdminDashboard() {
       <h1 className="text-xl font-black text-slate-900">Admin</h1>
       {loadErr && <p role="alert" className="mt-2 text-xs font-bold text-red-600">Error: {loadErr}</p>}
 
-      {overview && (
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[["Withdrawals to check", overview.withdrawalsNeedingAttention], ["Top-ups to check", overview.topupsNeedingAttention],
-            ["Frozen wallets", overview.frozenWallets], ["Suspended members", overview.suspendedMembers]].map(([l, v]) => (
-            <div key={l} className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-[10px] font-black uppercase text-slate-400">{l}</p>
-              <p className={`mt-1 text-2xl font-black ${v > 0 ? "text-amber-600" : "text-slate-900"}`}>{v}</p>
-            </div>
-          ))}
+{overview && (
+  <div className="space-y-4">
+    {/* 1. Metric Counts Row Grid Container */}
+    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {[
+        ["Withdrawals to check", overview.withdrawalsNeedingAttention], 
+        ["Top-ups to check", overview.topupsNeedingAttention],
+        ["Frozen wallets", overview.frozenWallets], 
+        ["Suspended members", overview.suspendedMembers]
+      ].map(([label, value]) => (
+        <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4">
+          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</p>
+          <p className={`mt-1 text-2xl font-black tabular-nums ${value > 0 ? "text-amber-600" : "text-slate-900"}`}>
+            {value}
+          </p>
         </div>
+      ))}
+    </div>
+
+    {/* 2. Full-Width Automated Accounting Reconciliation Alert Panel */}
+    <div className="mt-2">
+      {overview.reconciliation ? (
+        (!overview.reconciliation.ok || overview.reconciliation.issues?.length > 0) && (
+          <div 
+            role="alert" 
+            className={`rounded-2xl border p-4 text-xs font-semibold shadow-xs ${
+              overview.reconciliation.ok 
+                ? "border-amber-200 bg-amber-50/70 text-amber-900" 
+                : "border-rose-200 bg-rose-50/70 text-rose-900"
+            }`}
+          >
+            <p className="font-black text-sm tracking-tight">
+              {overview.reconciliation.ok ? "⚠️ Daily Check: Accounting Warnings" : "🚨 Daily Money Check FAILED"} 
+              <span className="font-semibold text-slate-400 text-[11px] block sm:inline sm:ml-2">
+                · {when(overview.reconciliation.at)}
+              </span>
+            </p>
+            
+            {overview.reconciliation.issues?.length > 0 && (
+              <ul className="mt-2 list-disc pl-4 space-y-1 text-slate-700 font-medium">
+                {overview.reconciliation.issues.map((issue) => (
+                  <li key={issue.code || issue.detail}>{issue.detail}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )
+      ) : (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center">
+          <p className="text-xs font-semibold text-slate-400">
+            The daily automated audit check hasn't executed yet.
+          </p>
+        </div>
+      )}
+    </div>
+  </div>
+)}
+</div>
       )}
 
      
@@ -170,6 +227,7 @@ export default function AdminDashboard() {
   {tabBtn("attention", "Needs attention")}
   {tabBtn("members", "Members")}
   {tabBtn("audit", "Audit log")}
+  {tabBtn("disputes", `Disputes${overview?.disputesOpen ? ` (${overview.disputesOpen})` : ""}`)} 
   {tabBtn("reports", "Reports")}
 </div>
 
@@ -188,6 +246,19 @@ export default function AdminDashboard() {
                     <p className="font-mono text-[10px] text-slate-400">{w.originatorConversationId}</p>
                   </div>
                   <div className="flex gap-2">
+  {w.status === "AWAITING_APPROVAL" ? (
+    <>
+      <button className={`${btn} bg-emerald-600 text-white`} onClick={() => setDialog({
+        title: `Approve ${money(w.amount)} to ${w.who}`, confirm: "Approve and send",
+        warn: "Check the account's recent activity first. This sends real money to the saved phone number.",
+        url: `/admin/withdrawals/${w._id}/approve`, body: {} })}>Approve</button>
+      <button className={`${btn} bg-red-600 text-white`} onClick={() => setDialog({
+        title: "Reject this withdrawal", confirm: "Reject and refund", danger: true,
+        warn: "The money goes back to the member's wallet.",
+        url: `/admin/withdrawals/${w._id}/reject`, body: {} })}>Reject</button>
+    </>
+  ) : (
+    <> <div className="flex gap-2">
                     <button className={`${btn} bg-emerald-600 text-white`} onClick={() => setDialog({
                       title: `Mark ${money(w.amount)} as paid`, confirm: "Mark paid", optionalReceipt: true,
                       warn: "Only if the M-Pesa portal shows this money REACHED the phone.",
@@ -196,7 +267,9 @@ export default function AdminDashboard() {
                       title: `Refund ${money(w.amount)} to the wallet`, confirm: "Refund", danger: true,
                       warn: "Only if the M-Pesa portal shows the money was NOT sent. Refunding a payment that went out loses money.",
                       url: `/admin/withdrawals/${w._id}/resolve`, body: { action: "refund" } })}>Refund</button>
-                  </div>
+                  </div> </>
+  )}
+</div>
                 </Row>
               ))}
             </ul>
@@ -299,6 +372,47 @@ export default function AdminDashboard() {
           )}
         </div>
       )}
+
+{tab === "disputes" && (
+  <ul className="mt-5 space-y-3">
+    {disputes.length === 0 && <p className="text-xs text-slate-400">No open disputes.</p>}
+    {disputes.map((d) => (
+      <li key={d._id} className="space-y-3 rounded-xl border border-slate-100 bg-white p-4 text-xs">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-black text-slate-900">Order #{d.orderNumber} · {money(d.amount)}</p>
+            <p className="text-slate-500">Opened by the {d.openedByRole} · {d.reason.replace(/_/g, " ")} · {when(d.createdAt)}</p>
+            <p className="text-slate-500">Buyer: {d.buyerName} ({d.buyerDisputes90d} in 90 days) · Seller: {d.sellerName} ({d.sellerDisputes90d} in 90 days)</p>
+          </div>
+          <div className="flex gap-2">
+            <button className={`${btn} bg-red-600 text-white`} onClick={() => setDialog({
+              title: "Refund the buyer", confirm: "Refund buyer", danger: true,
+              warn: "The buyer gets all their money back and the seller gets nothing. Stock is NOT restocked automatically.",
+              url: `/admin/disputes/${d._id}/resolve`, body: { outcome: "refund" } })}>Refund buyer</button>
+            <button className={`${btn} bg-emerald-600 text-white`} onClick={() => setDialog({
+              title: "Release to the seller", confirm: "Release payment",
+              warn: "The seller is paid and the order is closed.",
+              url: `/admin/disputes/${d._id}/resolve`, body: { outcome: "release" } })}>Release to seller</button>
+          </div>
+        </div>
+        <ul className="space-y-2">
+          {d.messages.map((m, i) => (
+            <li key={i} className={`rounded-lg p-3 ${m.by === "admin" ? "bg-emerald-50" : "bg-slate-50"}`}>
+              <p className="mb-1 text-[10px] font-black uppercase text-slate-400">{m.by} · {when(m.createdAt)}</p>
+              {m.text && <p className="whitespace-pre-line text-slate-800">{m.text}</p>}
+              {m.images?.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {m.images.map((u) => <a key={u} href={u} target="_blank" rel="noopener noreferrer"><img src={u} alt="Evidence" className="h-16 w-16 rounded-lg object-cover" /></a>)}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </li>
+    ))}
+  </ul>
+)}
+
 
       {tab === "audit" && (
         <ul className="mt-5 space-y-2">
