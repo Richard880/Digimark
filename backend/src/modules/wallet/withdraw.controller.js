@@ -4,6 +4,9 @@ const Wallet = require("../../models/Wallet");
 const Withdrawal = require("../../models/Withdrawal");
 const { darajaFetch, getAccessToken, normalizePhone, safeEq } = require("./wallet.controller");
 const UserProfile = require("../../models/UserProfile.js");
+const { notifyAdmins } = require("../../services/notification.service");
+
+const APPROVAL_THRESHOLD = Number(process.env.WITHDRAW_APPROVAL_THRESHOLD) > 0 ? Number(process.env.WITHDRAW_APPROVAL_THRESHOLD) : 20000;
 
 // const REQUIRED_ENV = [
 //   "MPESA_B2C_SHORTCODE", "MPESA_INITIATOR_NAME", "MPESA_INITIATOR_PASSWORD",
@@ -22,7 +25,7 @@ const MIN_WITHDRAW = 50;
 const MAX_WITHDRAW = 150000; // single M-Pesa transaction ceiling
 const DAILY_LIMIT = Number(process.env.WITHDRAW_DAILY_LIMIT) || 300000; // rolling 24h
 const OPEN = ["PENDING_PAYOUT", "SUBMITTED"];
-const SETTLEABLE = [...OPEN, "REVIEW"]; // a late callback may settle a REVIEW item
+const SETTLEABLE = [...OPEN, "REVIEW", "AWAITING_APPROVAL"]; // a late callback may settle a REVIEW item
 
 class WdError extends Error {
   constructor(code, status = 400, extra = {}) {
@@ -232,8 +235,13 @@ async function requestWithdrawal(req, res) {
 
         const [doc] = await Withdrawal.create(
           [{
-            _id: id, userId: uid, amount, phone, idempotencyKey: key,
+            _id: id, 
+            userId: uid,
+            amount, 
+            phone, 
+            idempotencyKey: key,
             originatorConversationId: crypto.randomUUID(),
+            status: amount >= APPROVAL_THRESHOLD ? "AWAITING_APPROVAL" : "PENDING_PAYOUT",
           }],
           { session }
         );
@@ -248,6 +256,10 @@ async function requestWithdrawal(req, res) {
       throw e;
     }
 
+       if (w.status === "AWAITING_APPROVAL") {
+      await notifyAdmins(`Withdrawal of Ksh ${w.amount.toLocaleString("en-KE")} is waiting for your approval.`);
+      return res.status(202).json({ ok: true, withdrawal: view(w) });
+    }
     const settled = await dispatchPayout(w);
     return res.status(202).json({ ok: true, withdrawal: view(settled || w) });
   } catch (err) {
@@ -327,5 +339,4 @@ async function listWithdrawals(req, res) {
   }
 }
 
-
-module.exports = { requestWithdrawal, b2cResult, b2cTimeout, listWithdrawals, completeWithdrawal, failWithdrawal };
+module.exports = { requestWithdrawal, b2cResult, b2cTimeout, listWithdrawals, completeWithdrawal, failWithdrawal, dispatchPayout };
