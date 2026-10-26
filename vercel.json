@@ -27,7 +27,8 @@
       "src": "frontend/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist"
+       
+        "outputDirectory": "dist"
       }
     },
     {
@@ -48,8 +49,8 @@
       "source": "/icons/(.*)",
       "destination": "/icons/$1"
     },
+  
     {
-     
       "source": "/((?!api|icons|cloudinary-assets).*)",
       "destination": "/index.html"
     }
