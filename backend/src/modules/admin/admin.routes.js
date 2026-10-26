@@ -12,11 +12,14 @@ const Withdrawal = require("../../models/Withdrawal");
 const MpesaTopUp = require("../../models/MpesaTopUp");
 const AdminAction = require("../../models/AdminAction");
 const { notify } = require("../../services/notification.service");
-const { completeWithdrawal, failWithdrawal } = require("../wallet/withdraw.controller");
+const { completeWithdrawal, failWithdrawal, dispatchPayout } = require("../wallet/withdraw.controller");
 const { refundEscrowToBuyer, releaseEscrowToVendor, EscrowError } = require("../wallet/escrow.service");
 const Report = require("../../models/Report");
 const Dispute = require("../../models/Dispute");
 const ReconciliationRun = require("../../models/ReconciliationRun");
+
+
+
 
 
 const router = express.Router();
@@ -55,8 +58,12 @@ const audit = (req, action, targetType, targetId, note, meta = {}) =>
     .catch((e) => console.error("❌ audit write failed:", e.message));
 
 const stuckWithdrawals = () => ({
-  $or: [{ status: "REVIEW" }, { status: { $in: ["PENDING_PAYOUT", "SUBMITTED"] }, createdAt: { $lt: new Date(Date.now() - STALE_MS) } }],
+  $or: [
+    { status: { $in: ["REVIEW", "AWAITING_APPROVAL"] } },
+    { status: { $in: ["PENDING_PAYOUT", "SUBMITTED"] }, updatedAt: { $lt: new Date(Date.now() - STALE_MS) } },
+  ],
 });
+
 const stuckTopups = () => ({
   $or: [{ status: "REVIEW" }, { status: "PENDING", createdAt: { $lt: new Date(Date.now() - STALE_MS) } }],
 });
@@ -102,6 +109,43 @@ router.get("/withdrawals", h(async (_req, res) => {
   const rows = await Withdrawal.find(stuckWithdrawals()).sort({ createdAt: 1 }).limit(50)
     .select("userId amount phone status failReason originatorConversationId conversationId createdAt").lean();
   res.json({ ok: true, items: await withNames(rows) });
+}));
+
+// Large withdrawals: a human approves before any money leaves
+router.post("/withdrawals/:id/approve", h(async (req, res) => {
+  if (!isId(req.params.id)) throw E("INVALID_ID");
+  const note = reason(req.body?.note);
+  if (!note) throw E("NOTE_REQUIRED");
+  const w0 = await Withdrawal.findById(req.params.id).lean();
+  if (!w0) throw E("NOT_FOUND", 404);
+  if (same(w0.userId, req.user._id)) throw E("CANNOT_RESOLVE_OWN_REQUEST", 403);
+
+  // The status flip is the lock: two admins clicking at once can never send the payout twice
+  const claimed = await Withdrawal.findOneAndUpdate(
+    { _id: w0._id, status: "AWAITING_APPROVAL" },
+    { $set: { status: "PENDING_PAYOUT", approvedBy: req.user._id, approvedAt: new Date() } },
+    { new: true }
+  );
+  if (!claimed) throw E("ALREADY_SETTLED", 409);
+  const after = await dispatchPayout(claimed);
+  await audit(req, "withdrawal_approve", "withdrawal", w0._id, note, { amount: w0.amount, userId: String(w0.userId) });
+  res.json({ ok: true, status: after?.status || claimed.status });
+}));
+
+router.post("/withdrawals/:id/reject", h(async (req, res) => {
+  if (!isId(req.params.id)) throw E("INVALID_ID");
+  const note = reason(req.body?.note);
+  if (!note) throw E("NOTE_REQUIRED");
+  const w0 = await Withdrawal.findById(req.params.id).lean();
+  if (!w0) throw E("NOT_FOUND", 404);
+  if (w0.status !== "AWAITING_APPROVAL") throw E("ALREADY_SETTLED", 409);
+  if (same(w0.userId, req.user._id)) throw E("CANNOT_RESOLVE_OWN_REQUEST", 403);
+
+  const after = await failWithdrawal(w0._id, `Rejected by support: ${note}`); // refunds the wallet exactly once
+  if (after?.status !== "FAILED") throw E("ALREADY_SETTLED", 409);
+  await notify("PAYOUT_FAILED", w0.userId, { amount: w0.amount });
+  await audit(req, "withdrawal_reject", "withdrawal", w0._id, note, { amount: w0.amount, userId: String(w0.userId) });
+  res.json({ ok: true });
 }));
 
 // body: { action: "paid" | "refund", note, receipt? }
