@@ -27,34 +27,32 @@
       "src": "frontend/package.json",
       "use": "@vercel/static-build",
       "config": {
+
         "distDir": "dist"
       }
     },
     {
-
       "src": "backend/api/index.cjs",
       "use": "@vercel/node"
     }
   ],
   "rewrites": [
     {
-      
       "source": "/cloudinary-assets/:path*",
       "destination": "https://cloudinary.com*"
     },
     {
-      
       "source": "/api/(.*)",
       "destination": "backend/api/index.cjs"
     },
     {
       "source": "/icons/(.*)",
-      "destination": "/icons/$1"
+      "destination": "frontend/icons/$1"
     },
+   
     {
-
       "source": "/((?!api|icons|cloudinary-assets).*)",
-      "destination": "/index.html"
+      "destination": "/frontend/index.html"
     }
   ]
 }
