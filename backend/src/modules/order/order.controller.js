@@ -5,7 +5,7 @@ const Product = require("../../models/Product");
 const ShareLink = require("../../models/ShareLink");
 const { notify } = require("../../services/notification.service");
 const User = require("../../models/User");
-const C = require("../../config/orders");
+const C = require("../config/orders");
 
 
 const {
