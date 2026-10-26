@@ -1,58 +1,41 @@
 {
   "version": 2,
-  "cleanUrls": true,
   "crons": [
-    {
-      "path": "/api/internal/daily",
-      "schedule": "0 1 * * *"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/sw.js",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
-        { "key": "Service-Worker-Allowed", "value": "/" }
-      ]
-    },
-    {
-      "source": "/manifest.webmanifest",
-      "headers": [
-        { "key": "Content-Type", "value": "application/manifest+json" }
-      ]
-    }
+    { "path": "/api/internal/daily", "schedule": "0 1 * * *" }
   ],
   "builds": [
     {
       "src": "frontend/package.json",
       "use": "@vercel/static-build",
-      "config": {
-       
-        "outputDirectory": "dist"
-      }
+      "config": { "distDir": "dist" }
     },
     {
       "src": "backend/api/index.cjs",
-      "use": "@vercel/node"
+      "use": "@vercel/node",
+      "config": { "includeFiles": ["backend/**"] }
     }
   ],
-  "rewrites": [
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/backend/api/index.cjs" },
+
+    { "src": "/cloudinary-assets/(.*)", "dest": "https://res.cloudinary.com/YOUR_CLOUD_NAME/$1" },
+
     {
-      "source": "/cloudinary-assets/:path*",
-      "destination": "https://cloudinary.com*"
+      "src": "/sw.js",
+      "headers": {
+        "cache-control": "no-cache, no-store, must-revalidate",
+        "service-worker-allowed": "/"
+      },
+      "dest": "/frontend/sw.js"
     },
     {
-      "source": "/api/(.*)",
-      "destination": "backend/api/index.cjs"
+      "src": "/manifest.webmanifest",
+      "headers": { "content-type": "application/manifest+json" },
+      "dest": "/frontend/manifest.webmanifest"
     },
-    {
-      "source": "/icons/(.*)",
-      "destination": "/icons/$1"
-    },
-  
-    {
-      "source": "/((?!api|icons|cloudinary-assets).*)",
-      "destination": "/index.html"
-    }
+
+    { "src": "/(.+\\.[a-zA-Z0-9]+)$", "dest": "/frontend/$1" },
+
+    { "src": "/(.*)", "dest": "/frontend/index.html" }
   ]
 }
