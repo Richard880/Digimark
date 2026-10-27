@@ -1,9 +1,11 @@
+// src/modules/config/plans.js  (or wherever your plans.js lives)
+
 module.exports = {
   PLANS: {
     phase1: {
       name: "Solo Retailer",
       fee: 100,
-      earnDepth: 1,                    // ← changed
+      earnDepth: 1,
       maxProducts: 50,
       maxPosDevices: 1,
       maxStaff: 0,
@@ -16,7 +18,7 @@ module.exports = {
     phase2: {
       name: "Merchant Pro",
       fee: 200,
-      earnDepth: 2,                    // ← changed
+      earnDepth: 2,
       maxProducts: 2000,
       maxPosDevices: 1,
       maxStaff: 0,
@@ -29,7 +31,7 @@ module.exports = {
     phase3: {
       name: "Smart-Hub",
       fee: 500,
-      earnDepth: 3,                    // ← changed
+      earnDepth: 3,
       maxProducts: 10000,
       maxPosDevices: 5,
       maxStaff: 10,
