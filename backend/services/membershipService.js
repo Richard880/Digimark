@@ -12,6 +12,9 @@ const { evaluateUsers } = require("../src/modules/membership/eligibility.service
 const C = require("../src/modules/config/activity");
 const { PLANS, LEVELS, ROLLUP_MAX_STEPS, PERIOD_DAYS, RENEW_WINDOW_DAYS } = require("../src/modules/config/plans");
 
+const PlanChange = require("../src/models/PlanChange");
+const { upgradeQuote } = require("../src/modules/membership/entitlements");
+
 
 const PLATFORM_ID = process.env.PLATFORM_WALLET_USER_ID;
 if (!PLATFORM_ID) throw new Error("Missing env PLATFORM_WALLET_USER_ID");
@@ -240,4 +243,33 @@ async function payMembership({ userId, planKey, idempotencyKey, ack = false }) {
   }
 }
 
-module.exports = { payMembership, resolvePayouts, MembershipError };
+
+async function upgradePlan({ userId, toKey, idempotencyKey }) {
+  if (!PLANS[toKey]) throw new MembershipError("INVALID_PLAN");
+  try {
+    return await mongoose.connection.transaction(async (session) => {
+      const user = await User.findById(userId).session(session);
+      if (!user || user.accountCategory !== "network") throw new MembershipError("NOT_A_NETWORK_ACCOUNT", 403);
+      const q = upgradeQuote(user, toKey);
+      if (!q) throw new MembershipError("UPGRADE_NOT_AVAILABLE", 409);
+
+      const [pc] = await PlanChange.create([{ userId, fromPlan: q.from, toPlan: toKey, amount: q.amount, idempotencyKey }], { session });
+      const ref = String(pc._id);
+      await debitWallet(userId, q.amount, ref, `Upgrade to ${PLANS[toKey].name} (prorated).`, session);
+      await creditWallet(PLATFORM_ID, q.amount, "platform_revenue", ref, "Plan upgrade revenue.", session);
+      const r = await User.updateOne({ _id: userId, plan: user.plan }, { $set: { plan: toKey } }, { session });
+      if (!r.modifiedCount) throw new MembershipError("PLAN_CHANGED_RETRY", 409);
+      return { ok: true, plan: toKey, amount: q.amount };
+    });
+  } catch (e) {
+    if (e.code === 11000) {
+      const prior = await PlanChange.findOne({ userId, idempotencyKey }).lean();
+      if (prior) return { ok: true, replay: true, plan: prior.toPlan, amount: prior.amount };
+      throw new MembershipError("UPGRADE_ALREADY_RECORDED", 409);
+    }
+    throw e;
+  }
+}
+
+
+module.exports = { payMembership, resolvePayouts, MembershipError, upgradePlan};
