@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
-const Branch = require("../models/Branch");
+const Branch = require("../../models/Branch");
 const { entitlementsFor } = require("../membership/entitlements");
-const { getOrCreatePrimaryBranch } = require("../services/branchService");
+const { getOrCreatePrimaryBranch } = require("../../services/branchService");
 
 function requireSeller(req, res) {
   if (!req.user?._id) {
