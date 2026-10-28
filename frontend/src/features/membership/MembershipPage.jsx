@@ -4,6 +4,7 @@ import apiClient from "../../services/apiClient";
 import useAuth from "../auth/hooks/useAuth";
 import ROUTES from "../../constants/routes";
 import { NetworkExplainerSheet } from "./NetworkExplainer";
+import UpgradeCard from "./UpgradeCard";
 
 const DAY = 24 * 3600 * 1000;
 const RENEW_WINDOW_DAYS = 7; // must match RENEW_WINDOW_DAYS in the backend plans config
@@ -199,6 +200,8 @@ export default function MembershipPage() {
         className="hidden min-h-12 w-full items-center justify-center rounded-xl bg-emerald-700 text-sm font-black text-white shadow-sm hover:bg-emerald-800 disabled:opacity-40 lg:flex">
         {paying ? "Processing…" : plan ? `${action} for ${fmt(plan.fee)}` : "Choose a plan"}
       </button>
+
+      <UpgradeCard onChanged={load} />
 
       {/* Activity */}
       {activity && (
