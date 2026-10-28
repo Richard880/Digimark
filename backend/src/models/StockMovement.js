@@ -1,96 +1,22 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
-const whole = {
-  validator: Number.isInteger,
-  message: "{PATH} must be a whole number",
-};
-
-const stockMovementSchema = new Schema(
+const schema = new Schema(
   {
-    sellerId: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      immutable: true,
-      index: true,
-    },
-    productId: {
-      type: Schema.Types.ObjectId,
-      ref: "Product",
-      required: true,
-      immutable: true,
-      index: true,
-    },
-    branchId: {
-      type: Schema.Types.ObjectId,
-      ref: "Branch",
-      default: null, // null = default / primary branch for now
-      index: true,
-    },
-
-    // Positive = stock in, Negative = stock out
-    quantity: {
-      type: Number,
-      required: true,
-      validate: whole,
-    },
-
-    type: {
-      type: String,
-      required: true,
-      enum: [
-        "sale",           // POS / manual sale / online order
-        "purchase",       // restock / supplier delivery
-        "adjustment",     // manual correction
-        "return",         // customer return
-        "damage",         // damaged / lost / expired
-        "transfer_in",
-        "transfer_out",
-        "void_sale",      // when a manual sale is voided
-      ],
-    },
-
-    // Optional human-readable reason
-    reason: { type: String, default: "", maxlength: 120 },
-    note: { type: String, default: "", maxlength: 300 },
-
-    // Link back to the source document
-    referenceType: {
-      type: String,
-      enum: ["manual_sale", "order", "purchase_order", "transfer", "manual", null],
-      default: null,
-    },
-    referenceId: {
-      type: Schema.Types.ObjectId,
-      default: null,
-    },
-
-    // Who performed the action
-    createdBy: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-      immutable: true,
-    },
-
-    // Snapshot of stock after this movement (very useful for audits)
-    balanceAfter: {
-      type: Number,
-      required: true,
-      validate: whole,
-    },
+    sellerId: { type: Schema.Types.ObjectId, required: true, immutable: true },
+    productId: { type: Schema.Types.ObjectId, required: true, immutable: true },
+    productName: { type: String, maxlength: 120, immutable: true },
+    type: { type: String, required: true, immutable: true, enum: ["initial", "restock", "adjustment", "sale_marketplace", "sale_pos", "return", "void", "correction"] },
+    delta: { type: Number, required: true, immutable: true, validate: Number.isInteger },
+    balanceAfter: { type: Number, required: true, immutable: true, min: 0 },
+    ref: { type: String, maxlength: 120, immutable: true }, // makes a retried write harmless
+    note: { type: String, default: "", maxlength: 200, immutable: true },
+    actorId: { type: Schema.Types.ObjectId, default: null, immutable: true },
   },
-  {
-    timestamps: { createdAt: true, updatedAt: false },
-  }
+  { timestamps: { createdAt: true, updatedAt: false } }
 );
+schema.index({ sellerId: 1, createdAt: -1 });
+schema.index({ productId: 1, createdAt: -1 });
+schema.index({ ref: 1 }, { unique: true, partialFilterExpression: { ref: { $type: "string" } } });
 
-// Common query patterns
-stockMovementSchema.index({ productId: 1, createdAt: -1 });
-stockMovementSchema.index({ sellerId: 1, createdAt: -1 });
-stockMovementSchema.index({ sellerId: 1, productId: 1, createdAt: -1 });
-
-module.exports =
-  mongoose.models.StockMovement ||
-  mongoose.model("StockMovement", stockMovementSchema);
+module.exports = mongoose.models.StockMovement || mongoose.model("StockMovement", schema);
