@@ -1,4 +1,4 @@
-const { PLANS, PLAN_ORDER } = require("../../config/plans");
+const { PLANS, PLAN_ORDER } = require("../config/plans");
 
 const DAY = 86400000;
 
