@@ -161,6 +161,7 @@ async function createOrder(req, res) {
 
       const amount = product.price * quantity + delivery;
       const orderId = new mongoose.Types.ObjectId();
+     await require("../../services/stockLedger").record(session, { product, delta: -quantity, type: "sale_marketplace", ref: `order:${orderId}`, note: "Online order", actorId: buyerId });
 
       // Single source of truth for fees: the escrow service
       const hold = await holdOrderFunds(
