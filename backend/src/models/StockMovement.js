@@ -12,6 +12,12 @@ const schema = new Schema(
     ref: { type: String, maxlength: 120, immutable: true }, // makes a retried write harmless
     note: { type: String, default: "", maxlength: 200, immutable: true },
     actorId: { type: Schema.Types.ObjectId, default: null, immutable: true },
+    branchId: {
+  type: Schema.Types.ObjectId,
+  ref: "Branch",
+  default: null,
+  index: true,
+},
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );
