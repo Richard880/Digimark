@@ -237,27 +237,47 @@ function SaleDialog({ products, product, onClose, onDone }) {
 }
 
 /* ───────── Product card ───────── */
-function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle }) {
+function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle, onHistory }) {
   const pub = isPublic(p);
   const q = Number(p.quantity || 0);
   const img = sizedImage(p.imageUrl, 200);
+
   return (
     <article className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex gap-3 p-4">
-        {img ? <img src={img} alt="" loading="lazy" className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 object-cover" /> : <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl">📦</div>}
+        {img ? (
+          <img src={img} alt="" loading="lazy" className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 object-cover" />
+        ) : (
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl">📦</div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             <h3 className="min-w-0 flex-1 break-words text-sm font-black text-slate-900">{p.name || "Unnamed product"}</h3>
-            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${pub ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>{pub ? "On MarketHub" : "Unlisted"}</span>
+            <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${pub ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
+              {pub ? "On MarketHub" : "Unlisted"}
+            </span>
           </div>
           <p className="mt-0.5 truncate text-[11px] text-slate-500">{String(p.category || "general").replace(/-/g, " ")} · {p.productCode || "No SKU"}</p>
           <p className="mt-1 text-lg font-black text-slate-900">{fmt(p.price)}</p>
         </div>
       </div>
+      
+      {/* Stock Management Row containing the History toggle trigger layout */}
       <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5">
-        <p className={`text-sm font-black ${q <= 0 ? "text-red-600" : q <= LOW ? "text-amber-600" : "text-emerald-700"}`}>{q <= 0 ? "Out of stock" : q <= LOW ? `${q} left · low` : `${q} in stock`}</p>
-        <button type="button" onClick={() => onStock(p)} className="text-xs font-bold text-emerald-700 underline">Adjust stock</button>
+        <p className={`text-sm font-black ${q <= 0 ? "text-red-600" : q <= LOW ? "text-amber-600" : "text-emerald-700"}`}>
+          {q <= 0 ? "Out of stock" : q <= LOW ? `${q} left · low` : `${q} in stock`}
+        </p>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => onHistory(p)} className="text-xs font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer">
+            History
+          </button>
+          <span className="text-slate-300 text-xs">·</span>
+          <button type="button" onClick={() => onStock(p)} className="text-xs font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer">
+            Adjust stock
+          </button>
+        </div>
       </div>
+
       <div className="grid grid-cols-3 gap-2 border-t border-slate-100 p-3">
         <button type="button" disabled={busy || q < 1} onClick={() => onSale(p)} className={`${btn} bg-emerald-700 text-white`}>Record sale</button>
         <button type="button" disabled={busy} onClick={() => onEdit(p)} className={`${btn} border border-slate-200 text-slate-700 hover:bg-slate-50`}>Edit</button>
