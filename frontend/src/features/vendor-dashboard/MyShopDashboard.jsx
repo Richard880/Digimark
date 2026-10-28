@@ -44,6 +44,8 @@ const ERR = {
   INVALID_CATEGORY: "Choose a valid category.",
   INVALID_IMAGE_URL: "That photo couldn't be verified. Try another.",
   NAME_REQUIRED: "Enter a product name.",
+  PLAN_LIMIT_REACHED: "You've reached your plan's product limit. Upgrade to add more.",
+  PLAN_UPGRADE_REQUIRED: "That feature needs a higher plan."
 };
 const errMsg = (e) => (!e.response ? "Couldn't reach Sokodigi. Check your connection." : ERR[e.response.data?.error] || "Something went wrong. Please try again.");
 
