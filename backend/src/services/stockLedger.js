@@ -19,10 +19,6 @@ const record = (session, { product, delta, type, ref, note, actorId, branchId })
     { session }
   );
 
-/**
- * Atomic stock change + ledger entry.
- * Automatically uses the primary branch if none is provided.
- */
 async function changeStock(session, {
   productId,
   sellerId,
@@ -47,7 +43,7 @@ async function changeStock(session, {
 
   if (!product) return null;
 
-  // Resolve branch (use provided or fall back to primary)
+  // Auto-resolve to primary branch if none provided
   let finalBranchId = branchId;
   if (!finalBranchId) {
     const primary = await getOrCreatePrimaryBranch(product.sellerId, session);
