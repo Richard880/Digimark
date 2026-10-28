@@ -9,7 +9,7 @@ import AddProductModal from "./AddProductModal";
 import OnboardingChecklist from "../onboarding/OnboardingChecklist";
 import PushAsk from "../../pwa/PushAsk";
 import OrderDispute from "../orders/OrderDispute";
-import InventoryPanel from "./InventoryPanel"
+import {InventoryPanel, MovementsSheet} from "./InventoryPanel"
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -236,8 +236,12 @@ function SaleDialog({ products, product, onClose, onDone }) {
   );
 }
 
-/* ───────── Product card ───────── */
-function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle, onHistory }) {
+
+
+export default function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle }) {
+  // Local state engine managing the specific product's modal visibility
+  const [showHistory, setShowHistory] = useState(false);
+
   const pub = isPublic(p);
   const q = Number(p.quantity || 0);
   const img = sizedImage(p.imageUrl, 200);
@@ -268,7 +272,8 @@ function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle, onHistory }) 
           {q <= 0 ? "Out of stock" : q <= LOW ? `${q} left · low` : `${q} in stock`}
         </p>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => onHistory(p)} className="text-xs font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer">
+          {/* Toggles internal history tracking layer visibility locally */}
+          <button type="button" onClick={() => setShowHistory(true)} className="text-xs font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer">
             History
           </button>
           <span className="text-slate-300 text-xs">·</span>
@@ -283,9 +288,18 @@ function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle, onHistory }) 
         <button type="button" disabled={busy} onClick={() => onEdit(p)} className={`${btn} border border-slate-200 text-slate-700 hover:bg-slate-50`}>Edit</button>
         <button type="button" disabled={busy} onClick={() => onToggle(p)} className={`${btn} ${pub ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"}`}>{busy ? "Saving…" : pub ? "Unlist" : "List"}</button>
       </div>
+
+      {/* Conditionally mounts the MovementsSheet directly inside the layout wrapper when opened */}
+      {showHistory && (
+        <MovementsSheet 
+          product={p} 
+          onClose={() => setShowHistory(false)} 
+        />
+      )}
     </article>
   );
 }
+
 
 /* ───────── Order card ───────── */
 const STATUS = {
