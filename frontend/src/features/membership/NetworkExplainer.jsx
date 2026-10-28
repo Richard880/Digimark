@@ -72,6 +72,7 @@ export function NetworkExplainerContent({ fee = 100, planName = "Phase 1" }) {
           <li>Only pay with money you can afford to lose. Never borrow to join.</li>
           <li>Be careful of anyone, including people who invite you, who promises guaranteed or quick income.</li>
           <li>You don't need to join to shop on Sokodigi, and you can sell and promote products without recruiting anyone.</li>
+          <li>How many levels you earn depends on your plan: Phase 1 earns level 1, Phase 2 levels 1–2, Phase 3 levels 1–3, Phase 4 all four</li>
         </ul>
       </section>
 
