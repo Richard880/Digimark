@@ -1,14 +1,14 @@
 // routes/branch.routes.js
 const express = require("express");
-const authenticate = require("../middleware/authenticate");
-const { perUser } = require("../middleware/limits"); // or your existing rate limiter
+const authenticate = require("../../middleware/authenticate");
+const { perUser } = require("../../middleware/limits"); // or your existing rate limiter
 const {
   listBranches,
   createBranch,
   updateBranch,
   setPrimary,
   deactivateBranch,
-} = require("../controllers/branch.controller");
+} = require("./branch.controller");
 
 const router = express.Router();
 
