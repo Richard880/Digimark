@@ -99,7 +99,7 @@ function resolvePayouts(path, amount, eligible) {
  * First payment = activation (matrix placement + membership number).
  * Later payments = 30-day renewals. Everything happens in ONE transaction.
  */
-const EXPLAINER_VERSION = "2026-10"; // bump this whenever NetworkExplainer.jsx changes materially
+const EXPLAINER_VERSION = "2026-11"; // bump this whenever NetworkExplainer.jsx changes materially
 
 async function payMembership({ userId, planKey, idempotencyKey, ack = false }) {
   const plan = PLANS[planKey];
