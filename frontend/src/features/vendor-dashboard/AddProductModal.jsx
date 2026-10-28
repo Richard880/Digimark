@@ -70,6 +70,7 @@ const ERROR_TEXT = {
   INVALID_IMAGE_URL: "The image upload could not be verified. Please try another image.",
   NAME_REQUIRED: "Product title cannot be empty.",
   TOO_MANY_REQUESTS: "You're going too fast. Please wait a minute and try again.",
+  PLAN_LIMIT_REACHED: "You've reached your plan's product limit. Upgrade to add more."
 };
 
 const toWhole = (v) => (/^\d{1,9}$/.test(String(v).trim()) ? Number(v) : NaN);
