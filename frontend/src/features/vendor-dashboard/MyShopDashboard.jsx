@@ -9,7 +9,9 @@ import AddProductModal from "./AddProductModal";
 import OnboardingChecklist from "../onboarding/OnboardingChecklist";
 import PushAsk from "../../pwa/PushAsk";
 import OrderDispute from "../orders/OrderDispute";
-import {InventoryPanel, MovementsSheet} from "./InventoryPanel"
+import InventoryPanel from "./InventoryPanel";
+import { MovementsSheet } from "./InventoryPanel";
+
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
