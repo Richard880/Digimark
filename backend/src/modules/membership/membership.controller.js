@@ -109,4 +109,4 @@ async function upgrade(req, res) {
   }
 }
 
-module.exports = { listPlans, myMembership, pay, myActivity, upgrade };
+module.exports = { listPlans, myMembership, pay, myActivity, upgrade, entitlements };
