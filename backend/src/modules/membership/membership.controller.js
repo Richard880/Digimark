@@ -2,13 +2,28 @@ const { payMembership } = require("../../../services/membershipService");
 const { PLANS, PERIOD_DAYS } = require("../config/plans");
 const { evaluateUsers } = require("./eligibility.service");
 const C = require("../config/activity");
+const { PLANS, PLAN_ORDER, BUILT, PERIOD_DAYS } = require("../config/plans");
+const { entitlementsFor, upgradeQuote } = require("./entitlements");
+const { upgradePlan } = require("../../../services/membershipService");
+
 
 // GET /api/membership/plans (public)
+
 function listPlans(_req, res) {
-  const plans = Object.entries(PLANS).map(([key, p]) => ({ key, name: p.name, fee: p.fee, days: PERIOD_DAYS }));
-  return res.json({ ok: true, plans });
+  const plans = PLAN_ORDER.map((key) => {
+    const p = PLANS[key];
+    return { key, name: p.name, fee: p.fee, days: PERIOD_DAYS, earnDepth: p.earnDepth, limits: p.limits, features: p.features };
+  });
+  res.json({ ok: true, plans, built: BUILT });
 }
 
+function entitlements(req, res) {
+  const ent = entitlementsFor(req.user);
+  const upgrades = ent.active
+    ? PLAN_ORDER.map((k) => { const q = upgradeQuote(req.user, k); return q && { plan: k, name: PLANS[k].name, amount: q.amount }; }).filter(Boolean)
+    : [];
+  res.json({ ok: true, ...ent, built: BUILT, upgrades });
+}
 // GET /api/membership/me
 function myMembership(req, res) {
   const u = req.user;
@@ -74,4 +89,24 @@ async function myActivity(req, res) {
   }
 }
 
-module.exports = { listPlans, myMembership, pay, myActivity };
+
+async function upgrade(req, res) {
+  try {
+    const key = req.get("Idempotency-Key");
+    if (!/^[A-Za-z0-9_-]{16,64}$/.test(key || "")) return res.status(400).json({ error: "IDEMPOTENCY_KEY_REQUIRED" });
+    const to = req.body && req.body.plan;
+    if (typeof to !== "string" || !Object.prototype.hasOwnProperty.call(PLANS, to)) return res.status(400).json({ error: "INVALID_PLAN" });
+    const r = await upgradePlan({ userId: req.user._id, toKey: to, idempotencyKey: key });
+    return res.status(r.replay ? 200 : 201).json({ ok: true, plan: r.plan, amount: r.amount });
+  } catch (err) {
+    if (err && typeof err.code === "string" && Number.isInteger(err.status)) {
+      const body = { error: err.code };
+      if (err.required !== undefined) { body.required = err.required; body.currentBalance = err.currentBalance; }
+      return res.status(err.status).json(body);
+    }
+    console.error("❌ upgrade:", err.stack || err.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+}
+
+module.exports = { listPlans, myMembership, pay, myActivity, upgrade };
