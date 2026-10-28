@@ -173,7 +173,7 @@ export default function MembershipPage() {
         <ul className="space-y-1.5 text-xs text-slate-600">
           <li>🏪 Your own shop page and inventory dashboard</li>
           <li>🔗 A 5% promoter bonus on sales through your share links</li>
-          <li>🌐 Network commissions on membership payments, up to four levels</li>
+          <li>🌐How many levels you earn depends on your plan: Phase 1 earns level 1, Phase 2 levels 1–2, Phase 3 levels 1–3, Phase 4 all four</li>
           <li>🔒 Escrow-protected sales and end-to-end encrypted chat</li>
         </ul>
         <div className="mt-3 grid grid-cols-4 gap-2 text-center">
