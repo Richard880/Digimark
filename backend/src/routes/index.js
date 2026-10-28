@@ -19,6 +19,8 @@ router.use("/internal", require("./internal.routes"));
 router.use("/search", require("./search.routes"));
 router.use("/chats", require("../modules/chats/chat.routes"));
 
+app.use("/branches", require("../modules/branch/branch.routes"));
+
 router.use("/disputes", require("../modules/disputes/dispute.routes"));
 
 router.use("/onboarding", require("../modules/onboarding/onboarding.routes"));
