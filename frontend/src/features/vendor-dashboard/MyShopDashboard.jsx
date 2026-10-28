@@ -9,6 +9,7 @@ import AddProductModal from "./AddProductModal";
 import OnboardingChecklist from "../onboarding/OnboardingChecklist";
 import PushAsk from "../../pwa/PushAsk";
 import OrderDispute from "../orders/OrderDispute";
+import InventoryPanel from "./InventoryPanel"
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -491,8 +492,10 @@ export default function MyShopDashboard() {
           <div className="space-y-3">{[0, 1, 2].map((i) => <div key={i} className="h-36 animate-pulse rounded-2xl bg-slate-100" />)}</div>
         ) : (
           <>
+           
             {tab === "inventory" && (
               <section className="space-y-4">
+                 <InventoryPanel refreshKey={products.length} />
                 <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11px] leading-relaxed text-slate-600">
                   <b className="text-slate-800">Unlisted</b> products stay in your inventory but are hidden from your shop page and the MarketHub, so customers can't order them. You can still record manual sales and adjust their stock. Open orders carry on as normal.
                 </p>
