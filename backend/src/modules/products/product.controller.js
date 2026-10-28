@@ -8,7 +8,8 @@ const CATEGORIES = Product.schema.path("category").enumValues;
 const User = require("../../models/User");
 const UserProfile = require("../../models/UserProfile");
 const ManualSale = require("../../models/ManualSale");
-
+const { changeStock } = require("../../services/stockLedger");
+ const { entitlementsFor, cheapest } = require("../membership/entitlements");
 // =========================================================================
 // CONFIG & HELPERS
 // =========================================================================
@@ -251,17 +252,28 @@ if (imageUrl === null) return bad(res, "INVALID_IMAGE_URL");
       metrics: { conversionRate: 0, referralCount: 0, escrowDisputeRate: 0 },
     };
       
-
+     
     let product;
     for (let i = 0; i < 3 && !product; i++) {
       try {
+        
+         const ent = entitlementsFor(req.user);
+          const used = await Product.countDocuments({ sellerId: req.user._id });
+          if (used >= ent.limits.products) {
+            return res.status(403).json({ ok: false, error: "PLAN_LIMIT_REACHED", limit: "products", max: ent.limits.products, used,
+              requiredPlan: cheapest((p) => p.limits.products > used) });
+      }
+ 
         product = await Product.create({ ...doc, productCode: generateProductCode() });
+        
       } catch (e) {
         if (!(e.code === 11000 && e.keyPattern?.productCode)) throw e; // retry only on code collision
       }
     }
     if (!product) throw new Error("PRODUCT_CODE_COLLISION");
-
+    if (quantity > 0) {
+      await require("../../services/stockLedger").record(null, { product, delta: quantity, type: "initial", ref: `init:${product._id}`, note: "Opening stock", actorId: req.user._id }).catch(() => {});
+    }
     return res.status(201).json({ ok: true, message: "Product created successfully.", product });
   } catch (error) {
     return sendServerError(res, error, "Create product");
@@ -320,15 +332,7 @@ async function updateProduct(req, res) {
     const update = {};
     if (Object.keys(set).length) update.$set = set;
 
-    if (b.quantity !== undefined) {
-      const q = toInt(b.quantity);
-      if (!Number.isSafeInteger(q) || q < 0 || q > MAX_QTY) return bad(res, "INVALID_PRODUCT_QUANTITY");
-      const delta = q - product.quantity;
-      if (delta !== 0) {
-        update.$inc = { quantity: delta }; // relative change keeps sales that happened meanwhile
-        if (delta < 0) filter.quantity = { $gte: -delta };
-      }
-    }
+
     if (!update.$set && !update.$inc) return bad(res, "NOTHING_TO_UPDATE");
 
     const updated = await Product.findOneAndUpdate(filter, update, { new: true, runValidators: true });
@@ -472,6 +476,9 @@ async function shareProduct(req, res) {
     const product = await Product.findById(productId).select("_id name status isShelved sellerId").lean();
     const visible = product && product.isShelved === true && ["LISTED", "ACTIVE"].includes(product.status);
     if (!visible) return bad(res, "PRODUCT_NOT_AVAILABLE_FOR_SHARING", 404);
+   if (!entitlementsFor(req.user).features.promoteOthers) {
+      return res.status(403).json({ ok: false, error: "PLAN_UPGRADE_REQUIRED", feature: "promoteOthers", requiredPlan: cheapest((p) => p.features.promoteOthers) });
+    }
 
     const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
     const base = `${frontendUrl}/product-details/${product._id}`;
@@ -590,9 +597,11 @@ async function adjustStock(req, res) {
     if (!isValidId(id)) return bad(res, "INVALID_PRODUCT_ID");
     const delta = req.body?.delta;
     if (!Number.isInteger(delta) || delta === 0 || Math.abs(delta) > MAX_QTY) return bad(res, "INVALID_STOCK_CHANGE");
+    const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 200) : "";
+    const type = delta > 0 ? (req.body?.kind === "restock" ? "restock" : "adjustment") : "adjustment";
 
-    const filter = { _id: id, sellerId: req.user._id, quantity: delta < 0 ? { $gte: -delta } : { $lte: MAX_QTY - delta } };
-    const product = await Product.findOneAndUpdate(filter, { $inc: { quantity: delta } }, { new: true });
+    const product = await mongoose.connection.transaction((session) =>
+      changeStock(session, { productId: id, sellerId: req.user._id, delta, type, note, actorId: req.user._id, max: MAX_QTY }));
     if (!product) return (await Product.exists({ _id: id, sellerId: req.user._id })) ? bad(res, "STOCK_CHANGE_NOT_POSSIBLE", 409) : bad(res, "PRODUCT_NOT_FOUND", 404);
     return res.json({ ok: true, product });
   } catch (error) {
@@ -622,11 +631,7 @@ async function recordManualSale(req, res) {
     if (prior) return res.json({ ok: true, replay: true, sale: prior });
 
     const sale = await mongoose.connection.transaction(async (session) => {
-      const p = await Product.findOneAndUpdate(
-        { _id: id, sellerId: req.user._id, quantity: { $gte: quantity } },
-        { $inc: { quantity: -quantity } },
-        { new: true, session }
-      );
+          const p = await changeStock(session, { productId: id, sellerId: req.user._id, delta: -quantity, type: "sale_pos", ref: `pos:${req.user._id}:${clientRef}`, note: customerName ? `Sold to ${customerName}` : "Counter sale", actorId: req.user._id });
       if (!p) {
         const exists = await Product.exists({ _id: id, sellerId: req.user._id }).session(session);
         throw Object.assign(new Error(exists ? "INSUFFICIENT_STOCK" : "PRODUCT_NOT_FOUND"), { http: exists ? 409 : 404 });
@@ -674,7 +679,8 @@ async function voidManualSale(req, res) {
     await mongoose.connection.transaction(async (session) => {
       const flipped = await ManualSale.findOneAndUpdate({ _id: sale._id, voided: false }, { $set: { voided: true, voidedAt: new Date() } }, { session });
       if (!flipped) throw Object.assign(new Error("ALREADY_VOIDED"), { http: 409 });
-      await Product.updateOne({ _id: sale.productId }, { $inc: { quantity: sale.quantity } }, { session });
+     await changeStock(session, { productId: sale.productId, delta: sale.quantity, type: "void", ref: `void:${sale._id}`, note: "Sale undone", actorId: req.user._id });
+      
     });
     return res.json({ ok: true });
   } catch (error) {
