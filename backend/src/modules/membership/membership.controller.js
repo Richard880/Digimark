@@ -1,8 +1,7 @@
 const { payMembership } = require("../../../services/membershipService");
-const { PLANS, PERIOD_DAYS } = require("../config/plans");
+const { PLANS, PLAN_ORDER, BUILT, PERIOD_DAYS } = require("../config/plans");
 const { evaluateUsers } = require("./eligibility.service");
 const C = require("../config/activity");
-const { PLANS, PLAN_ORDER, BUILT, PERIOD_DAYS } = require("../config/plans");
 const { entitlementsFor, upgradeQuote } = require("./entitlements");
 const { upgradePlan } = require("../../../services/membershipService");
 
