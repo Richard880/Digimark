@@ -343,9 +343,9 @@ async function cancelOrder(req, res) {
       );
       if (!claimed) throw fail("ORDER_NOT_CANCELLABLE", 409);
       await refundEscrowToBuyer(order._id, session);
-      for (const it of order.items) {
-        await Product.updateOne({ _id: it.productId }, { $inc: { quantity: it.quantity } }, { session });
-      }
+     for (const it of order.items) {
+  await changeStock(session, { productId: it.productId, delta: it.quantity, type: "return", ref: `cancel:${order._id}:${it.productId}`, note: "Order cancelled" });
+}
     });
     
     const other = same(order.sellerId, me) ? order.buyerId : order.sellerId;
