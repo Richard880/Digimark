@@ -240,7 +240,7 @@ function SaleDialog({ products, product, onClose, onDone }) {
 
 
 
-export default function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle }) {
+export function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle }) {
   // Local state engine managing the specific product's modal visibility
   const [showHistory, setShowHistory] = useState(false);
 
