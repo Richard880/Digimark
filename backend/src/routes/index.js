@@ -20,6 +20,7 @@ router.use("/search", require("./search.routes"));
 router.use("/chats", require("../modules/chats/chat.routes"));
 
 router.use("/branches", require("../modules/branch/branch.routes"));
+router.use("/staff", require("../modules/staff/staff.routes"));
 
 router.use("/disputes", require("../modules/disputes/dispute.routes"));
 
