@@ -20,7 +20,9 @@ async function cancelOne(id) {
     );
     if (!o) return null;
     await refundEscrowToBuyer(o._id, session);
-    for (const it of o.items) await Product.updateOne({ _id: it.productId }, { $inc: { quantity: it.quantity } }, { session });
+   for (const it of order.items) {
+  await changeStock(session, { productId: it.productId, delta: it.quantity, type: "return", ref: `cancel:${order._id}:${it.productId}`, note: "Order cancelled" });
+}
     return o;
   });
   if (!order) return false;
