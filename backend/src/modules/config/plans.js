@@ -13,7 +13,7 @@ const PLANS = {
 };
 
 // Features that exist TODAY. Add a name here only when it ships; the app labels the rest "Coming soon".
-const BUILT = ["pos", "export", "stockHistory", "lowStockInApp", "promoteOthers"];
+const BUILT = ["pos", "export", "stockHistory", "lowStockInApp", "promoteOthers", "receiptsPdf", "dailyReport"];
 
 module.exports = {
   PLANS, PLAN_ORDER, BUILT,
