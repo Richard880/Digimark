@@ -3,7 +3,6 @@ const mongoose = require("mongoose");
 // Money and stock are whole numbers. The controller enforces this too; this is the safety net.
 const whole = { validator: Number.isInteger, message: "{PATH} must be a whole number" };
 
-
 const productSchema = new mongoose.Schema(
   {
     productCode: { type: String, required: true, unique: true, immutable: true },
@@ -47,8 +46,8 @@ const productSchema = new mongoose.Schema(
     description: { type: String, trim: true, default: "", maxlength: 2000 },
     imageUrl: { type: String, default: "", maxlength: 500 },
 
-    
-    costPrice: { type: Number, default: null, min: 0, validate: { validator: (v) => v === null || Number.isInteger(v), message: "costPrice must be a whole number" } },
+    // 💡 costPrice has been removed from here to protect margin data from public aggregations.
+
     // ACTIVE is legacy and treated as LISTED. DRAFT/READY/ARCHIVED are never public.
     status: {
       type: String,
