@@ -11,6 +11,8 @@ import PushAsk from "../../pwa/PushAsk";
 import OrderDispute from "../orders/OrderDispute";
 import InventoryPanel from "./InventoryPanel";
 import { MovementsSheet } from "./InventoryPanel";
+import PosTab from "./pos/PosTab";
+import ReportsTab from "./pos/ReportsTab";
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -25,7 +27,6 @@ const when = (d) =>
       })
     : "";
 const isPublic = (p) => p.isShelved !== false && ["LISTED", "ACTIVE"].includes(p.status);
-const sameDay = (d) => new Date(d).toDateString() === new Date().toDateString();
 
 const CATEGORIES = [
   ["phones-gadgets", "Phones & Gadgets"],
@@ -44,8 +45,6 @@ const ERR = {
   INVALID_QUANTITY: "Enter a whole number of at least 1.",
   INVALID_PRODUCT_PRICE: "Price must be a whole number of at least KES 50.",
   INVALID_STOCK_CHANGE: "Enter a whole number, like 5 or -2.",
-  VOID_WINDOW_PASSED: "A sale can only be undone within 24 hours.",
-  ALREADY_VOIDED: "That sale was already undone.",
   ORDER_NOT_CONFIRMABLE: "This order can't be confirmed any more.",
   ORDER_NOT_FOUND: "Order not found.",
   ORDER_NOT_CANCELLABLE: "This order can't be cancelled any more.",
@@ -193,10 +192,21 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
     deliveryFee: String(product.deliveryFee ?? 0),
     description: product.description || "",
   });
+  const [cost, setCost] = useState("");
   const [photo, setPhoto] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [armed, setArmed] = useState(false);
+
+  useEffect(() => {
+    apiClient
+      .get("/inventory/costs")
+      .then(({ data }) => {
+        const c = data.costs?.[product._id];
+        if (c != null) setCost(String(c));
+      })
+      .catch(() => {});
+  }, [product._id]);
 
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
   const price = /^\d{1,8}$/.test(f.price.trim()) ? Number(f.price) : NaN;
@@ -214,6 +224,10 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
     if (!f.name.trim()) return setError(ERR.NAME_REQUIRED);
     if (!Number.isInteger(price) || price < 50) return setError(ERR.INVALID_PRODUCT_PRICE);
     if (!Number.isInteger(fee)) return setError("Delivery fee must be a whole number.");
+    if (cost.trim() !== "" && !/^\d{1,8}$/.test(cost.trim())) {
+      return setError("Cost price must be a whole number.");
+    }
+
     setBusy(true);
     setError("");
     try {
@@ -225,7 +239,11 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
         description: f.description.trim(),
       };
       if (photo) body.imageUrl = await uploadImageToCloudinary(photo, "products", getToken);
+
       const { data } = await apiClient.put(`/products/${product._id}`, body);
+      await apiClient.put(`/inventory/products/${product._id}/cost`, {
+        costPrice: cost.trim() === "" ? null : Number(cost),
+      });
       onSaved(data.product);
     } catch (x) {
       setError(
@@ -303,6 +321,18 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
             value={f.description}
             onChange={set("description")}
           />
+        </div>
+        <div>
+          <label className={lab}>Cost price (what you pay)</label>
+          <input
+            className={input}
+            inputMode="numeric"
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+          />
+          <p className="mt-1 text-[11px] text-slate-500">
+            Private. Used only for your profit report.
+          </p>
         </div>
         <div>
           <label className={lab}>Change photo (optional)</label>
@@ -416,128 +446,6 @@ function StockDialog({ product, onClose, onDone }) {
   );
 }
 
-/* ───────── Record a manual sale ───────── */
-function SaleDialog({ products, product, onClose, onDone }) {
-  const sellable = products.filter((p) => Number(p.quantity || 0) > 0);
-  const [selId, setSelId] = useState(product?._id || sellable[0]?._id || "");
-  const current = products.find((p) => p._id === selId);
-  const [qty, setQty] = useState("1");
-  const [unit, setUnit] = useState(String(current?.price ?? ""));
-  const [customer, setCustomer] = useState("");
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const ref = useRef(crypto.randomUUID().replace(/-/g, ""));
-
-  const q = /^\d{1,6}$/.test(qty.trim()) ? Number(qty) : NaN;
-  const u = /^\d{1,8}$/.test(unit.trim()) ? Number(unit) : NaN;
-  const total = Number.isInteger(q) && Number.isInteger(u) ? q * u : null;
-
-  const pick = (id) => {
-    setSelId(id);
-    setUnit(String(products.find((p) => p._id === id)?.price ?? ""));
-  };
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!current) return setError("Choose a product.");
-    if (!Number.isInteger(q) || q < 1) return setError(ERR.INVALID_QUANTITY);
-    if (!Number.isInteger(u) || u < 1) return setError(ERR.INVALID_PRODUCT_PRICE);
-    if (q > Number(current.quantity || 0)) return setError(`Only ${current.quantity} in stock.`);
-    setBusy(true);
-    setError("");
-    try {
-      const { data } = await apiClient.post(`/products/${selId}/manual-sale`, {
-        quantity: q,
-        unitPrice: u,
-        customerName: customer.trim(),
-        note: note.trim(),
-        clientRef: ref.current,
-      });
-      onDone(data.sale);
-    } catch (x) {
-      setError(errMsg(x));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Sheet title="Record a sale" onClose={busy ? () => {} : onClose}>
-      {sellable.length === 0 ? (
-        <p className="text-sm text-slate-600">You have no products in stock to sell.</p>
-      ) : (
-        <form onSubmit={submit} className="space-y-3">
-          <p className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-            For sales made outside the app (a walk-in customer, for example). Stock goes down and
-            the sale is logged. It doesn't use escrow, and there's no Sokodigi fee.
-          </p>
-          <div>
-            <label className={lab}>Product</label>
-            <select className={input} value={selId} onChange={(e) => pick(e.target.value)}>
-              {sellable.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.name} ({p.quantity} in stock)
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={lab}>Quantity</label>
-              <input
-                className={input}
-                inputMode="numeric"
-                value={qty}
-                onChange={(e) => setQty(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className={lab}>Price each (KES)</label>
-              <input
-                className={input}
-                inputMode="numeric"
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-              />
-            </div>
-          </div>
-          <div>
-            <label className={lab}>Customer (optional)</label>
-            <input
-              className={input}
-              maxLength={80}
-              value={customer}
-              onChange={(e) => setCustomer(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className={lab}>Note (optional)</label>
-            <input
-              className={input}
-              maxLength={200}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. paid cash"
-            />
-          </div>
-          {total !== null && (
-            <p className="text-sm font-black text-emerald-800">Total: {fmt(total)}</p>
-          )}
-          <Err text={error} />
-          <button
-            type="submit"
-            disabled={busy}
-            className={`${btn} w-full bg-emerald-700 text-white`}
-          >
-            {busy ? "Recording…" : "Record sale"}
-          </button>
-        </form>
-      )}
-    </Sheet>
-  );
-}
-
 /* ───────── Product Card ───────── */
 export function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle }) {
   const [showHistory, setShowHistory] = useState(false);
@@ -611,7 +519,7 @@ export function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle }) {
         <button
           type="button"
           disabled={busy || q < 1}
-          onClick={() => onSale(p)}
+          onClick={onSale}
           className={`${btn} bg-emerald-700 text-white`}
         >
           Record sale
@@ -790,7 +698,6 @@ export default function MyShopDashboard() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [orders, setOrders] = useState([]);
-  const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -833,11 +740,6 @@ export default function MyShopDashboard() {
     setOrders(Array.isArray(data) ? data : []);
   }, []);
 
-  const loadSales = useCallback(async () => {
-    const { data } = await apiClient.get("/products/manual-sales");
-    setSales(data.sales || []);
-  }, []);
-
   const loadSummary = useCallback(async () => {
     try {
       const { data } = await apiClient.get("/inventory/summary");
@@ -851,20 +753,21 @@ export default function MyShopDashboard() {
     setLoading(true);
     setError("");
     try {
-      await Promise.all([loadProducts(1), loadOrders(), loadSales(), loadSummary()]);
+      await Promise.all([loadProducts(1), loadOrders(), loadSummary()]);
     } catch (e) {
       console.error("Dashboard load failed:", e);
       setError(errMsg(e));
     } finally {
       setLoading(false);
     }
-  }, [loadProducts, loadOrders, loadSales, loadSummary]);
+  }, [loadProducts, loadOrders, loadSummary]);
 
   useEffect(() => {
     if (myId) loadAll();
   }, [myId, loadAll]);
 
-  const swap = (p) => setProducts((prev) => prev.map((x) => (x._id === p._id ? { ...x, ...p } : x)));
+  const swap = (p) =>
+    setProducts((prev) => prev.map((x) => (x._id === p._id ? { ...x, ...p } : x)));
 
   const toggleListing = async (p) => {
     setBusyId(p._id);
@@ -900,33 +803,29 @@ export default function MyShopDashboard() {
 
   const num = (o) => encodeURIComponent(o.orderNumber);
   const confirmOrder = (o) =>
-    orderAction(o, () => apiClient.patch(`/orders/${num(o)}/confirm`), "Order confirmed. The buyer was told it's on its way.");
+    orderAction(
+      o,
+      () => apiClient.patch(`/orders/${num(o)}/confirm`),
+      "Order confirmed. The buyer was told it's on its way."
+    );
   const cancelOrder = (o) =>
     window.confirm("Cancel this order? The buyer is refunded in full.") &&
-    orderAction(o, () => apiClient.patch(`/orders/${num(o)}/cancel`), "Order cancelled and the buyer refunded.");
+    orderAction(
+      o,
+      () => apiClient.patch(`/orders/${num(o)}/cancel`),
+      "Order cancelled and the buyer refunded."
+    );
   const verifyPin = (o) =>
     orderAction(
       o,
       async () => {
-        await apiClient.patch(`/orders/${num(o)}/fulfill-handshake`, { pin: pins[o.orderNumber] });
+        await apiClient.patch(`/orders/${num(o)}/fulfill-handshake`, {
+          pin: pins[o.orderNumber],
+        });
         setPins((p) => ({ ...p, [o.orderNumber]: "" }));
       },
       "Delivery confirmed. Your payment was released to your wallet."
     );
-
-  const voidSale = async (s) => {
-    if (!window.confirm("Undo this sale? The stock goes back into your inventory.")) return;
-    setBusyId(s._id);
-    try {
-      await apiClient.post(`/products/manual-sales/${s._id}/void`);
-      await Promise.all([loadSales(), loadProducts(1)]);
-      flash("Sale undone and stock restored.");
-    } catch (e) {
-      flash(errMsg(e), "error");
-    } finally {
-      setBusyId(null);
-    }
-  };
 
   const handleUpgrade = () => navigate(ROUTES.MEMBERSHIP);
 
@@ -935,11 +834,8 @@ export default function MyShopDashboard() {
       newOrders: orders.filter((o) => o.orderStatus === "PROCESSING").length,
       onTheWay: orders.filter((o) => o.orderStatus === "DISPATCHED").length,
       lowStock: products.filter((p) => Number(p.quantity || 0) <= LOW).length,
-      todaySales: sales
-        .filter((s) => !s.voided && sameDay(s.createdAt))
-        .reduce((t, s) => t + s.total, 0),
     }),
-    [orders, products, sales]
+    [orders, products]
   );
 
   const shown = useMemo(() => {
@@ -968,7 +864,8 @@ export default function MyShopDashboard() {
   const tabs = [
     ["inventory", "📦", "Inventory", 0],
     ["orders", "📋", "Orders", stats.newOrders],
-    ["sales", "🧾", "Sales", 0],
+    ["pos", "🧮", "POS", 0],
+    ["reports", "📊", "Reports", 0],
   ];
 
   const chip = (active) =>
@@ -1070,11 +967,8 @@ export default function MyShopDashboard() {
         )}
 
         <OnboardingChecklist compact />
-
-        {/* Plan Status */}
         <PlanStatusCard summary={inventorySummary} onUpgrade={handleUpgrade} />
 
-        {/* Stats */}
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Overview">
           {[
             [
@@ -1104,12 +998,7 @@ export default function MyShopDashboard() {
                 setFilter("low");
               },
             ],
-            [
-              "Manual sales today",
-              fmt(stats.todaySales),
-              "text-emerald-700",
-              () => setTab("sales"),
-            ],
+            ["Counter sales", "Open POS", "text-emerald-700", () => setTab("pos")],
           ].map(([label, value, tone, go]) => (
             <button
               key={label}
@@ -1140,8 +1029,7 @@ export default function MyShopDashboard() {
                 <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11px] leading-relaxed text-slate-600">
                   <b className="text-slate-800">Unlisted</b> products stay in your inventory but
                   are hidden from your shop page and the MarketHub, so customers can't order them.
-                  You can still record manual sales and adjust their stock. Open orders carry on as
-                  normal.
+                  You can still record sales and adjust their stock. Open orders carry on as normal.
                 </p>
 
                 <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1185,7 +1073,7 @@ export default function MyShopDashboard() {
                         key={p._id}
                         p={p}
                         busy={busyId === p._id}
-                        onSale={(x) => setDialog({ type: "sale", product: x })}
+                        onSale={() => setTab("pos")}
                         onStock={(x) => setDialog({ type: "stock", product: x })}
                         onEdit={(x) => setDialog({ type: "edit", product: x })}
                         onToggle={toggleListing}
@@ -1295,89 +1183,12 @@ export default function MyShopDashboard() {
               </section>
             )}
 
-            {tab === "sales" && (
-              <section className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-black text-slate-900">Manual sales</h2>
-                    <p className="text-xs text-slate-500">
-                      Sales you made outside the app. They reduce your stock but don't use escrow or
-                      pay a Sokodigi fee.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setDialog({ type: "sale" })}
-                    className={`${btn} bg-emerald-700 text-white`}
-                  >
-                    + Record a sale
-                  </button>
-                </div>
-
-                {sales.length > 0 ? (
-                  <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
-                    {sales.map((s) => {
-                      const recent =
-                        Date.now() - new Date(s.createdAt).getTime() < 24 * 3600 * 1000;
-                      return (
-                        <li
-                          key={s._id}
-                          className={`flex flex-wrap items-center justify-between gap-3 p-4 text-xs ${
-                            s.voided ? "opacity-50" : ""
-                          }`}
-                        >
-                          <div className="min-w-0">
-                            <p className="font-black text-slate-900">
-                              {s.productName} × {s.quantity}{" "}
-                              {s.voided && (
-                                <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-[10px]">
-                                  Undone
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-slate-500">
-                              {when(s.createdAt)}
-                              {s.customerName ? ` · ${s.customerName}` : ""}
-                              {s.note ? ` · ${s.note}` : ""}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm font-black text-emerald-800">
-                              {fmt(s.total)}
-                            </span>
-                            {!s.voided && recent && (
-                              <button
-                                type="button"
-                                disabled={busyId === s._id}
-                                onClick={() => voidSale(s)}
-                                className="font-bold text-red-600 underline disabled:opacity-50"
-                              >
-                                Undo
-                              </button>
-                            )}
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
-                    <p className="text-4xl" aria-hidden="true">
-                      🧾
-                    </p>
-                    <h3 className="mt-3 font-black text-slate-900">No manual sales yet</h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Record a walk-in sale to keep your stock accurate.
-                    </p>
-                  </div>
-                )}
-              </section>
-            )}
+            {tab === "pos" && <PosTab />}
+            {tab === "reports" && <ReportsTab />}
           </>
         )}
       </main>
 
-      {/* Bottom tab bar (phones) */}
       <nav
         className="fixed inset-x-0 bottom-0 z-30 flex border-t border-slate-200 bg-white md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
@@ -1446,19 +1257,6 @@ export default function MyShopDashboard() {
             swap(p);
             setDialog(null);
             flash("Stock updated.");
-          }}
-        />
-      )}
-
-      {dialog?.type === "sale" && (
-        <SaleDialog
-          products={products}
-          product={dialog.product}
-          onClose={() => setDialog(null)}
-          onDone={() => {
-            setDialog(null);
-            Promise.all([loadSales(), loadProducts(1), loadSummary()]);
-            flash("Sale recorded and stock updated.");
           }}
         />
       )}
