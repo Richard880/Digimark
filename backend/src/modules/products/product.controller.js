@@ -246,7 +246,7 @@ if (imageUrl === null) return bad(res, "INVALID_IMAGE_URL");
       brandName,
       category,
       subCategory: subCategory.toLowerCase() || "general",
-      price, quantity, deliveryFee, description, imageUrl, status,costPrice,
+      price, quantity, deliveryFee, description, imageUrl, status,
       isShelved: status === "LISTED",
       ...feeFields(price), // client-supplied commission is ignored
       metrics: { conversionRate: 0, referralCount: 0, escrowDisputeRate: 0 },
