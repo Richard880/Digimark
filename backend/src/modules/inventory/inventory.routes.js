@@ -1,5 +1,15 @@
+const express = require("express");
+const router = express.Router(); // 💡 Fixes "ReferenceError: router is not defined"
+const mongoose = require("mongoose"); // 💡 Fixes "ReferenceError: mongoose is not defined"
+
+// Models
 const ProductCost = require("../../models/ProductCost");
-const { entitlementsFor, requireFeature } = require("../membership/entitlements"); // extend the existing import
+const Product = require("../../models/Product"); // 💡 Ensure this path is correct for your Product model
+
+// Middleware & Utilities
+const { entitlementsFor, requireFeature } = require("../membership/entitlements");
+// NOTE: Make sure you import 'authenticate', 'member', 'perUser', and 'fail' if they are defined elsewhere
+// const { authenticate, member, perUser, fail } = require("../../middleware/your-middleware-file");
 
 router.get("/costs", authenticate, member, perUser(30), async (req, res) => {
   try {
@@ -21,3 +31,6 @@ router.put("/products/:id/cost", authenticate, member, requireFeature("pos"), pe
     res.json({ ok: true });
   } catch (e) { fail(res, e, "set cost"); }
 });
+
+// 💡 Don't forget to export the router at the bottom of the file!
+module.exports = router;
