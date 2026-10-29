@@ -4,9 +4,9 @@ const authenticate = require("../../middleware/authenticate");
 const { perUser } = require("../../middleware/limits");
 const Product = require("../../models/Product");
 const StockMovement = require("../../models/StockMovement");
-const { entitlementsFor } = require("../membership/entitlements");
-const ProductCost = require("../../models/ProductCost");
 const { entitlementsFor, requireFeature } = require("../membership/entitlements"); // extend the existing import
+const ProductCost = require("../../models/ProductCost");
+
 
 
 
