@@ -6,12 +6,25 @@ import ROUTES from "../../constants/routes";
 
 const fmt = (n) => `Ksh ${Number(n || 0).toLocaleString("en-KE")}`;
 const FEATURES = [
-  ["pos", "POS and counter sales"], ["export", "Inventory export (CSV)"], ["stockHistory", "Stock history"], ["lowStockInApp", "Low-stock alerts in the app"],
-  ["promoteOthers", "Promote others' products (5% bonus)"], ["barcodes", "Barcode scanning"], ["thermalPrint", "Thermal receipt printing"],
-  ["customers", "Customers and credit sales"], ["suppliers", "Suppliers and purchase orders"], ["profitReports", "Profit reports"], ["lowStockSms", "Low-stock SMS"],
+  ["pos", "POS and counter sales"], 
+  ["export", "Inventory export (CSV)"], 
+  ["stockHistory", "Stock history"], 
+  ["lowStockInApp", "Low-stock alerts in the app"],
+  ["promoteOthers", "Promote others' products (5% bonus)"], 
+  ["barcodes", "Barcode scanning"], 
+  ["thermalPrint", "Thermal receipt printing"],
+  ["customers", "Customers and credit sales"], 
+  ["suppliers", "Suppliers and purchase orders"], 
+  ["profitReports", "Profit reports"],
+  ["lowStockSms", "Low-stock SMS"],
   ["receiptsPdf", "Receipts (print, PDF, WhatsApp)"],
-  ["dailyReport", "Daily report and cash close"]
-  ["multiTerminal", "Several POS devices"], ["staffRoles", "Staff logins and roles"], ["multiBranch", "Several branches"], ["apiAccess", "API and accounting export"], ["prioritySync", "Priority offline sync"], ["prioritySupport", "Priority support"],
+  ["dailyReport", "Daily report and cash close"],
+  ["multiTerminal", "Several POS devices"],
+  ["staffRoles", "Staff logins and roles"], 
+  ["multiBranch", "Several branches"],
+  ["apiAccess", "API and accounting export"],
+  ["prioritySync", "Priority offline sync"], 
+  ["prioritySupport", "Priority support"],
 ];
 const ERR = {
   INSUFFICIENT_FUNDS: "Your wallet balance is too low for this upgrade.", UPGRADE_NOT_AVAILABLE: "That upgrade isn't available right now.",
