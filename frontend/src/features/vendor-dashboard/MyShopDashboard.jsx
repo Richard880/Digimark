@@ -721,21 +721,32 @@ export default function MyShopDashboard() {
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
 
-  const loadProducts = useCallback(
-    async (p = 1) => {
+const loadProducts = useCallback(
+  async (p = 1) => {
+    try {
       const { data } = await apiClient.get("/products", {
         params: { sellerId: myId, status: "all", limit: 50, page: p },
       });
-      const rows = data.feed || [];
-      setProducts((prev) =>
-        p === 1 ? rows : [...prev, ...rows.filter((r) => !prev.some((x) => x._id === r._id))]
-      );
+      
+      // ✅ Guard 1: Safely read the feed array or default to an empty list
+      const rows = data?.feed || []; 
+      
+      setProducts((prev) => {
+        // ✅ Guard 2: Protect the .filter and .some loops from operating on undefined states
+        const safePrev = prev || [];
+        if (p === 1) return rows;
+        return [...safePrev, ...rows.filter((r) => !safePrev.some((x) => x?._id === r?._id))];
+      });
+      
       setHasMore(rows.length === 50);
       setPage(p);
-    },
-    [myId]
-  );
+    } catch (err) {
+      console.error("Dashboard list loading failed:", err);
+    }
+  },
+  [myId]
 );
+
 
 
   const loadOrders = useCallback(async () => {
