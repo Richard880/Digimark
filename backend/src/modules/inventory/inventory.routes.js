@@ -6,6 +6,7 @@ const mongoose = require("mongoose"); // 💡 Fixes "ReferenceError: mongoose is
 const ProductCost = require("../../models/ProductCost");
 const Product = require("../../models/Product"); // 💡 Ensure this path is correct for your Product model
 const authenticate = require("../../middleware/authenticate");
+const perUser = require("../../middleware/limits");
 // Middleware & Utilities
 const { entitlementsFor, requireFeature } = require("../membership/entitlements");
 // NOTE: Make sure you import 'authenticate', 'member', 'perUser', and 'fail' if they are defined elsewhere
