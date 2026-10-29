@@ -58,35 +58,18 @@ export default function MembershipPage() {
 const load = useCallback(async () => {
   setLoading(true); setLoadError(false);
   try {
-    const [p, m, w] = await Promise.all([
-      apiClient.get("/membership/plans"), 
-      apiClient.get("/membership/me"), 
-      apiClient.get("/wallet/my-balance")
-    ]);
-    
-    // 💡 Fix: Convert the backend PLANS object format into an array configuration structure
-    // This allows your frontend .find() and .map() loops to evaluate safely
-    const plansRaw = p.data.plans || {};
-    const plansArray = Object.entries(plansRaw).map(([key, details]) => ({
-      key,
-      ...details
-    }));
-    
-    setPlans(plansArray);
+    const [p, m, w] = await Promise.all([apiClient.get("/membership/plans"), apiClient.get("/membership/me"), apiClient.get("/wallet/my-balance")]);
+    setPlans(p.data.plans || []);
     setMe(m.data);
     setBalance(w.data.balance || 0);
-    setSelected((prev) => prev || m.data.plan || plansArray[0]?.key || "");
-    
-    if (m.data.status === "active") {
-      apiClient.get("/membership/activity")
-        .then((r) => setActivity(r.data))
-        .catch(() => setActivity(null));
-    }
+    setSelected((prev) => prev || m.data.plan || p.data.plans?.[0]?.key || "");
+    if (m.data.status === "active") apiClient.get("/membership/activity").then((r) => setActivity(r.data)).catch(() => setActivity(null));
   } catch (e) {
     console.error("Membership load failed:", e);
     setLoadError(true);
   } finally { setLoading(false); }
 }, []);
+
 
 
   useEffect(() => { load(); }, [load]);
