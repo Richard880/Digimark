@@ -720,20 +720,24 @@ export default function MyShopDashboard() {
 
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
-  const loadProducts = useCallback(
-    async (p = 1) => {
-      const { data } = await apiClient.get("/products", {
-        params: { sellerId: myId, status: "all", limit: 50, page: p },
-      });
-      const rows = data.feed || [];
-      setProducts((prev) =>
-        p === 1 ? rows : [...prev, ...rows.filter((r) => !prev.some((x) => x._id === r._id))]
-      );
-      setHasMore(rows.length === 50);
-      setPage(p);
-    },
-    [myId]
-  );
+ const loadProducts = useCallback(
+  async (p = 1) => {
+    const { data } = await apiClient. get("/products", {
+      params: { sellerId: myId, status: "all", limit: 50, page: p },
+    });
+    
+    // ✅ Fix: Extract using the exact 'products' or 'data' properties your API returns
+    const rows = data.products || data.data || [];
+    
+    setProducts(( prev) =>
+      p === 1 ? rows : [... prev, ... rows. filter(( r) => ! prev. some(( x) => x. _id === r. _id))]
+    );
+    setHasMore( rows. length === 50);
+    setPage( p);
+  },
+  [ myId]
+);
+
 
   const loadOrders = useCallback(async () => {
     const { data } = await apiClient.get("/orders", { params: { role: "seller", limit: 50 } });
