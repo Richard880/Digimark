@@ -720,23 +720,32 @@ export default function MyShopDashboard() {
 
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
- const loadProducts = useCallback(
+const loadProducts = useCallback(
   async (p = 1) => {
-    const { data } = await apiClient. get("/products", {
-      params: { sellerId: myId, status: "all", limit: 50, page: p },
-    });
-    
-    // ✅ Fix: Extract using the exact 'products' or 'data' properties your API returns
-    const rows = data.products || data.data || [];
-    
-    setProducts(( prev) =>
-      p === 1 ? rows : [... prev, ... rows. filter(( r) => ! prev. some(( x) => x. _id === r. _id))]
-    );
-    setHasMore( rows. length === 50);
-    setPage( p);
+    setLoading(true); // Ensure your loading state handles empty triggers smoothly
+    try {
+      const { data } = await apiClient.get("/products", {
+        params: { sellerId: myId, status: "all", limit: 50, page: p },
+      });
+      
+      // 💡 FIX HERE: Your backend returns 'data.products'. 
+      // We fall back safely to an empty array so it NEVER throws "undefined is not iterable"
+      const rows = data.products || data.data || [];
+      
+      setProducts((prev) =>
+        p === 1 ? rows : [...prev, ...rows.filter((r) => !prev.some((x) => x._id === r._id))]
+      );
+      setHasMore(rows.length === 50);
+      setPage(p);
+    } catch (err) {
+      console.error("Dashboard products load failed:", err);
+    } finally {
+      setLoading(false);
+    }
   },
-  [ myId]
+  [myId]
 );
+
 
 
   const loadOrders = useCallback(async () => {
