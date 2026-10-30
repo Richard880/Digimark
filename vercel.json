@@ -1,41 +1,67 @@
 {
   "version": 2,
   "crons": [
-    { "path": "/api/internal/daily", "schedule": "0 1 * * *" }
+    {
+      "path": "/api/internal/daily",
+      "schedule": "0 1 * * *"
+    }
   ],
   "builds": [
     {
       "src": "frontend/package.json",
       "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
+      "config": {
+        "distDir": "dist"
+      }
     },
     {
       "src": "backend/api/index.cjs",
       "use": "@vercel/node",
-      "config": { "includeFiles": ["backend/**"] }
+      "config": {
+        "includeFiles": ["backend/**"]
+      }
     }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "/backend/api/index.cjs" },
-
-    { "src": "/cloudinary-assets/(.*)", "dest": "https://res.cloudinary.com/YOUR_CLOUD_NAME/$1" },
-
+    {
+      "src": "/api/(.*)",
+      "dest": "/backend/api/index.cjs"
+    },
+    {
+      "src": "/cloudinary-assets/(.*)",
+      "dest": "https://res.cloudinary.com/YOUR_CLOUD_NAME/$1"
+    },
     {
       "src": "/sw.js",
       "headers": {
         "cache-control": "no-cache, no-store, must-revalidate",
-        "service-worker-allowed": "/"
+        "service-worker-allowed": "/",
+        "Permissions-Policy": "camera=(self)"
       },
       "dest": "/frontend/sw.js"
     },
     {
       "src": "/manifest.webmanifest",
-      "headers": { "content-type": "application/manifest+json" },
+      "headers": {
+        "content-type": "application/manifest+json",
+        "Permissions-Policy": "camera=(self)"
+      },
       "dest": "/frontend/manifest.webmanifest"
     },
-
-    { "src": "/(.+\\.[a-zA-Z0-9]+)$", "dest": "/frontend/$1" },
-
-    { "src": "/(.*)", "dest": "/frontend/index.html" }
+    {
+      "src": "/(.+\\.[a-zA-Z0-9]+)$",
+      "headers": {
+        "Permissions-Policy": "camera=(self)"
+      },
+      "dest": "/frontend/$1"
+    },
+    {
+      "src": "/(.*)",
+      "headers": {
+        "Permissions-Policy": "camera=(self)"
+      },
+      "dest": "/frontend/index.html"
+    }
   ]
 }
+``
