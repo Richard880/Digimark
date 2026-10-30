@@ -85,8 +85,12 @@ export default function useOutbox(userId, autoSync = false) {
 }
 
 // Keeps syncing in the background anywhere in the app (render it once in MainLayout)
+// 💡 Move this block ABOVE your "export default function useOutbox" definition or keep it here:
 export function OutboxSync() {
   const { auth } = useAuth();
-  useOutbox(auth.destination === "dashboard" && auth.user?._id ? String(auth.user._id) : "", true);
+  // Safe string evaluation check
+  const userId = auth.destination === "dashboard" && auth.user?._id ? String(auth.user._id) : "";
+  useOutbox(userId, true);
   return null;
 }
+
