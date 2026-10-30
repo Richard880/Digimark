@@ -23,6 +23,7 @@ router.use("/branches", require("../modules/branch/branch.routes"));
 router.use("/staff", require("../modules/staff/staff.routes"));
 router.use("/terminals", require("../modules/terminal/terminal.routes"));
 router.use("/pos", require("../modules/pos/pos.routes"));
+router.use("/customers", require("../modules/customers/customers.routes"));
 
 router.use("/disputes", require("../modules/disputes/dispute.routes"));
 
