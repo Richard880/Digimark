@@ -14,7 +14,7 @@ import { MovementsSheet } from "./InventoryPanel";
 import PosTab from "./pos/PosTab";
 import ReportsTab from "./pos/ReportsTab";
 import CustomersTab from "./CustomersTab";
-import useOutbox, { OutboxSync } from "../../offline/useOutbox";
+import useOutbox from "../../offline/useOutbox";
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
