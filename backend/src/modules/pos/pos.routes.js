@@ -10,6 +10,10 @@ const CashClose = require("../../models/CashClose");
 const Order = require("../../models/Order");
 const { changeStock } = require("../../services/stockLedger");
 const { requireFeature } = require("../membership/entitlements");
+const Customer = require("../../models/Customer");
+const CustomerEntry = require("../../models/CustomerEntry");
+const { requireFeature, entitlementsFor } = require("../membership/entitlements"); // extend the existing import
+const DAY = 86400000;
 
 const router = express.Router();
 const MAX_QTY = 100000, MAX_PRICE = 5000000, EAT = 3 * 3600 * 1000;
