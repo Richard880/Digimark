@@ -9,6 +9,7 @@ const line = new Schema(
     unitPrice: { type: Number, required: true, min: 1 },       // before discount
     unitCost: { type: Number, default: null },                  // snapshot of the cost at sale time
     lineTotal: { type: Number, required: true, min: 0 },        // after this line's share of the discount
+    shortfall: { type: Number, default: 0 },          // units sold after stock ran out (offline sales only)
   },
   { _id: false }
 );
@@ -26,7 +27,14 @@ const schema = new Schema(
     mpesaRef: { type: String, default: "", maxlength: 10 },
     customerName: { type: String, default: "", maxlength: 80 },
     note: { type: String, default: "", maxlength: 200 },
-    voided: { type: Boolean, default: false }, voidedAt: Date,
+    voided: { type: Boolean, default: false },
+    paymentMethod: { type: String, enum: ["cash", "mpesa", "credit"], required: true }, // for a partly-paid sale: the method used for the paid part
+    creditAmount: { type: Number, default: 0, min: 0 },
+    customerId: { type: Schema.Types.ObjectId, default: null },
+    overLimit: { type: Boolean, default: false },
+    offline: { type: Boolean, default: false },
+    syncedAt: Date,
+    voidedAt: Date,
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );
