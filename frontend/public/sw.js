@@ -1,5 +1,5 @@
 // Sokodigi service worker. Bump VERSION to force every device to refresh its cache.
-const VERSION = "v2";
+const VERSION = "v3";
 const STATIC = `sokodigi-static-${VERSION}`;
 const PAGES = `sokodigi-pages-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
@@ -84,7 +84,22 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;   // never touch other sites
   if (url.pathname.startsWith("/api/")) return;      // never cache account, order, chat or money data
-  if (req.mode === "navigate") { event.respondWith(fetch(req).catch(() => caches.match(OFFLINE_URL))); return; }
+ if (req.mode === "navigate") {
+  event.respondWith((async () => {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 6000); // a very slow connection falls back to the saved app
+    try {
+      const res = await fetch(req, { signal: ctrl.signal });
+      if (res.ok && (res.headers.get("content-type") || "").includes("text/html")) {
+        (await caches.open(PAGES)).put("/__shell", res.clone()); // the app shell has no personal data
+      }
+      return res;
+    } catch {
+      return (await caches.match("/__shell")) || (await caches.match(OFFLINE_URL));
+    } finally { clearTimeout(t); }
+  })());
+  return;
+}
   if (url.pathname.startsWith("/assets/")) { event.respondWith(cacheFirst(req)); return; }
   if (/\.(?:png|jpe?g|webp|svg|ico|woff2?)$/.test(url.pathname) || url.pathname === "/manifest.webmanifest") event.respondWith(staleWhileRevalidate(req));
 });
