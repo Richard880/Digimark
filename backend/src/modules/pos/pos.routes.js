@@ -55,13 +55,11 @@ router.get("/products", authenticate, member, perUser(120), h(async (req, res) =
 }));
 
 /** Record a sale. A retry with the same clientRef returns the original sale. */
-router.post("/sales", authenticate, member, requireFeature("pos"), perUser(60), h(async (req, res) => {
-  const me = req.user._id;
-  const b = req.body || {};
+async function recordSale(me, b, { offline = false, ent }) {
   const clientRef = typeof b.clientRef === "string" && /^[A-Za-z0-9_-]{16,64}$/.test(b.clientRef) ? b.clientRef : null;
   if (!clientRef) throw E("CLIENT_REF_REQUIRED");
   const prior = await Sale.findOne({ sellerId: me, clientRef }).lean();
-  if (prior) return res.json({ ok: true, replay: true, sale: prior });
+  if (prior) return { sale: prior, replay: true };
 
   if (!Array.isArray(b.lines) || b.lines.length < 1 || b.lines.length > 50) throw E("INVALID_LINES");
   const want = new Map();
@@ -73,9 +71,24 @@ router.post("/sales", authenticate, member, requireFeature("pos"), perUser(60), 
   }
   const discount = b.discount === undefined ? 0 : b.discount;
   if (!int(discount, 0, MAX_PRICE * 50)) throw E("INVALID_DISCOUNT");
-  if (!["cash", "mpesa"].includes(b.paymentMethod)) throw E("INVALID_PAYMENT");
+  const method = b.paymentMethod;
+  if (!["cash", "mpesa", "credit"].includes(method)) throw E("INVALID_PAYMENT");
   const mpesaRef = typeof b.mpesaRef === "string" ? b.mpesaRef.trim().toUpperCase() : "";
   if (mpesaRef && !/^[A-Z0-9]{10}$/.test(mpesaRef)) throw E("INVALID_MPESA_REF");
+
+  let wantCredit = 0; // -1 means "all of it"
+  if (method === "credit") wantCredit = -1;
+  else if (b.creditAmount !== undefined) { if (!int(b.creditAmount, 1, MAX_PRICE * 50)) throw E("INVALID_CREDIT"); wantCredit = b.creditAmount; }
+  if (wantCredit !== 0) {
+    if (!ent.features.creditSales) throw E("PLAN_UPGRADE_REQUIRED", 403, { feature: "creditSales" });
+    if (!isId(b.customerId)) throw E("CREDIT_CUSTOMER_REQUIRED");
+  }
+
+  // Offline sales keep the time they were made, within the last 14 days
+  let soldAt = new Date();
+  if (offline && typeof b.soldAt === "string" && Number.isFinite(Date.parse(b.soldAt))) {
+    soldAt = new Date(Math.min(Date.now(), Math.max(Date.now() - 14 * DAY, Date.parse(b.soldAt))));
+  }
 
   try {
     const sale = await mongoose.connection.transaction(async (session) => {
@@ -89,22 +102,34 @@ router.post("/sales", authenticate, member, requireFeature("pos"), perUser(60), 
         const w = want.get(String(p._id));
         const unitPrice = w.unitPrice ?? p.price;
         return { productId: p._id, name: p.name, sku: p.productCode || "", quantity: w.quantity, unitPrice,
-          unitCost: costs.has(String(p._id)) ? costs.get(String(p._id)) : null, lineTotal: unitPrice * w.quantity };
+          unitCost: costs.has(String(p._id)) ? costs.get(String(p._id)) : null, lineTotal: unitPrice * w.quantity, shortfall: 0 };
       });
       const subtotal = lines.reduce((t, l) => t + l.lineTotal, 0);
       if (discount >= subtotal) throw E("INVALID_DISCOUNT");
       const total = subtotal - discount;
-
-      // Spread the discount over the lines, so profit per line stays accurate
       let rem = discount;
       for (const l of lines) { const share = Math.floor((discount * l.lineTotal) / subtotal); l.lineTotal -= share; rem -= share; }
       while (rem > 0) for (const l of lines) if (rem > 0 && l.lineTotal > 0) { l.lineTotal--; rem--; }
 
+      const creditAmount = wantCredit === -1 ? total : wantCredit;
+      if (creditAmount > total || (method !== "credit" && creditAmount >= total)) throw E("INVALID_CREDIT");
+      const paidNow = total - creditAmount;
       let tendered, change;
-      if (b.paymentMethod === "cash") {
-        tendered = b.amountTendered === undefined ? total : b.amountTendered;
-        if (!int(tendered, total, MAX_PRICE * 50)) throw E("INSUFFICIENT_TENDER");
-        change = tendered - total;
+      if (method === "cash") {
+        tendered = b.amountTendered === undefined ? paidNow : b.amountTendered;
+        if (!int(tendered, paidNow, MAX_PRICE * 50)) throw E("INSUFFICIENT_TENDER");
+        change = tendered - paidNow;
+      }
+
+      // Credit: add to the customer's balance atomically. Online sales enforce the limit; offline ones are flagged.
+      let customer = null, overLimit = false;
+      if (creditAmount > 0) {
+        const limitOk = offline ? {} : { $or: [{ creditLimit: null }, { $expr: { $lte: [{ $add: ["$balance", creditAmount] }, "$creditLimit"] } }] };
+        customer = await Customer.findOneAndUpdate(
+          { _id: b.customerId, sellerId: me, archived: false, ...limitOk },
+          { $inc: { balance: creditAmount }, $set: { lastCreditAt: soldAt } }, { new: true, session });
+        if (!customer) throw E((await Customer.exists({ _id: b.customerId, sellerId: me, archived: false }).session(session)) ? "CREDIT_LIMIT_EXCEEDED" : "CUSTOMER_NOT_FOUND", 409);
+        overLimit = customer.creditLimit != null && customer.balance > customer.creditLimit;
       }
 
       const saleId = new mongoose.Types.ObjectId();
@@ -112,26 +137,71 @@ router.post("/sales", authenticate, member, requireFeature("pos"), perUser(60), 
       const receiptNo = `R-${String(ctr.seq).padStart(6, "0")}`;
 
       for (const l of lines) {
-        const ok = await changeStock(session, { productId: l.productId, sellerId: me, delta: -l.quantity, type: "sale_pos", ref: `pos:${saleId}:${l.productId}`, note: `Receipt ${receiptNo}`, actorId: me });
-        if (!ok) throw E("INSUFFICIENT_STOCK", 409, { product: l.name });
+        let take = l.quantity;
+        if (offline) { // the goods are already gone: record the sale, take what stock there is, and flag the rest
+          const cur = await Product.findOne({ _id: l.productId, sellerId: me }).select("quantity").session(session).lean();
+          take = Math.min(l.quantity, Math.max(0, cur?.quantity || 0));
+          l.shortfall = l.quantity - take;
+        }
+        if (take > 0) {
+          const ok = await changeStock(session, { productId: l.productId, sellerId: me, delta: -take, type: "sale_pos", ref: `pos:${saleId}:${l.productId}`, note: `Receipt ${receiptNo}`, actorId: me });
+          if (!ok) throw E("INSUFFICIENT_STOCK", 409, { product: l.name });
+        }
       }
+
       const [created] = await Sale.create([{
         _id: saleId, sellerId: me, cashierId: me, receiptNo, clientRef, lines, subtotal, discount, total,
-        paymentMethod: b.paymentMethod, amountTendered: tendered, change, mpesaRef,
-        customerName: txt(b.customerName, 80), note: txt(b.note, 200),
+        paymentMethod: method === "credit" ? "credit" : method, amountTendered: tendered, change, mpesaRef,
+        creditAmount, customerId: customer?._id || null, overLimit,
+        customerName: customer ? customer.name : txt(b.customerName, 80), note: txt(b.note, 200),
+        offline, ...(offline ? { syncedAt: new Date() } : {}), createdAt: soldAt,
       }], { session });
+
+      if (customer) {
+        await CustomerEntry.create([{ sellerId: me, customerId: customer._id, type: "credit_sale", amount: creditAmount, balanceAfter: customer.balance, saleId, note: `Receipt ${receiptNo}`, ref: `sale:${saleId}` }], { session });
+      }
       return created.toObject();
     });
-    res.status(201).json({ ok: true, sale });
+    return { sale };
   } catch (e) {
     if (e.code === 11000) { // the same request arrived twice at once
       const again = await Sale.findOne({ sellerId: me, clientRef }).lean();
-      if (again) return res.json({ ok: true, replay: true, sale: again });
+      if (again) return { sale: again, replay: true };
     }
     throw e;
   }
+}
+
+router.post("/sales", authenticate, member, requireFeature("pos"), perUser(60), h(async (req, res) => {
+  const r = await recordSale(req.user._id, req.body || {}, { offline: false, ent: req.ent });
+  res.status(r.replay ? 200 : 201).json({ ok: true, ...(r.replay ? { replay: true } : {}), sale: r.sale });
 }));
 
+// Sales made offline. Each is processed on its own, so one bad sale never blocks the others.
+router.post("/sales/sync", authenticate, member, requireFeature("pos"), perUser(30), h(async (req, res) => {
+  const list = Array.isArray(req.body?.sales) ? req.body.sales.slice(0, 20) : null;
+  if (!list?.length) throw E("INVALID_LINES");
+  const ent = entitlementsFor(req.user);
+  const results = [];
+  for (const s of list) {
+    const clientRef = typeof s?.clientRef === "string" ? s.clientRef : null;
+    try {
+      const r = await recordSale(req.user._id, s || {}, { offline: true, ent });
+      results.push({ clientRef, ok: true, replay: !!r.replay, receiptNo: r.sale.receiptNo,
+        shortfall: r.sale.lines.some((l) => l.shortfall > 0), overLimit: !!r.sale.overLimit });
+    } catch (e) {
+      if (e.http) results.push({ clientRef, ok: false, error: e.message, product: e.extra?.product });
+      else { console.error("❌ pos sync:", e.stack || e.message); results.push({ clientRef, ok: false, error: "SERVER_ERROR", retry: true }); }
+    }
+  }
+  res.json({ ok: true, results });
+}));
+
+// The whole catalogue for the device: search works offline too
+router.get("/catalog", authenticate, member, perUser(20), h(async (req, res) => {
+  const rows = await Product.find({ sellerId: req.user._id }).sort({ name: 1 }).limit(3001).select("name price quantity productCode imageUrl").lean();
+  res.json({ ok: true, truncated: rows.length > 3000, products: rows.slice(0, 3000) });
+}));
 /** Sales for one day (default today) */
 router.get("/sales", authenticate, member, perUser(60), h(async (req, res) => {
   const { start, end, label } = dayRange(req.query.date);
@@ -149,7 +219,14 @@ router.post("/sales/:id/void", authenticate.strict, member, requireFeature("pos"
   await mongoose.connection.transaction(async (session) => {
     const f = await Sale.findOneAndUpdate({ _id: sale._id, voided: false }, { $set: { voided: true, voidedAt: new Date() } }, { session });
     if (!f) throw E("ALREADY_VOIDED", 409);
-    for (const l of sale.lines) await changeStock(session, { productId: l.productId, delta: l.quantity, type: "void", ref: `void:${sale._id}:${l.productId}`, note: `Voided ${sale.receiptNo}`, actorId: req.user._id });
+   for (const l of sale.lines) {
+  const back = l.quantity - (l.shortfall || 0); // only what was actually taken from stock
+  if (back > 0) await changeStock(session, { productId: l.productId, delta: back, type: "void", ref: `void:${sale._id}:${l.productId}`, note: `Voided ${sale.receiptNo}`, actorId: req.user._id });
+}
+if (sale.creditAmount > 0 && sale.customerId) {
+  const c = await Customer.findOneAndUpdate({ _id: sale.customerId, sellerId: req.user._id }, { $inc: { balance: -sale.creditAmount } }, { new: true, session });
+  if (c) await CustomerEntry.create([{ sellerId: req.user._id, customerId: c._id, type: "void_sale", amount: -sale.creditAmount, balanceAfter: c.balance, saleId: sale._id, note: `Voided ${sale.receiptNo}`, ref: `void:${sale._id}` }], { session });
+}
   });
   res.json({ ok: true });
 }));
