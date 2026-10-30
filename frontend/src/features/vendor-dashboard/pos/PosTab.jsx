@@ -293,7 +293,19 @@ useEffect(() => { if (uid && ent) kvSet(`barcodes:${uid}`, !!(ent.active && ent.
       {outbox.notice && <p role="alert" className="mb-3 flex items-start justify-between gap-3 rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-900">{outbox.notice}<button type="button" onClick={outbox.clearNotice} className="shrink-0 underline">OK</button></p>}
       <OutboxPanel outbox={outbox} onReceipt={setReceipt} />
       {!sheet && error && items.length === 0 && <p role="alert" className="mb-3 rounded-xl bg-red-50 px-4 py-3 text-xs font-bold text-red-700">{error}</p>}
-    {scanMsg && !scan && <p role="status" className={mb-3 rounded-xl px-3 py-2 text-xs font-bold ${scanMsg.ok ? “bg-emerald-50 text-emerald-800” : “bg-amber-50 text-amber-900”}}>{scanMsg.t}</p>}
+  {scanMsg && !scan && (
+  <p
+    role="status"
+    className={`mb-3 rounded-xl px-3 py-2 text-xs font-bold ${
+      scanMsg.ok
+        ? "bg-emerald-50 text-emerald-800"
+        : "bg-amber-50 text-amber-900"
+    }`}
+  >
+    {scanMsg.t}
+  </p>
+)}
+      
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
         <section aria-label="Products">
            <div className="mb-3 flex gap-2">
