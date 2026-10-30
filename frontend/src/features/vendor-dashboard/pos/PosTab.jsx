@@ -7,6 +7,8 @@ import { sizedImage } from "../../../utils/image";
 import { kvGet, kvSet, nextLocalNo } from "../../../offline/db";
 import { provisionalReceipt } from "../../../offline/useOutbox";
 import { ReceiptSheet } from "./Receipt";
+import BarcodeScanner from "./BarcodeScanner";
+
 
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
 const up = (n, s) => Math.ceil(n / s) * s;
@@ -76,9 +78,21 @@ export default function PosTab({ outbox }) {
   const [receipt, setReceipt] = useState(null);
   const key = useRef(null);
 
+  // with the other state:
+const [scan, setScan] = useState(false);
+const [scanMsg, setScanMsg] = useState(null);
+const [cachedBarcodes, setCachedBarcodes] = useState(false);
+const cartRef = useRef({});
+cartRef.current = cart;
+  
+
   const canCredit = ent ? !!(ent.active && ent.features.creditSales) : cachedCredit;
   useEffect(() => { if (uid) kvGet(`credit:${uid}`).then((v) => setCachedCredit(!!v)).catch(() => {}); }, [uid]);
   useEffect(() => { if (uid && ent) kvSet(`credit:${uid}`, !!(ent.active && ent.features.creditSales)).catch(() => {}); }, [uid, ent]);
+
+  const canScan = ent ? !!(ent.active && ent.features.barcodes) : cachedBarcodes;
+useEffect(() => { if (uid) kvGet(`barcodes:${uid}`).then((v) => setCachedBarcodes(!!v)).catch(() => {}); }, [uid]);
+useEffect(() => { if (uid && ent) kvSet(`barcodes:${uid}`, !!(ent.active && ent.features.barcodes)).catch(() => {}); }, [uid, ent]);
 
   const loadCatalog = useCallback(async () => {
     try {
@@ -122,6 +136,16 @@ export default function PosTab({ outbox }) {
     if (n <= 0) { const { [id]: _drop, ...rest } = c; return rest; }
     return { ...c, [id]: { ...cur, qty: Math.min(n, stockOf(cur.p)) } };
   });
+
+  const onCode = (raw) => {
+  const code = String(raw).trim();
+  const p = catalog.find((x) => x.barcode && x.barcode === code);
+  if (!p) return setScanMsg({ ok: false, t: `No product has the barcode ${code}. Attach it in the product's Edit screen.` });
+  if ((cartRef.current[p._id]?.qty || 0) >= stockOf(p)) return setScanMsg({ ok: false, t: `${p.name}: no more stock.` });
+  add(p);
+  setScanMsg({ ok: true, t: `Added ${p.name}` });
+};
+  
   const setPrice = (id, v) => setCart((c) => ({ ...c, [id]: { ...c[id], price: v.replace(/\D/g, "").slice(0, 7) } }));
 
   const items = Object.values(cart);
@@ -269,10 +293,15 @@ export default function PosTab({ outbox }) {
       {outbox.notice && <p role="alert" className="mb-3 flex items-start justify-between gap-3 rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-900">{outbox.notice}<button type="button" onClick={outbox.clearNotice} className="shrink-0 underline">OK</button></p>}
       <OutboxPanel outbox={outbox} onReceipt={setReceipt} />
       {!sheet && error && items.length === 0 && <p role="alert" className="mb-3 rounded-xl bg-red-50 px-4 py-3 text-xs font-bold text-red-700">{error}</p>}
-
+    {scanMsg && !scan && <p role="status" className={mb-3 rounded-xl px-3 py-2 text-xs font-bold ${scanMsg.ok ? “bg-emerald-50 text-emerald-800” : “bg-amber-50 text-amber-900”}}>{scanMsg.t}</p>}
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
         <section aria-label="Products">
-          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or SKU…" aria-label="Search products" className={`${field} mb-3`} />
+           <div className="mb-3 flex gap-2">
+                  <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search or scan…" aria-label="Search products"
+                    onKeyDown={(e) => { if (e.key === "Enter") { const c = q.trim(); if (c && catalog.some((x) => x.barcode === c)) { e.preventDefault(); onCode(c); setQ(""); } } }}
+                    className={field} />
+                  {canScan && <button type="button" onClick={() => { setScanMsg(null); setScan(true); }} aria-label="Scan with the camera" className="min-h-11 shrink-0 rounded-xl bg-slate-900 px-4 text-sm font-black text-white">📷 Scan</button>}
+                </div>
           {loading ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-slate-100" />)}</div>
             : shown.length === 0 ? <p className="rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center text-xs text-slate-500">{q ? "No product matches that search." : "Add products in the Inventory tab first."}</p>
             : (
@@ -295,7 +324,7 @@ export default function PosTab({ outbox }) {
         <aside className="hidden self-start rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-24 lg:block"><h2 className="mb-2 text-sm font-black text-slate-800">Current sale</h2>{cartPanel}</aside>
       </div>
 
-      {items.length > 0 && (
+{items.length > 0 && (      
         <div className="fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom))] z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.06)] backdrop-blur md:bottom-0 lg:hidden">
           <button type="button" onClick={() => setSheet(true)} className="mx-auto flex min-h-12 w-full max-w-2xl items-center justify-between rounded-xl bg-emerald-700 px-5 text-sm font-black text-white"><span>{count} item{count === 1 ? "" : "s"} · Review</span><span>{fmt(Math.max(0, total))}</span></button>
         </div>
@@ -309,6 +338,7 @@ export default function PosTab({ outbox }) {
         </div>
       )}
       {receipt && <ReceiptSheet sale={receipt} shop={shop} onClose={() => { setReceipt(null); if (items.length) reset(); }} onNew={() => { setReceipt(null); reset(); }} />}
-    </div>
+   {scan && <BarcodeScanner status={scanMsg} onCode={onCode} onClose={() => setScan(false)} title="Scan to add to the sale" />}
+</div>
   );
 }
