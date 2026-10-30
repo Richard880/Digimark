@@ -42,7 +42,7 @@ export default function ReportsTab() {
 
   const card = (l, v, tone = "") => <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><p className="text-[11px] font-bold text-slate-500">{l}</p><p className={`mt-1 truncate text-xl font-black ${tone || "text-slate-900"}`}>{v}</p></div>;
 
-  return (
+   return (
     <section className="space-y-4" aria-label="Reports">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div><h2 className="text-lg font-black text-slate-900">Daily report</h2><p className="text-xs text-slate-500">Counter sales for the day, in Nairobi time.</p></div>
@@ -63,6 +63,11 @@ export default function ReportsTab() {
             {card("Discounts given", fmt(r.sales.discount))}
             {card("Online orders paid out", `${r.online.count} · ${fmt(r.online.received)}`)}
             {card("Undone sales", r.voidedCount)}
+            
+            {/* 💡 New Analytics Cards Added Here */}
+            {card("Credit given", fmt(r.credit?.given || 0))}
+            {card("Debts collected", fmt((r.debt?.cash || 0) + (r.debt?.mpesa || 0)))}
+            {card("Owed to you", fmt(r.owed?.total || 0))}
           </div>
           {r.profit.unknownCostRevenue > 0 && <p className="rounded-xl bg-amber-50 px-4 py-3 text-[11px] text-amber-900">Profit only counts items that have a cost price. {fmt(r.profit.unknownCostRevenue)} of today's sales has none. Add costs in a product's Edit screen.</p>}
 
@@ -81,7 +86,8 @@ export default function ReportsTab() {
               <p className={`text-xs font-bold ${r.close.difference === 0 ? "text-emerald-700" : "text-amber-700"}`}>Closed. Expected cash {fmt(r.close.expectedCash)}, counted {fmt(r.close.countedCash)}: {r.close.difference === 0 ? "balanced" : r.close.difference > 0 ? `${fmt(r.close.difference)} over` : `${fmt(-r.close.difference)} short`}.</p>
             ) : (
               <form onSubmit={close} className="space-y-2">
-                <p className="text-xs text-slate-500">Cash sales say you should have <b>{fmt(r.byPayment.cash.total)}</b> in the till from today's sales. Count it and enter the amount.</p>
+                {/* 💡 Updated text formula here to merge transactional cash and collected cash metrics */}
+                <p className="text-xs text-slate-500">Cash sales say you should have <b>{fmt((r.byPayment.cash?.total || 0) + (r.debt?.cash || 0))}</b> in the till from today's sales (including cash collected on debts). Count it and enter the amount.</p>
                 <input inputMode="numeric" value={counted} onChange={(e) => setCounted(e.target.value.replace(/\D/g, "").slice(0, 9))} placeholder="Cash counted (KES)" aria-label="Cash counted" className={field} />
                 <input value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="Note (optional)" aria-label="Note" className={field} />
                 <button type="submit" disabled={busy || !counted} className="min-h-11 w-full rounded-xl bg-slate-900 text-xs font-black text-white disabled:opacity-40">Close the day</button>
@@ -97,7 +103,7 @@ export default function ReportsTab() {
                   const recent = Date.now() - new Date(s.createdAt).getTime() < 24 * 3600 * 1000;
                   return (
                     <li key={s._id} className={`flex flex-wrap items-center justify-between gap-2 py-2.5 text-xs ${s.voided ? "opacity-50" : ""}`}>
-                      <div className="min-w-0"><p className="font-black text-slate-800">{s.receiptNo} {s.voided && <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-[10px]">Undone</span>}</p><p className="text-slate-500">{time(s.createdAt)} · {s.paymentMethod === "cash" ? "Cash" : "M-Pesa"} · {s.lines.reduce((t, l) => t + l.quantity, 0)} items</p></div>
+                      <div className="min-w-0"><p className="font-black text-slate-800">{s.receiptNo} {s.voided && <span className="ml-1 rounded-full bg-slate-200 px-2 py-0.5 text-[10px]">Undone</span>}</p><p className="text-slate-500">{time(s.createdAt)} · {s.paymentMethod === "cash" ? "Cash" : s.paymentMethod === "mpesa" ? "M-Pesa" : "Credit"} · {s.lines.reduce((t, l) => t + l.quantity, 0)} items</p></div>
                       <div className="flex items-center gap-3"><span className="text-sm font-black">{fmt(s.total)}</span>
                         <button type="button" onClick={() => setView(s)} className="font-bold text-emerald-700 underline">Receipt</button>
                         {!s.voided && recent && <button type="button" disabled={busy} onClick={() => voidSale(s)} className="font-bold text-red-600 underline disabled:opacity-50">Undo</button>}</div>
@@ -112,4 +118,3 @@ export default function ReportsTab() {
       {view && <ReceiptSheet sale={view} shop={shop} onClose={() => setView(null)} />}
     </section>
   );
-}
