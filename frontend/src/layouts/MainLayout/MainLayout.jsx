@@ -10,6 +10,7 @@ import styles from "./MainLayout.module.css";
 import InstallPrompt from "../../pwa/InstallPrompt";
 import PWAStatus from "../../pwa/PWAStatus";
 import PushSync from "../../pwa/PushSync";
+import { OutboxSync } from "../../offline/useOutbox"; 
 
 
 export default function MainLayout() {
