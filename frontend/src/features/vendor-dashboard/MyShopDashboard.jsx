@@ -73,8 +73,6 @@ const input =
 const lab = "mb-1 block text-[11px] font-bold uppercase text-slate-500";
 const btn = "min-h-10 rounded-xl px-3 text-xs font-bold disabled:opacity-50";
 
-const outbox = useOutbox(myId, true);          // near the other hooks
-const tabs = [["inventory", "📦", "Inventory", 0], ["orders", "📋", "Orders", stats.newOrders], ["pos", "🧮", "POS", outbox.waiting.length], ["customers", "👥", "Customers", 0], ["reports", "📊", "Reports", 0]];
 
 
 /* ───────── Plan Status Card ───────── */
@@ -717,6 +715,9 @@ export default function MyShopDashboard() {
 
   const noticeTimer = useRef(null);
   const getToken = useCallback(() => auth.currentUser.getIdToken(), [auth.currentUser]);
+  const outbox = useOutbox(myId, true);          // near the other hooks
+  const tabs = [["inventory", "📦", "Inventory", 0], ["orders", "📋", "Orders", stats.newOrders], ["pos", "🧮", "POS", outbox.waiting.length], ["customers", "👥", "Customers", 0], ["reports", "📊", "Reports", 0]];
+
 
   const flash = (text, type = "ok") => {
     setNotice({ text, type });
