@@ -15,7 +15,8 @@ import { MovementsSheet } from "./InventoryPanel";
 import PosTab from "./pos/PosTab";
 import ReportsTab from "./pos/ReportsTab";
 import CustomersTab from "./CustomersTab";
-
+import BarcodeScanner from "./pos/BarcodeScanner";
+import useEntitlements from "../membership/useEntitlements";
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -29,7 +30,8 @@ const when = (d) =>
         minute: "2-digit",
       })
     : "";
-const isPublic = (p) => p.isShelved !== false && ["LISTED", "ACTIVE"].includes(p.status);
+const isPublic = (p) =>
+  p.isShelved !== false && ["LISTED", "ACTIVE"].includes(p.status);
 
 const CATEGORIES = [
   ["phones-gadgets", "Phones & Gadgets"],
@@ -42,7 +44,8 @@ const CATEGORIES = [
 ];
 
 const ERR = {
-  PRODUCT_HAS_OPEN_ORDERS: "This product has open orders. Unlist it instead, or finish those orders first.",
+  PRODUCT_HAS_OPEN_ORDERS:
+    "This product has open orders. Unlist it instead, or finish those orders first.",
   INSUFFICIENT_STOCK: "Not enough stock for that.",
   STOCK_CHANGE_NOT_POSSIBLE: "That change would take stock below zero.",
   INVALID_QUANTITY: "Enter a whole number of at least 1.",
@@ -55,13 +58,18 @@ const ERR = {
   TOO_MANY_ATTEMPTS: "Too many wrong attempts. Try again in 15 minutes.",
   ALREADY_FULFILLED: "This order was already completed.",
   INVALID_PIN_FORMAT: "Enter the 6-digit PIN.",
-  MARKETER_ACCOUNT_REQUIRED: "Your membership isn't active. Renew it to manage your shop.",
+  MARKETER_ACCOUNT_REQUIRED:
+    "Your membership isn't active. Renew it to manage your shop.",
   TOO_MANY_REQUESTS: "You're going too fast. Wait a moment.",
   INVALID_CATEGORY: "Choose a valid category.",
   INVALID_IMAGE_URL: "That photo couldn't be verified. Try another.",
   NAME_REQUIRED: "Enter a product name.",
-  PLAN_LIMIT_REACHED: "You've reached your plan's product limit. Upgrade to add more.",
+  PLAN_LIMIT_REACHED:
+    "You've reached your plan's product limit. Upgrade to add more.",
   PLAN_UPGRADE_REQUIRED: "That feature needs a higher plan.",
+  BARCODE_TAKEN: "Another of your products already uses that barcode.",
+  INVALID_BARCODE:
+    "Barcodes use 4 to 32 letters, numbers, dots or dashes.",
 };
 
 const errMsg = (e) =>
@@ -74,13 +82,16 @@ const input =
 const lab = "mb-1 block text-[11px] font-bold uppercase text-slate-500";
 const btn = "min-h-10 rounded-xl px-3 text-xs font-bold disabled:opacity-50";
 
-
-
 /* ───────── Plan Status Card ───────── */
 function PlanStatusCard({ summary, onUpgrade }) {
   if (!summary) return null;
 
-  const { total = 0, limit = 50, plan = "Solo Retailer", readOnly = false } = summary;
+  const {
+    total = 0,
+    limit = 50,
+    plan = "Solo Retailer",
+    readOnly = false,
+  } = summary;
   const pct = Math.min(100, Math.round((total / Math.max(1, limit)) * 100));
   const nearLimit = pct >= 80;
   const atLimit = total >= limit;
@@ -118,7 +129,11 @@ function PlanStatusCard({ summary, onUpgrade }) {
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
         <div
           className={`h-full rounded-full transition-all ${
-            atLimit ? "bg-red-500" : nearLimit ? "bg-amber-500" : "bg-emerald-600"
+            atLimit
+              ? "bg-red-500"
+              : nearLimit
+                ? "bg-amber-500"
+                : "bg-emerald-600"
           }`}
           style={{ width: `${pct}%` }}
         />
@@ -126,8 +141,14 @@ function PlanStatusCard({ summary, onUpgrade }) {
 
       {(nearLimit || atLimit) && !readOnly && (
         <p className="mt-2 text-[11px] font-semibold text-amber-800">
-          {atLimit ? "You’ve reached your product limit." : "You’re approaching your product limit."}{" "}
-          <button type="button" onClick={onUpgrade} className="font-bold underline">
+          {atLimit
+            ? "You’ve reached your product limit."
+            : "You’re approaching your product limit."}{" "}
+          <button
+            type="button"
+            onClick={onUpgrade}
+            className="font-bold underline"
+          >
             Upgrade now
           </button>
         </p>
@@ -183,7 +204,10 @@ function Sheet({ title, onClose, children }) {
 
 const Err = ({ text }) =>
   text ? (
-    <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+    <p
+      role="alert"
+      className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700"
+    >
       {text}
     </p>
   ) : null;
@@ -192,7 +216,9 @@ const Err = ({ text }) =>
 function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
   const [f, setF] = useState({
     name: product.name || "",
-    category: CATEGORIES.some(([v]) => v === product.category) ? product.category : "general",
+    category: CATEGORIES.some(([v]) => v === product.category)
+      ? product.category
+      : "general",
     price: String(product.price ?? ""),
     deliveryFee: String(product.deliveryFee ?? 0),
     description: product.description || "",
@@ -202,6 +228,11 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [armed, setArmed] = useState(false);
+
+  const { ent } = useEntitlements();
+  const canBarcode = !!(ent?.active && ent.features?.barcodes);
+  const [barcode, setBarcode] = useState(product.barcode || "");
+  const [scan, setScan] = useState(false);
 
   useEffect(() => {
     apiClient
@@ -213,28 +244,52 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
       .catch(() => {});
   }, [product._id]);
 
-  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
-  const price = /^\d{1,8}$/.test(f.price.trim()) ? Number(f.price) : NaN;
+  const set = (k) => (e) =>
+    setF((p) => ({ ...p, [k]: e.target.value }));
+  const price = /^\d{1,8}$/.test(f.price.trim())
+    ? Number(f.price)
+    : NaN;
   const fee =
     f.deliveryFee.trim() === ""
       ? 0
       : /^\d{1,6}$/.test(f.deliveryFee.trim())
-      ? Number(f.deliveryFee)
-      : NaN;
-  const direct = Number.isInteger(price) ? price - Math.round(price * 0.01) : 0;
-  const viaPromoter = Number.isInteger(price) ? direct - Math.round(price * 0.05) : 0;
+        ? Number(f.deliveryFee)
+        : NaN;
+  const direct = Number.isInteger(price)
+    ? price - Math.round(price * 0.01)
+    : 0;
+  const viaPromoter = Number.isInteger(price)
+    ? direct - Math.round(direct * 0.05)
+    : 0;
 
   const save = async (e) => {
     e.preventDefault();
+
     if (!f.name.trim()) return setError(ERR.NAME_REQUIRED);
-    if (!Number.isInteger(price) || price < 50) return setError(ERR.INVALID_PRODUCT_PRICE);
-    if (!Number.isInteger(fee)) return setError("Delivery fee must be a whole number.");
+    if (!Number.isInteger(price) || price < 50) {
+      return setError(ERR.INVALID_PRODUCT_PRICE);
+    }
+    if (!Number.isInteger(fee)) {
+      return setError("Delivery fee must be a whole number.");
+    }
     if (cost.trim() !== "" && !/^\d{1,8}$/.test(cost.trim())) {
       return setError("Cost price must be a whole number.");
     }
 
+    const code = barcode.trim();
+    if (
+      canBarcode &&
+      code &&
+      !/^[A-Za-z0-9._-]{4,32}$/.test(code)
+    ) {
+      return setError(
+        "Barcodes use 4 to 32 letters, numbers, dots or dashes."
+      );
+    }
+
     setBusy(true);
     setError("");
+
     try {
       const body = {
         name: f.name.trim(),
@@ -243,20 +298,42 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
         deliveryFee: fee,
         description: f.description.trim(),
       };
-      if (photo) body.imageUrl = await uploadImageToCloudinary(photo, "products", getToken);
 
-      const { data } = await apiClient.put(`/products/${product._id}`, body);
-      await apiClient.put(`/inventory/products/${product._id}/cost`, {
-        costPrice: cost.trim() === "" ? null : Number(cost),
-      });
+      if (photo) {
+        body.imageUrl = await uploadImageToCloudinary(
+          photo,
+          "products",
+          getToken
+        );
+      }
+
+      const { data } = await apiClient.put(
+        `/products/${product._id}`,
+        body
+      );
+
+      await apiClient.put(
+        `/inventory/products/${product._id}/cost`,
+        {
+          costPrice: cost.trim() === "" ? null : Number(cost),
+        }
+      );
+
+      if (canBarcode && code !== (product.barcode || "")) {
+        await apiClient.put(
+          `/inventory/products/${product._id}/barcode`,
+          { barcode: code || null }
+        );
+      }
+
       onSaved(data.product);
     } catch (x) {
       setError(
         x.message === "UPLOAD_FAILED"
           ? "Photo upload failed. Check your connection."
           : x.response
-          ? errMsg(x)
-          : x.message || errMsg(x)
+            ? errMsg(x)
+            : x.message || errMsg(x)
       );
     } finally {
       setBusy(false);
@@ -265,8 +342,10 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
 
   const remove = async () => {
     if (!armed) return setArmed(true);
+
     setBusy(true);
     setError("");
+
     try {
       await apiClient.delete(`/products/${product._id}`);
       onDeleted(product._id);
@@ -283,11 +362,21 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
       <form onSubmit={save} className="space-y-3">
         <div>
           <label className={lab}>Name</label>
-          <input className={input} maxLength={120} value={f.name} onChange={set("name")} />
+          <input
+            className={input}
+            maxLength={120}
+            value={f.name}
+            onChange={set("name")}
+          />
         </div>
+
         <div>
           <label className={lab}>Category</label>
-          <select className={input} value={f.category} onChange={set("category")}>
+          <select
+            className={input}
+            value={f.category}
+            onChange={set("category")}
+          >
             {CATEGORIES.map(([v, l]) => (
               <option key={v} value={v}>
                 {l}
@@ -295,10 +384,16 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
             ))}
           </select>
         </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={lab}>Price (KES)</label>
-            <input className={input} inputMode="numeric" value={f.price} onChange={set("price")} />
+            <input
+              className={input}
+              inputMode="numeric"
+              value={f.price}
+              onChange={set("price")}
+            />
           </div>
           <div>
             <label className={lab}>Delivery fee</label>
@@ -310,13 +405,16 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
             />
           </div>
         </div>
+
         {Number.isInteger(price) && (
           <p className="rounded-xl bg-emerald-50 px-3 py-2 text-[11px] text-emerald-900">
-            You receive <b>{fmt(direct)}</b> per direct sale, or <b>{fmt(viaPromoter)}</b> when a
-            promoter sells it (after the 1% Sokodigi fee and the 5% promoter bonus). Delivery fees
-            are paid to you in full.
+            You receive <b>{fmt(direct)}</b> per direct sale, or{" "}
+            <b>{fmt(viaPromoter)}</b> when a promoter sells it (after the 1%
+            Sokodigi fee and the 5% promoter bonus). Delivery fees are paid to
+            you in full.
           </p>
         )}
+
         <div>
           <label className={lab}>Description</label>
           <textarea
@@ -327,6 +425,7 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
             onChange={set("description")}
           />
         </div>
+
         <div>
           <label className={lab}>Cost price (what you pay)</label>
           <input
@@ -339,6 +438,46 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
             Private. Used only for your profit report.
           </p>
         </div>
+
+        {canBarcode ? (
+          <div>
+            <label className={lab}>Barcode</label>
+            <div className="flex gap-2">
+              <input
+                className={input}
+                value={barcode}
+                maxLength={32}
+                onChange={(e) => setBarcode(e.target.value)}
+                placeholder="Scan or type"
+              />
+              <button
+                type="button"
+                onClick={() => setScan(true)}
+                className={`${btn} shrink-0 border border-slate-200 text-slate-700`}
+              >
+                📷 Scan
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500">
+              Scan the code printed on the item. Then the POS can find it
+              instantly.
+            </p>
+          </div>
+        ) : (
+          <p className="text-[11px] text-slate-500">
+            Barcode scanning is available from Merchant Pro.
+          </p>
+        )}
+
+        {scan && (
+          <BarcodeScanner
+            continuous={false}
+            title="Scan the product's barcode"
+            onCode={(c) => setBarcode(c)}
+            onClose={() => setScan(false)}
+          />
+        )}
+
         <div>
           <label className={lab}>Change photo (optional)</label>
           <input
@@ -348,7 +487,9 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
             className="block w-full text-xs text-slate-500"
           />
         </div>
+
         <Err text={error} />
+
         <div className="flex gap-2">
           <button
             type="button"
@@ -366,11 +507,14 @@ function EditDialog({ product, getToken, onClose, onSaved, onDeleted }) {
             {busy ? "Saving…" : "Save changes"}
           </button>
         </div>
+
         <button
           type="button"
           onClick={remove}
           disabled={busy}
-          className={`${btn} w-full ${armed ? "bg-red-600 text-white" : "bg-red-50 text-red-700"}`}
+          className={`${btn} w-full ${
+            armed ? "bg-red-600 text-white" : "bg-red-50 text-red-700"
+          }`}
         >
           {armed ? "Tap again to delete permanently" : "Delete this product"}
         </button>
@@ -388,15 +532,24 @@ function StockDialog({ product, onClose, onDone }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const d = /^-?\d{1,6}$/.test(delta.trim()) ? Number(delta) : NaN;
-  const next = Number.isInteger(d) ? Number(product.quantity || 0) + d : null;
+  const next = Number.isInteger(d)
+    ? Number(product.quantity || 0) + d
+    : null;
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!Number.isInteger(d) || d === 0) return setError(ERR.INVALID_STOCK_CHANGE);
+    if (!Number.isInteger(d) || d === 0) {
+      return setError(ERR.INVALID_STOCK_CHANGE);
+    }
+
     setBusy(true);
     setError("");
+
     try {
-      const { data } = await apiClient.patch(`/products/${product._id}/stock`, { delta: d });
+      const { data } = await apiClient.patch(
+        `/products/${product._id}/stock`,
+        { delta: d }
+      );
       onDone(data.product);
     } catch (x) {
       setError(errMsg(x));
@@ -411,6 +564,7 @@ function StockDialog({ product, onClose, onDone }) {
         <p className="text-sm text-slate-600">
           In stock now: <b>{Number(product.quantity || 0)}</b>
         </p>
+
         <div className="flex flex-wrap gap-2">
           {[5, 10, 20, -1].map((q) => (
             <button
@@ -423,8 +577,11 @@ function StockDialog({ product, onClose, onDone }) {
             </button>
           ))}
         </div>
+
         <div>
-          <label className={lab}>Add or remove (use a minus to remove)</label>
+          <label className={lab}>
+            Add or remove (use a minus to remove)
+          </label>
           <input
             className={input}
             inputMode="numeric"
@@ -433,12 +590,19 @@ function StockDialog({ product, onClose, onDone }) {
             placeholder="e.g. 10 or -3"
           />
         </div>
+
         {next !== null && (
-          <p className={`text-xs font-bold ${next < 0 ? "text-red-600" : "text-emerald-700"}`}>
+          <p
+            className={`text-xs font-bold ${
+              next < 0 ? "text-red-600" : "text-emerald-700"
+            }`}
+          >
             New stock: {next}
           </p>
         )}
+
         <Err text={error} />
+
         <button
           type="submit"
           disabled={busy || next === null || next < 0}
@@ -452,7 +616,14 @@ function StockDialog({ product, onClose, onDone }) {
 }
 
 /* ───────── Product Card ───────── */
-export function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle }) {
+export function ProductCard({
+  p,
+  busy,
+  onSale,
+  onStock,
+  onEdit,
+  onToggle,
+}) {
   const [showHistory, setShowHistory] = useState(false);
   const pub = isPublic(p);
   const q = Number(p.quantity || 0);
@@ -473,6 +644,7 @@ export function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle }) {
             📦
           </div>
         )}
+
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
             <h3 className="min-w-0 flex-1 break-words text-sm font-black text-slate-900">
@@ -480,27 +652,42 @@ export function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle }) {
             </h3>
             <span
               className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${
-                pub ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                pub
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-amber-100 text-amber-800"
               }`}
             >
               {pub ? "On MarketHub" : "Unlisted"}
             </span>
           </div>
+
           <p className="mt-0.5 truncate text-[11px] text-slate-500">
-            {String(p.category || "general").replace(/-/g, " ")} · {p.productCode || "No SKU"}
+            {String(p.category || "general").replace(/-/g, " ")} ·{" "}
+            {p.productCode || "No SKU"}
           </p>
-          <p className="mt-1 text-lg font-black text-slate-900">{fmt(p.price)}</p>
+          <p className="mt-1 text-lg font-black text-slate-900">
+            {fmt(p.price)}
+          </p>
         </div>
       </div>
 
       <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2.5">
         <p
           className={`text-sm font-black ${
-            q <= 0 ? "text-red-600" : q <= LOW ? "text-amber-600" : "text-emerald-700"
+            q <= 0
+              ? "text-red-600"
+              : q <= LOW
+                ? "text-amber-600"
+                : "text-emerald-700"
           }`}
         >
-          {q <= 0 ? "Out of stock" : q <= LOW ? `${q} left · low` : `${q} in stock`}
+          {q <= 0
+            ? "Out of stock"
+            : q <= LOW
+              ? `${q} left · low`
+              : `${q} in stock`}
         </p>
+
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -542,14 +729,21 @@ export function ProductCard({ p, busy, onSale, onStock, onEdit, onToggle }) {
           disabled={busy}
           onClick={() => onToggle(p)}
           className={`${btn} ${
-            pub ? "bg-amber-50 text-amber-800" : "bg-emerald-50 text-emerald-800"
+            pub
+              ? "bg-amber-50 text-amber-800"
+              : "bg-emerald-50 text-emerald-800"
           }`}
         >
           {busy ? "Saving…" : pub ? "Unlist" : "List"}
         </button>
       </div>
 
-      {showHistory && <MovementsSheet product={p} onClose={() => setShowHistory(false)} />}
+      {showHistory && (
+        <MovementsSheet
+          product={p}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
     </article>
   );
 }
@@ -563,29 +757,52 @@ const STATUS = {
   DISPUTED: ["Disputed", "bg-rose-100 text-rose-800"],
 };
 
-function OrderCard({ o, busy, pin, setPin, onConfirm, onCancel, onVerify, loadOrders }) {
-  const [label, tone] = STATUS[o.orderStatus] || [o.orderStatus, "bg-slate-100 text-slate-600"];
+function OrderCard({
+  o,
+  busy,
+  pin,
+  setPin,
+  onConfirm,
+  onCancel,
+  onVerify,
+  loadOrders,
+}) {
+  const [label, tone] = STATUS[o.orderStatus] || [
+    o.orderStatus,
+    "bg-slate-100 text-slate-600",
+  ];
   const ship = o.shippingDetails;
 
   return (
     <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Order</p>
-          <p className="font-mono text-sm font-bold text-slate-900">#{o.orderNumber}</p>
+          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+            Order
+          </p>
+          <p className="font-mono text-sm font-bold text-slate-900">
+            #{o.orderNumber}
+          </p>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${tone}`}>
+        <span
+          className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${tone}`}
+        >
           {label}
         </span>
       </div>
 
       <ul className="mt-3 space-y-1 text-xs text-slate-700">
         {(o.items || []).map((it, i) => (
-          <li key={`${it.productId}-${i}`} className="flex justify-between gap-3">
+          <li
+            key={`${it.productId}-${i}`}
+            className="flex justify-between gap-3"
+          >
             <span>
               {it.name} × {it.quantity}
             </span>
-            <span className="font-semibold">{fmt(it.pricePaid * it.quantity)}</span>
+            <span className="font-semibold">
+              {fmt(it.pricePaid * it.quantity)}
+            </span>
           </li>
         ))}
       </ul>
@@ -599,19 +816,23 @@ function OrderCard({ o, busy, pin, setPin, onConfirm, onCancel, onVerify, loadOr
 
       {ship && o.orderStatus !== "CANCELLED" && (
         <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-          <p className="font-bold text-slate-800">Deliver to {ship.fullName}</p>
+          <p className="font-bold text-slate-800">
+            Deliver to {ship.fullName}
+          </p>
           <p>
             {ship.phoneNumber} · {ship.subCounty}, {ship.county}
           </p>
-          {ship.deliveryNotes && <p className="mt-1 italic">{ship.deliveryNotes}</p>}
+          {ship.deliveryNotes && (
+            <p className="mt-1 italic">{ship.deliveryNotes}</p>
+          )}
         </div>
       )}
 
       {o.orderStatus === "PROCESSING" && (
         <div className="mt-3 space-y-2">
           <p className="text-[11px] text-slate-500">
-            The buyer has paid. The money is held in escrow. Confirm to release this order for
-            delivery and tell the buyer it's on its way.
+            The buyer has paid. The money is held in escrow. Confirm to release
+            this order for delivery and tell the buyer it's on its way.
           </p>
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -637,8 +858,8 @@ function OrderCard({ o, busy, pin, setPin, onConfirm, onCancel, onVerify, loadOr
       {o.orderStatus === "DISPATCHED" && (
         <div className="mt-3 space-y-2">
           <p className="text-[11px] text-slate-500">
-            When the buyer has their item, enter the 6-digit PIN they give you. That releases your
-            payment.
+            When the buyer has their item, enter the 6-digit PIN they give you.
+            That releases your payment.
           </p>
           <div className="flex gap-2">
             <input
@@ -647,7 +868,10 @@ function OrderCard({ o, busy, pin, setPin, onConfirm, onCancel, onVerify, loadOr
               placeholder="Buyer's PIN"
               value={pin || ""}
               onChange={(e) =>
-                setPin(o.orderNumber, e.target.value.replace(/\D/g, "").slice(0, 6))
+                setPin(
+                  o.orderNumber,
+                  e.target.value.replace(/\D/g, "").slice(0, 6)
+                )
               }
               className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-center font-mono text-sm tracking-[0.3em] focus:border-emerald-500 focus:outline-none"
             />
@@ -675,7 +899,8 @@ function OrderCard({ o, busy, pin, setPin, onConfirm, onCancel, onVerify, loadOr
 
       {o.orderStatus === "DELIVERED" && (
         <p className="mt-3 text-xs font-bold text-emerald-700">
-          ✓ Delivered. {fmt(o.financials?.totalWholesaleToShop)} was added to your wallet.
+          ✓ Delivered. {fmt(o.financials?.totalWholesaleToShop)} was added to
+          your wallet.
         </p>
       )}
 
@@ -715,9 +940,11 @@ export default function MyShopDashboard() {
   const [inventorySummary, setInventorySummary] = useState(null);
 
   const noticeTimer = useRef(null);
-  const getToken = useCallback(() => auth.currentUser.getIdToken(), [auth.currentUser]);
-  const outbox = useOutbox(myId, true);          // near the other hooks
- 
+  const getToken = useCallback(
+    () => auth.currentUser.getIdToken(),
+    [auth.currentUser]
+  );
+  const outbox = useOutbox(myId, true);
 
   const flash = (text, type = "ok") => {
     setNotice({ text, type });
@@ -727,37 +954,39 @@ export default function MyShopDashboard() {
 
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
+  const loadProducts = useCallback(
+    async (p = 1) => {
+      try {
+        const { data } = await apiClient.get("/products", {
+          params: { sellerId: myId, status: "all", limit: 50, page: p },
+        });
 
-const loadProducts = useCallback(
-  async (p = 1) => {
-    try {
-      const { data } = await apiClient.get("/products", {
-        params: { sellerId: myId, status: "all", limit: 50, page: p },
-      });
-      
-      // ✅ Guard 1: Safely read the feed array or default to an empty list
-      const rows = data?.feed || []; 
-      
-      setProducts((prev) => {
-        // ✅ Guard 2: Protect the .filter and .some loops from operating on undefined states
-        const safePrev = prev || [];
-        if (p === 1) return rows;
-        return [...safePrev, ...rows.filter((r) => !safePrev.some((x) => x?._id === r?._id))];
-      });
-      
-      setHasMore(rows.length === 50);
-      setPage(p);
-    } catch (err) {
-      console.error("Dashboard list loading failed:", err);
-    }
-  },
-  [myId]
-);
+        const rows = data?.feed || [];
 
+        setProducts((prev) => {
+          const safePrev = prev || [];
+          if (p === 1) return rows;
+          return [
+            ...safePrev,
+            ...rows.filter(
+              (r) => !safePrev.some((x) => x?._id === r?._id)
+            ),
+          ];
+        });
 
+        setHasMore(rows.length === 50);
+        setPage(p);
+      } catch (err) {
+        console.error("Dashboard list loading failed:", err);
+      }
+    },
+    [myId]
+  );
 
   const loadOrders = useCallback(async () => {
-    const { data } = await apiClient.get("/orders", { params: { role: "seller", limit: 50 } });
+    const { data } = await apiClient.get("/orders", {
+      params: { role: "seller", limit: 50 },
+    });
     setOrders(Array.isArray(data) ? data : []);
   }, []);
 
@@ -773,6 +1002,7 @@ const loadProducts = useCallback(
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError("");
+
     try {
       await Promise.all([loadProducts(1), loadOrders(), loadSummary()]);
     } catch (e) {
@@ -788,14 +1018,18 @@ const loadProducts = useCallback(
   }, [myId, loadAll]);
 
   const swap = (p) =>
-    setProducts((prev) => prev.map((x) => (x._id === p._id ? { ...x, ...p } : x)));
+    setProducts((prev) =>
+      prev.map((x) => (x._id === p._id ? { ...x, ...p } : x))
+    );
 
   const toggleListing = async (p) => {
     setBusyId(p._id);
+
     try {
-      const { data } = await apiClient.patch(`/products/${p._id}/status`, {
-        status: isPublic(p) ? "UNLISTED" : "LISTED",
-      });
+      const { data } = await apiClient.patch(
+        `/products/${p._id}/status`,
+        { status: isPublic(p) ? "UNLISTED" : "LISTED" }
+      );
       swap(data.product);
       flash(
         isPublic(p)
@@ -811,6 +1045,7 @@ const loadProducts = useCallback(
 
   const orderAction = async (o, run, okText) => {
     setBusyId(o._id);
+
     try {
       await run();
       await Promise.all([loadOrders(), loadProducts(1)]);
@@ -840,9 +1075,10 @@ const loadProducts = useCallback(
     orderAction(
       o,
       async () => {
-        await apiClient.patch(`/orders/${num(o)}/fulfill-handshake`, {
-          pin: pins[o.orderNumber],
-        });
+        await apiClient.patch(
+          `/orders/${num(o)}/fulfill-handshake`,
+          { pin: pins[o.orderNumber] }
+        );
         setPins((p) => ({ ...p, [o.orderNumber]: "" }));
       },
       "Delivery confirmed. Your payment was released to your wallet."
@@ -854,18 +1090,21 @@ const loadProducts = useCallback(
     () => ({
       newOrders: orders.filter((o) => o.orderStatus === "PROCESSING").length,
       onTheWay: orders.filter((o) => o.orderStatus === "DISPATCHED").length,
-      lowStock: products.filter((p) => Number(p.quantity || 0) <= LOW).length,
+      lowStock: products.filter(
+        (p) => Number(p.quantity || 0) <= LOW
+      ).length,
     }),
     [orders, products]
   );
 
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
+
     return products.filter((p) => {
       const n = Number(p.quantity || 0);
       const okSearch =
         !q ||
-        [p.name, p.productCode, p.category].some((v) =>
+        [p.name, p.productCode, p.barcode, p.category].some((v) =>
           String(v || "").toLowerCase().includes(q)
         );
       const okFilter =
@@ -874,6 +1113,7 @@ const loadProducts = useCallback(
         (filter === "unlisted" && !isPublic(p)) ||
         (filter === "low" && n > 0 && n <= LOW) ||
         (filter === "out" && n <= 0);
+
       return okSearch && okFilter;
     });
   }, [products, search, filter]);
@@ -882,17 +1122,19 @@ const loadProducts = useCallback(
     (o) => orderFilter === "all" || o.orderStatus === orderFilter
   );
 
- 
- const tabs = [["inventory", "📦", "Inventory", 0],
-               ["orders", "📋", "Orders", stats.newOrders], 
-               ["pos", "🧮", "POS", outbox.waiting.length],
-               ["customers", "👥", "Customers", 0], 
-               ["reports", "📊", "Reports", 0]];
-
+  const tabs = [
+    ["inventory", "📦", "Inventory", 0],
+    ["orders", "📋", "Orders", stats.newOrders],
+    ["pos", "🧮", "POS", outbox.waiting.length],
+    ["customers", "👥", "Customers", 0],
+    ["reports", "📊", "Reports", 0],
+  ];
 
   const chip = (active) =>
     `shrink-0 rounded-full px-3.5 py-2 text-xs font-bold ${
-      active ? "bg-emerald-700 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      active
+        ? "bg-emerald-700 text-white"
+        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
     }`;
 
   if (!myId) return null;
@@ -916,9 +1158,12 @@ const loadProducts = useCallback(
               <p className="truncate text-sm font-black text-slate-900">
                 {auth.profile?.brandName || "My shop"}
               </p>
-              <p className="hidden text-[11px] text-slate-500 sm:block">Inventory and orders</p>
+              <p className="hidden text-[11px] text-slate-500 sm:block">
+                Inventory and orders
+              </p>
             </div>
           </div>
+
           <div className="flex shrink-0 items-center gap-2">
             {username && (
               <Link
@@ -938,7 +1183,10 @@ const loadProducts = useCallback(
           </div>
         </div>
 
-        <nav className="mx-auto hidden max-w-6xl gap-1 px-6 md:flex" aria-label="Shop sections">
+        <nav
+          className="mx-auto hidden max-w-6xl gap-1 px-6 md:flex"
+          aria-label="Shop sections"
+        >
           {tabs.map(([k, icon, label, badge]) => (
             <button
               key={k}
@@ -982,16 +1230,26 @@ const loadProducts = useCallback(
             className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700"
           >
             {error}{" "}
-            <button type="button" onClick={loadAll} className="ml-2 underline">
+            <button
+              type="button"
+              onClick={loadAll}
+              className="ml-2 underline"
+            >
               Try again
             </button>
           </div>
         )}
 
         <OnboardingChecklist compact />
-        <PlanStatusCard summary={inventorySummary} onUpgrade={handleUpgrade} />
+        <PlanStatusCard
+          summary={inventorySummary}
+          onUpgrade={handleUpgrade}
+        />
 
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Overview">
+        <section
+          className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+          aria-label="Overview"
+        >
           {[
             [
               "New orders",
@@ -1029,7 +1287,9 @@ const loadProducts = useCallback(
               className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-emerald-300"
             >
               <p className="text-[11px] font-bold text-slate-500">{label}</p>
-              <p className={`mt-2 truncate text-2xl font-black ${tone}`}>{value}</p>
+              <p className={`mt-2 truncate text-2xl font-black ${tone}`}>
+                {value}
+              </p>
             </button>
           ))}
         </section>
@@ -1039,7 +1299,10 @@ const loadProducts = useCallback(
         {loading ? (
           <div className="space-y-3">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="h-36 animate-pulse rounded-2xl bg-slate-100" />
+              <div
+                key={i}
+                className="h-36 animate-pulse rounded-2xl bg-slate-100"
+              />
             ))}
           </div>
         ) : (
@@ -1049,9 +1312,10 @@ const loadProducts = useCallback(
                 <InventoryPanel refreshKey={products.length} />
 
                 <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11px] leading-relaxed text-slate-600">
-                  <b className="text-slate-800">Unlisted</b> products stay in your inventory but
-                  are hidden from your shop page and the MarketHub, so customers can't order them.
-                  You can still record sales and adjust their stock. Open orders carry on as normal.
+                  <b className="text-slate-800">Unlisted</b> products stay in
+                  your inventory but are hidden from your shop page and the
+                  MarketHub, so customers can't order them. You can still record
+                  sales and adjust their stock. Open orders carry on as normal.
                 </p>
 
                 <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -1059,7 +1323,7 @@ const loadProducts = useCallback(
                     type="search"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search name, SKU or category…"
+                    placeholder="Search name, SKU, barcode or category…"
                     aria-label="Search inventory"
                     className={input}
                   />
@@ -1096,8 +1360,12 @@ const loadProducts = useCallback(
                         p={p}
                         busy={busyId === p._id}
                         onSale={() => setTab("pos")}
-                        onStock={(x) => setDialog({ type: "stock", product: x })}
-                        onEdit={(x) => setDialog({ type: "edit", product: x })}
+                        onStock={(x) =>
+                          setDialog({ type: "stock", product: x })
+                        }
+                        onEdit={(x) =>
+                          setDialog({ type: "edit", product: x })
+                        }
                         onToggle={toggleListing}
                       />
                     ))}
@@ -1108,7 +1376,9 @@ const loadProducts = useCallback(
                       📦
                     </p>
                     <h3 className="mt-3 font-black text-slate-900">
-                      {products.length === 0 ? "Your inventory is empty" : "No matching products"}
+                      {products.length === 0
+                        ? "Your inventory is empty"
+                        : "No matching products"}
                     </h3>
                     <p className="mt-1 text-sm text-slate-500">
                       {products.length === 0
@@ -1183,7 +1453,9 @@ const loadProducts = useCallback(
                         o={o}
                         busy={busyId === o._id}
                         pin={pins[o.orderNumber]}
-                        setPin={(n, v) => setPins((p) => ({ ...p, [n]: v }))}
+                        setPin={(n, v) =>
+                          setPins((p) => ({ ...p, [n]: v }))
+                        }
                         onConfirm={confirmOrder}
                         onCancel={cancelOrder}
                         onVerify={verifyPin}
@@ -1196,14 +1468,18 @@ const loadProducts = useCallback(
                     <p className="text-4xl" aria-hidden="true">
                       📋
                     </p>
-                    <h3 className="mt-3 font-black text-slate-900">No orders here</h3>
+                    <h3 className="mt-3 font-black text-slate-900">
+                      No orders here
+                    </h3>
                     <p className="mt-1 text-sm text-slate-500">
-                      Orders from customers will appear when they buy from your shop.
+                      Orders from customers will appear when they buy from your
+                      shop.
                     </p>
                   </div>
                 )}
               </section>
             )}
+
             {tab === "pos" && <PosTab outbox={outbox} />}
             {tab === "customers" && <CustomersTab />}
             {tab === "reports" && <ReportsTab />}
