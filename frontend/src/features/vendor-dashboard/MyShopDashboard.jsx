@@ -17,6 +17,7 @@ import ReportsTab from "./pos/ReportsTab";
 import CustomersTab from "./CustomersTab";
 import BarcodeScanner from "./pos/BarcodeScanner";
 import useEntitlements from "../membership/useEntitlements";
+import RestockTab from "./RestockTab";
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -1122,13 +1123,15 @@ export default function MyShopDashboard() {
     (o) => orderFilter === "all" || o.orderStatus === orderFilter
   );
 
-  const tabs = [
-    ["inventory", "📦", "Inventory", 0],
-    ["orders", "📋", "Orders", stats.newOrders],
-    ["pos", "🧮", "POS", outbox.waiting.length],
-    ["customers", "👥", "Customers", 0],
-    ["reports", "📊", "Reports", 0],
-  ];
+
+  
+const tabs = [["inventory", "📦", "Inventory", 0], 
+              ["orders", "📋", "Orders", stats.newOrders],
+              ["pos", "🧮", "POS", outbox.waiting.length], 
+              ["customers", "👥", "Customers", 0],
+              ["restock", "🚚", "Restock", 0], 
+              ["reports", "📊", "Reports", 0]];
+
 
   const chip = (active) =>
     `shrink-0 rounded-full px-3.5 py-2 text-xs font-bold ${
@@ -1483,6 +1486,7 @@ export default function MyShopDashboard() {
             {tab === "pos" && <PosTab outbox={outbox} />}
             {tab === "customers" && <CustomersTab />}
             {tab === "reports" && <ReportsTab />}
+            {tab === "restock" && <RestockTab />}
           </>
         )}
       </main>
