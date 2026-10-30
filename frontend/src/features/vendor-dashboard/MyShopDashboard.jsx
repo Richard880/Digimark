@@ -13,6 +13,8 @@ import InventoryPanel from "./InventoryPanel";
 import { MovementsSheet } from "./InventoryPanel";
 import PosTab from "./pos/PosTab";
 import ReportsTab from "./pos/ReportsTab";
+import CustomersTab from "./CustomersTab";
+import useOutbox from "../../../offline/useOutbox";
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -70,6 +72,10 @@ const input =
   "min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-emerald-500 focus:outline-none disabled:bg-slate-50";
 const lab = "mb-1 block text-[11px] font-bold uppercase text-slate-500";
 const btn = "min-h-10 rounded-xl px-3 text-xs font-bold disabled:opacity-50";
+
+const outbox = useOutbox(myId, true);          // near the other hooks
+const tabs = [["inventory", "📦", "Inventory", 0], ["orders", "📋", "Orders", stats.newOrders], ["pos", "🧮", "POS", outbox.waiting.length], ["customers", "👥", "Customers", 0], ["reports", "📊", "Reports", 0]];
+
 
 /* ───────── Plan Status Card ───────── */
 function PlanStatusCard({ summary, onUpgrade }) {
@@ -1196,8 +1202,8 @@ const loadProducts = useCallback(
                 )}
               </section>
             )}
-
-            {tab === "pos" && <PosTab />}
+            {tab === "pos" && <PosTab outbox={outbox} />}
+            {tab === "customers" && <CustomersTab />}
             {tab === "reports" && <ReportsTab />}
           </>
         )}
