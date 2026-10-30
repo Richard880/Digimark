@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import useOutbox from "../../offline/useOutbox";
 import useAuth from "../auth/hooks/useAuth";
 import apiClient from "../../services/apiClient";
 import ROUTES, { productPath, profilePath } from "../../constants/routes";
@@ -14,7 +15,7 @@ import { MovementsSheet } from "./InventoryPanel";
 import PosTab from "./pos/PosTab";
 import ReportsTab from "./pos/ReportsTab";
 import CustomersTab from "./CustomersTab";
-import useOutbox from "../../offline/useOutbox";
+
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
