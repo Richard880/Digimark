@@ -87,6 +87,7 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, uploadImag
   const [form, setForm] = useState({
     name: "",
     price: "",
+    costPrice: "",
     deliveryFee: "",
     quantity: "",
     category: "phones-gadgets",
@@ -195,8 +196,24 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, uploadImag
         throw new Error(ERROR_TEXT[data.error] || "Could not list the product. Please try again.");
       }
 
+      // 💡 ADD THIS EXACT BLOCK HERE:
+      const newProductId = data.product?._id || data?._id;
+      const cleanCost = form.costPrice?.trim();
+      if (newProductId && cleanCost && cleanCost !== "") {
+        const costNum = Number(cleanCost);
+        if (Number.isInteger(costNum) && costNum >= 0) {
+          await fetch(`${API_URL}/api/inventory/products/${newProductId}/cost`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ costPrice: costNum }),
+          }).catch((err) => console.error("Failed to link product cost price:", err));
+        }
+      }
+
+      // Your existing success lines remain unchanged below:
       onSuccess?.(data.product || data);
       handleClose();
+
     } catch (err) {
       console.error("Error listing product:", err);
       setError(
@@ -292,6 +309,7 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, uploadImag
               className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm focus:border-emerald-500 focus:outline-none"
             />
           </div>
+          
 
           {/* Live earnings breakdown (replaces the old Margin Cut input) */}
           {priceOk && (
@@ -354,6 +372,24 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, uploadImag
               </select>
             </div>
           </div>
+
+                  {/* 💡 Add Cost Price Input Field */}
+        <div>
+          <label className="mb-1 block text-[11px] font-bold uppercase text-slate-500">
+            Cost price (what you pay)
+          </label>
+          <input
+            className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-sm focus:border-emerald-500 focus:outline-none disabled:bg-slate-50"
+            inputMode="numeric"
+            value={form.costPrice}
+            onChange={setField("costPrice")}
+            placeholder="e.g. 300 (Optional)"
+          />
+          <p className="mt-1 text-[11px] text-slate-500">
+            Private. Used only for your profit report.
+          </p>
+        </div>
+
 
           <div className="flex flex-col space-y-1">
             <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">
