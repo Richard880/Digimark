@@ -33,7 +33,9 @@
     "qrcode.react": "^4.2.0",
     "web-push": "^3.6.7",
     "tailwindcss": "^4.0.0",
-    "@tailwindcss/vite": "^4.0.0"
+    "@tailwindcss/vite": "^4.0.0",
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
