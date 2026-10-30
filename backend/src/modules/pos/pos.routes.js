@@ -49,7 +49,7 @@ router.get("/products", authenticate, member, perUser(120), h(async (req, res) =
   const filter = { sellerId: req.user._id };
   if (q) { const rx = new RegExp(esc(q), "i"); filter.$or = [{ name: rx }, { productCode: rx }]; }
   const products = await Product.find(filter).sort(q ? { name: 1 } : { updatedAt: -1 }).limit(60)
-    .select("name price quantity productCode imageUrl").lean();
+    .select("name price quantity productCode imageUrl barcode").lean();
   res.json({ ok: true, products });
 }));
 
@@ -198,7 +198,7 @@ router.post("/sales/sync", authenticate, member, requireFeature("pos"), perUser(
 
 // The whole catalogue for the device: search works offline too
 router.get("/catalog", authenticate, member, perUser(20), h(async (req, res) => {
-  const rows = await Product.find({ sellerId: req.user._id }).sort({ name: 1 }).limit(3001).select("name price quantity productCode imageUrl").lean();
+  const rows = await Product.find({ sellerId: req.user._id }).sort({ name: 1 }).limit(3001).select("name price quantity productCode imageUrl barcode").lean();
   res.json({ ok: true, truncated: rows.length > 3000, products: rows.slice(0, 3000) });
 }));
 /** Sales for one day (default today) */
