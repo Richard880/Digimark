@@ -118,3 +118,4 @@ export default function ReportsTab() {
       {view && <ReceiptSheet sale={view} shop={shop} onClose={() => setView(null)} />}
     </section>
   );
+}
