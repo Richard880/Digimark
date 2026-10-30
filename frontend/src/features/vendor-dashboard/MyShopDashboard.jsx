@@ -716,8 +716,7 @@ export default function MyShopDashboard() {
   const noticeTimer = useRef(null);
   const getToken = useCallback(() => auth.currentUser.getIdToken(), [auth.currentUser]);
   const outbox = useOutbox(myId, true);          // near the other hooks
-  const tabs = [["inventory", "📦", "Inventory", 0], ["orders", "📋", "Orders", stats.newOrders], ["pos", "🧮", "POS", outbox.waiting.length], ["customers", "👥", "Customers", 0], ["reports", "📊", "Reports", 0]];
-
+ 
 
   const flash = (text, type = "ok") => {
     setNotice({ text, type });
@@ -882,12 +881,13 @@ const loadProducts = useCallback(
     (o) => orderFilter === "all" || o.orderStatus === orderFilter
   );
 
-  const tabs = [
-    ["inventory", "📦", "Inventory", 0],
-    ["orders", "📋", "Orders", stats.newOrders],
-    ["pos", "🧮", "POS", 0],
-    ["reports", "📊", "Reports", 0],
-  ];
+ 
+ const tabs = [["inventory", "📦", "Inventory", 0],
+               ["orders", "📋", "Orders", stats.newOrders], 
+               ["pos", "🧮", "POS", outbox.waiting.length],
+               ["customers", "👥", "Customers", 0], 
+               ["reports", "📊", "Reports", 0]];
+
 
   const chip = (active) =>
     `shrink-0 rounded-full px-3.5 py-2 text-xs font-bold ${
