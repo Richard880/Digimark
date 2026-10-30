@@ -10,10 +10,13 @@ export function receiptText(s, shop) {
     ...rows, "",
     ...(s.discount ? [`Discount: -${fmt(s.discount)}`] : []),
     `TOTAL: KES ${fmt(s.total)}`,
+    // 💡 ADD THIS EXACT LINE HERE:
+    ...(s.creditAmount > 0 ? [`ON CREDIT: KES ${fmt(s.creditAmount)}`] : []),
     s.paymentMethod === "cash" ? `Paid in cash: ${fmt(s.amountTendered)}  Change: ${fmt(s.change)}` : `Paid by M-Pesa${s.mpesaRef ? ` (${s.mpesaRef})` : ""}`,
     "", "Thank you for shopping with us!",
   ].filter((x, i) => x !== "" || i > 0).join("\n");
 }
+
 
 export function ReceiptSheet({ sale, shop, onClose, onNew }) {
   useEffect(() => {
@@ -31,6 +34,9 @@ export function ReceiptSheet({ sale, shop, onClose, onNew }) {
           <p className="text-center text-sm font-black">{shop.name}</p>
           {shop.place && <p className="text-center">{shop.place}</p>}
           <p className="mt-2 text-center">Receipt {sale.receiptNo}{sale.voided ? " (VOIDED)" : ""}</p>
+          {/* under the "Receipt {no}" line */}
+{sale.provisional && <p className="mt-1 text-center font-bold">PROVISIONAL: final number is set when online</p>}
+
           <p className="text-center">{when(sale.createdAt)}</p>
           <hr className="my-2 border-slate-300" />
           {sale.lines.map((l, i) => (
@@ -39,9 +45,15 @@ export function ReceiptSheet({ sale, shop, onClose, onNew }) {
           <hr className="my-2 border-slate-300" />
           {sale.discount > 0 && <div className="flex justify-between"><span>Discount</span><span>-{fmt(sale.discount)}</span></div>}
           <div className="flex justify-between text-sm font-black"><span>TOTAL</span><span>KES {fmt(sale.total)}</span></div>
-          {sale.paymentMethod === "cash"
-            ? <><div className="flex justify-between"><span>Cash</span><span>{fmt(sale.amountTendered)}</span></div><div className="flex justify-between"><span>Change</span><span>{fmt(sale.change)}</span></div></>
-            : <div className="flex justify-between"><span>M-Pesa</span><span>{sale.mpesaRef || "paid"}</span></div>}
+          {/* replace the cash/M-Pesa block with: */}
+{sale.creditAmount > 0 && (
+  <>
+    {sale.total - sale.creditAmount > 0 && <div className="flex justify-between"><span>Paid now</span><span>{fmt(sale.total - sale.creditAmount)}</span></div>}
+    <div className="flex justify-between font-black"><span>ON CREDIT</span><span>{fmt(sale.creditAmount)}</span></div>
+  </>
+)}
+{sale.paymentMethod === "cash" && <><div className="flex justify-between"><span>Cash</span><span>{fmt(sale.amountTendered)}</span></div><div className="flex justify-between"><span>Change</span><span>{fmt(sale.change)}</span></div></>}
+{sale.paymentMethod === "mpesa" && <div className="flex justify-between"><span>M-Pesa</span><span>{sale.mpesaRef || "paid"}</span></div>}
           {sale.customerName && <p className="mt-2">Customer: {sale.customerName}</p>}
           <p className="mt-3 text-center">Thank you!</p>
         </div>
