@@ -9,12 +9,11 @@ const Counter = require("../../models/Counter");
 const CashClose = require("../../models/CashClose");
 const Order = require("../../models/Order");
 const { changeStock } = require("../../services/stockLedger");
-const { requireFeature } = require("../membership/entitlements");
 const Customer = require("../../models/Customer");
 const CustomerEntry = require("../../models/CustomerEntry");
-const { requireFeature, entitlementsFor } = require("../membership/entitlements"); // extend the existing import
-const DAY = 86400000;
+const { requireFeature, entitlementsFor } = require("../membership/entitlements"); // Consolidated here
 
+const DAY = 86400000;
 const router = express.Router();
 const MAX_QTY = 100000, MAX_PRICE = 5000000, EAT = 3 * 3600 * 1000;
 
@@ -236,9 +235,11 @@ router.get("/report", authenticate, member, perUser(30), h(async (req, res) => {
   const { start, end, label } = dayRange(req.query.date);
   const match = { sellerId: req.user._id, createdAt: { $gte: start, $lt: end } };
   const live = { ...match, voided: false };
-  const [tot, pay, items, voidedCount, online, close] = await Promise.all([
+
+  const [tot, pay, items, voidedCount, online, close, creditAgg, debtAgg, owedAgg] = await Promise.all([
     Sale.aggregate([{ $match: live }, { $group: { _id: null, count: { $sum: 1 }, revenue: { $sum: "$total" }, discount: { $sum: "$discount" } } }]),
-    Sale.aggregate([{ $match: live }, { $group: { _id: "$paymentMethod", count: { $sum: 1 }, total: { $sum: "$total" } } }]),
+    // Modified: Subtract credit lines from your standard breakdown totals so it matches what was processed
+    Sale.aggregate([{ $match: live }, { $group: { _id: "$paymentMethod", count: { $sum: 1 }, total: { $sum: { $subtract: ["$total", { $ifNull: ["$creditAmount", 0] }] } } } }]),
     Sale.aggregate([
       { $match: live }, { $unwind: "$lines" },
       { $group: {
@@ -252,11 +253,18 @@ router.get("/report", authenticate, member, perUser(30), h(async (req, res) => {
     Order.aggregate([{ $match: { sellerId: req.user._id, orderStatus: "DELIVERED", deliveredAt: { $gte: start, $lt: end } } },
       { $group: { _id: null, count: { $sum: 1 }, received: { $sum: "$financials.totalWholesaleToShop" } } }]),
     CashClose.findOne({ sellerId: req.user._id, date: label }).lean(),
+    
+    // New Credit aggregations
+    Sale.aggregate([{ $match: live }, { $group: { _id: null, given: { $sum: { $ifNull: ["$creditAmount", 0] } } } }]),
+    CustomerEntry.aggregate([{ $match: { sellerId: req.user._id, type: "payment", createdAt: { $gte: start, $lt: end } } }, { $group: { _id: "$method", total: { $sum: { $multiply: ["$amount", -1] } } } }]),
+    Customer.aggregate([{ $match: { sellerId: req.user._id, balance: { $gt: 0 } } }, { $group: { _id: null, owed: { $sum: "$balance" }, n: { $sum: 1 } } }]),
   ]);
+
   const by = Object.fromEntries(pay.map((p) => [p._id, { count: p.count, total: p.total }]));
   const costedRevenue = items.reduce((t, i) => t + i.costedRevenue, 0);
   const cost = items.reduce((t, i) => t + i.cost, 0);
   const revenue = tot[0]?.revenue || 0;
+
   res.json({
     ok: true, date: label,
     sales: { count: tot[0]?.count || 0, revenue, discount: tot[0]?.discount || 0 },
@@ -265,8 +273,17 @@ router.get("/report", authenticate, member, perUser(30), h(async (req, res) => {
     items: items.map((i) => ({ productId: i._id, name: i.name, qty: i.qty, revenue: i.revenue, profit: i.costedRevenue ? i.costedRevenue - i.cost : null })),
     online: { count: online[0]?.count || 0, received: online[0]?.received || 0 },
     voidedCount, close,
+    
+    // New parameters added to response JSON payload
+    credit: { given: creditAgg[0]?.given || 0 },
+    debt: { 
+      cash: debtAgg.find((d) => d._id === "cash")?.total || 0, 
+      mpesa: debtAgg.find((d) => d._id === "mpesa")?.total || 0 
+    },
+    owed: { total: owedAgg[0]?.owed || 0, customers: owedAgg[0]?.n || 0 },
   });
 }));
+
 
 /** Close the day: compare the cash you counted with what the sales say you should have */
 router.post("/close", authenticate.strict, member, requireFeature("pos"), perUser(10), h(async (req, res) => {
@@ -274,12 +291,20 @@ router.post("/close", authenticate.strict, member, requireFeature("pos"), perUse
   if (start.getTime() > Date.now()) throw E("INVALID_DATE");
   const counted = req.body?.countedCash;
   if (!int(counted, 0, MAX_PRICE * 50)) throw E("INVALID_AMOUNT");
-  const cash = await Sale.aggregate([{ $match: { sellerId: req.user._id, createdAt: { $gte: start, $lt: end }, voided: false, paymentMethod: "cash" } }, { $group: { _id: null, total: { $sum: "$total" } } }]);
-  const expected = cash[0]?.total || 0;
+
+  // 💡 Updated: Calculate both direct transactional cash and old debts collected in cash today
+  const [cash, debtCash] = await Promise.all([
+    Sale.aggregate([{ $match: { sellerId: req.user._id, createdAt: { $gte: start, $lt: end }, voided: false, paymentMethod: "cash" } }, { $group: { _id: null, total: { $sum: { $subtract: ["$total", { $ifNull: ["$creditAmount", 0] }] } } } }]),
+    CustomerEntry.aggregate([{ $match: { sellerId: req.user._id, type: "payment", method: "cash", createdAt: { $gte: start, $lt: end } } }, { $group: { _id: null, total: { $sum: { $multiply: ["$amount", -1] } } } }]),
+  ]);
+
+  const expected = (cash[0]?.total || 0) + (debtCash[0]?.total || 0);
+
   try {
     const c = await CashClose.create({ sellerId: req.user._id, date: label, expectedCash: expected, countedCash: counted, difference: counted - expected, note: txt(req.body?.note, 200) });
     res.status(201).json({ ok: true, close: c.toObject() });
   } catch (e) { if (e.code === 11000) throw E("ALREADY_CLOSED", 409); throw e; }
 }));
+
 
 module.exports = router;
