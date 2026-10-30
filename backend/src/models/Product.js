@@ -45,7 +45,7 @@ const productSchema = new mongoose.Schema(
     deliveryFee: { type: Number, default: 0, min: 0, validate: whole },
     description: { type: String, trim: true, default: "", maxlength: 2000 },
     imageUrl: { type: String, default: "", maxlength: 500 },
-
+    barcode: { type: String, default: null, maxlength: 32 },
     // 💡 costPrice has been removed from here to protect margin data from public aggregations.
 
     // ACTIVE is legacy and treated as LISTED. DRAFT/READY/ARCHIVED are never public.
@@ -75,6 +75,7 @@ productSchema.index({ isShelved: 1, status: 1, quantity: 1 });            // pub
 productSchema.index({ sellerId: 1, status: 1, createdAt: -1 });           // seller inventory
 productSchema.index({ category: 1, price: 1 });                           // category browsing
 productSchema.index({ isShelved: 1, category: 1, "metrics.conversionRate": -1 }); // ranking
+productSchema.index({ sellerId: 1, barcode: 1 }, { unique: true, partialFilterExpression: { barcode: { $type: "string" } } });
 
 // Keep the legacy alias columns in sync (does NOT touch prices)
 productSchema.pre("save", function () {
