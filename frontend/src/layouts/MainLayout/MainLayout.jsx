@@ -102,6 +102,7 @@ export default function MainLayout() {
      <InstallPrompt />
       <PWAStatus />
       <PushSync />
+      <OutboxSync />
     </div>
   );
 }
