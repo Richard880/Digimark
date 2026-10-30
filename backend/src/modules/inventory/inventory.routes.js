@@ -51,10 +51,10 @@ const cell = (v) => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s)) s = `
 
 router.get("/export.csv", authenticate, member, perUser(5), async (req, res) => {
   try {
-    res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="sokodigi-inventory-${new Date().toISOString().slice(0, 10)}.csv"`, "Cache-Control": "no-store" });
+    res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="sokodigi-inventory-${new Date().toISOString().slice(0, 10)}.csv"`, "Cache-Control": "no-store", "SKU,Barcode,Name,..."});
     res.write("\ufeffSKU,Name,Category,Price,In stock,Delivery fee,Status\n");
     for await (const p of Product.find({ sellerId: req.user._id }).sort({ createdAt: 1 }).lean().cursor()) {
-      res.write([p.productCode, p.name, p.category, p.price, p.quantity, p.deliveryFee, p.status].map(cell).join(",") + "\n");
+      res.write([p.productCode,p.barcode, p.name, p.category, p.price, p.quantity, p.deliveryFee, p.status].map(cell).join(",") + "\n");
     }
     res.end();
   } catch (e) { if (!res.headersSent) return fail(res, e, "inventory export"); res.end(); }
@@ -79,6 +79,26 @@ router.put("/products/:id/cost", authenticate, member, requireFeature("pos"), pe
     else await ProductCost.updateOne({ productId: id }, { $set: { costPrice: c }, $setOnInsert: { sellerId: req.user._id } }, { upsert: true });
     res.json({ ok: true });
   } catch (e) { fail(res, e, "set cost"); }
+});
+
+router.put("/products/:id/barcode", authenticate, member, requireFeature("barcodes"), perUser(60), async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ error: "INVALID_ID" });
+    let code = req.body?.barcode;
+    if (code !== null) {
+      code = typeof code === "string" ? code.trim() : "";
+      if (!/^[A-Za-z0-9._-]{4,32}$/.test(code)) return res.status(400).json({ error: "INVALID_BARCODE" });
+    }
+    try {
+      const p = await Product.findOneAndUpdate({ _id: id, sellerId: req.user._id }, { $set: { barcode: code } }, { new: true }).select("_id");
+      if (!p) return res.status(404).json({ error: "PRODUCT_NOT_FOUND" });
+    } catch (e) {
+      if (e.code === 11000) return res.status(409).json({ error: "BARCODE_TAKEN" }); // another of YOUR products has it
+      throw e;
+    }
+    res.json({ ok: true });
+  } catch (e) { fail(res, e, "set barcode"); }
 });
 
 module.exports = router;
