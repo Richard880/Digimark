@@ -33,6 +33,7 @@ function Screen({ children }) {
   );
 }
 
+
 function RequireAuth({ children }) {
   const { auth, refreshProfile } = useAuth();
 
