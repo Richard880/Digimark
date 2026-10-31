@@ -100,23 +100,9 @@ function MarketerCheck({ children, allowPending }) {
 /** Membership page for signed-in network accounts, including pending or lapsed members. */
 function RequireNetworkAccount({ children }) {
   const { auth } = useAuth();
-
-  if (auth.loading) {
-    return (
-      <Screen>
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
-      </Screen>
-    );
-  }
-
-  if (!auth.authenticated) {
-    return <Navigate to={ROUTES.HOME} replace />;
-  }
-
-  if (auth.user?.accountCategory !== "network") {
-    return <Navigate to={ROUTES.BECOME_MARKETER} replace />;
-  }
-
+  if (auth.loading) return <Screen><div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" /></Screen>;
+  if (!auth.authenticated) return <Navigate to={ROUTES.HOME} replace />;
+  if (auth.user?.accountCategory !== "network") return <Navigate to={ROUTES.BECOME_MARKETER} replace />;
   return children;
 }
 
