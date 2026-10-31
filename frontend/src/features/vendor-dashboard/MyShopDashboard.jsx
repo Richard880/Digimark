@@ -18,6 +18,8 @@ import CustomersTab from "./CustomersTab";
 import BarcodeScanner from "./pos/BarcodeScanner";
 import useEntitlements from "../membership/useEntitlements";
 import RestockTab from "./RestockTab";
+import StockTab from "../shop/StockTab";
+import TeamTab from "../shop/TeamTab";
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -925,6 +927,7 @@ export default function MyShopDashboard() {
   const username = auth.profile?.username;
 
   const [tab, setTab] = useState("inventory");
+  const [more, setMore] = useState(false);
   const [products, setProducts] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -1125,12 +1128,16 @@ export default function MyShopDashboard() {
 
 
   
-const tabs = [["inventory", "📦", "Inventory", 0], 
-              ["orders", "📋", "Orders", stats.newOrders],
-              ["pos", "🧮", "POS", outbox.waiting.length], 
-              ["customers", "👥", "Customers", 0],
-              ["restock", "🚚", "Restock", 0], 
-              ["reports", "📊", "Reports", 0]];
+const tabs = [
+  ["inventory", "📦", "Inventory", 0],
+  ["orders", "📋", "Orders", stats.newOrders],
+  ["pos", "🧮", "POS", outbox.waiting.length],
+  ["customers", "👥", "Customers", 0],
+  ["restock", "🚚", "Restock", 0],
+  ["stock", "🏬", "Branches", 0],
+  ["team", "👤", "Team", 0],
+  ["reports", "📊", "Reports", 0],
+];
 
 
   const chip = (active) =>
@@ -1487,6 +1494,8 @@ const tabs = [["inventory", "📦", "Inventory", 0],
             {tab === "customers" && <CustomersTab />}
             {tab === "reports" && <ReportsTab />}
             {tab === "restock" && <RestockTab />}
+            {tab === "stock" && <StockTab />}
+            {tab === "team" && <TeamTab />}
           </>
         )}
       </main>
@@ -1496,27 +1505,90 @@ const tabs = [["inventory", "📦", "Inventory", 0],
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
         aria-label="Shop sections"
       >
-        {tabs.map(([k, icon, label, badge]) => (
+       {tabs.slice(0, 4).map(([k, icon, label, badge]) => (
+  <button
+    key={k}
+    type="button"
+    onClick={() => setTab(k)}
+    aria-pressed={tab === k}
+    className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-bold ${
+      tab === k ? "text-emerald-700" : "text-slate-500"
+    }`}
+  >
+    <span className="relative text-lg" aria-hidden="true">
+      {icon}
+      {badge > 0 && (
+        <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
+          {badge}
+        </span>
+      )}
+    </span>
+    {label}
+  </button>
+))}
+<button
+  type="button"
+  onClick={() => setMore(true)}
+  className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-bold ${
+    tabs.slice(4).some((t) => t[0] === tab)
+      ? "text-emerald-700"
+      : "text-slate-500"
+  }`}
+>
+  <span className="text-lg" aria-hidden="true">⋯</span>
+  More
+</button>
+
+        {more && (
+  <div
+    className="fixed inset-0 z-[3000] flex items-end justify-center bg-slate-900/60 sm:items-center sm:p-4"
+    onMouseDown={(e) => e.target === e.currentTarget && setMore(false)}
+  >
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="More shop sections"
+      className="w-full rounded-t-3xl bg-white p-4 shadow-xl sm:max-w-md sm:rounded-2xl"
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-black text-slate-900">More</h3>
+        <button
+          type="button"
+          onClick={() => setMore(false)}
+          aria-label="Close"
+          className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100"
+        >
+          ✕
+        </button>
+      </div>
+      <div className="space-y-1">
+        {tabs.slice(4).map(([k, icon, label, badge]) => (
           <button
             key={k}
             type="button"
-            onClick={() => setTab(k)}
-            aria-pressed={tab === k}
-            className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-bold ${
-              tab === k ? "text-emerald-700" : "text-slate-500"
+            onClick={() => {
+              setTab(k);
+              setMore(false);
+            }}
+            className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-bold ${
+              tab === k
+                ? "bg-emerald-50 text-emerald-800"
+                : "text-slate-700 hover:bg-slate-50"
             }`}
           >
-            <span className="relative text-lg" aria-hidden="true">
-              {icon}
-              {badge > 0 && (
-                <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
-                  {badge}
-                </span>
-              )}
-            </span>
-            {label}
+            <span aria-hidden="true">{icon}</span>
+            <span className="flex-1">{label}</span>
+            {badge > 0 && (
+              <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">
+                {badge}
+              </span>
+            )}
           </button>
         ))}
+      </div>
+    </div>
+  </div>
+)}
       </nav>
 
       <AddProductModal
