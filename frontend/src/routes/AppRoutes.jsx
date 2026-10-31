@@ -18,8 +18,14 @@ import BecomeMarketerPage from "../features/membership/BecomeMarketerPage";
 import AdminDashboard from "../features/admin/AdminDashboard";
 import LegalPage from "../features/public/legal/LegalPage";
 
+
 import useAuth from "../features/auth/hooks/useAuth";
 import ROUTES from "../constants/routes";
+
+import useShop from "../features/shop/useShop";
+import JoinShop from "../features/shop/JoinShop";
+import StaffDashboard from "../features/shop/StaffDashboard";
+
 
 function Screen({ children }) {
   return <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-center">{children}</div>;
@@ -87,6 +93,20 @@ function RequireAdmin({ children }) {
   return children;
 }
 
+
+function RequireShopAccess({ children }) {
+  const { auth } = useAuth();
+  const { shop, state, refresh } = useShop();
+  if (auth.loading || state === "loading") return <Screen><div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" /></Screen>;
+  if (!auth.authenticated) return <Navigate to={ROUTES.HOME} replace />;
+  if (state === "error") return <Screen><p className="text-xs text-slate-600">Couldn't load your shop. <button type="button" onClick={refresh} className="font-bold text-emerald-700 underline">Try again</button></p></Screen>;
+  if (!shop) return <Navigate to={auth.user?.accountCategory === "network" ? ROUTES.MEMBERSHIP : ROUTES.HOME} replace />;
+  if (shop.role === "owner" && shop.status === "pending") return <Navigate to={ROUTES.MEMBERSHIP} replace />;
+  return children;
+}
+function ShopHome() { const { shop } = useShop(); return shop?.role === "owner" ? <MyShopDashboard /> : <StaffDashboard />; }
+
+
 export default function AppRoutes() {
   return (
     <BrowserRouter>
@@ -110,8 +130,8 @@ export default function AppRoutes() {
           <Route path={ROUTES.BECOME_MARKETER} element={<RequireAuth><BecomeMarketerPage /></RequireAuth>} />
 
           {/* Marketers: the membership page is open to pending and lapsed members too */}
-          <Route path={ROUTES.MEMBERSHIP} element={<RequireMarketer allowPending><MembershipPage /></RequireMarketer>} />
-          <Route path={ROUTES.MY_TEAM} element={<RequireMarketer><MyTeamDirectory /></RequireMarketer>} />
+          <Route path={ROUTES.MEMBER_DASHBOARD} element={<RequireShopAccess><ShopHome /></RequireShopAccess>} />
+          <Route path={ROUTES.JOIN_SHOP} element={<RequireAuth><JoinShop /></RequireAuth>} />
         </Route>
 
         {/* Merchant dashboard (outside the public layout) */}
