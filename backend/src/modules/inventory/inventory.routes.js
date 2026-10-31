@@ -4,6 +4,7 @@ const authenticate = require("../../middleware/authenticate");
 const { perUser } = require("../../middleware/limits");
 const Product = require("../../models/Product");
 const StockMovement = require("../../models/StockMovement");
+const BranchStock = require("../../models/BranchStock");
 const { entitlementsFor, requireFeature } = require("../membership/entitlements");
 const ProductCost = require("../../models/ProductCost");
 
@@ -37,17 +38,17 @@ router.get("/summary", authenticate, member, perUser(30), async (req, res) => {
                 {
                   $and: [
                     { $gt: ["$quantity", 0] },
-                    { $lte: ["$quantity", LOW] },
-                  ],
+                    { $lte: ["$quantity", LOW] }
+                  ]
                 },
                 1,
-                0,
-              ],
-            },
+                0
+              ]
+            }
           },
-          out: { $sum: { $cond: [{ $lte: ["$quantity", 0] }, 1, 0] } },
-        },
-      },
+          out: { $sum: { $cond: [{ $lte: ["$quantity", 0] }, 1, 0] }
+        }
+      }
     ]);
 
     res.json({
@@ -58,7 +59,7 @@ router.get("/summary", authenticate, member, perUser(30), async (req, res) => {
       out: s?.out || 0,
       limit: ent.limits.products,
       readOnly: ent.readOnly,
-      plan: ent.name,
+      plan: ent.name
     });
   } catch (e) {
     fail(res, e, "inventory summary");
@@ -76,6 +77,10 @@ router.get("/movements", authenticate, member, perUser(60), async (req, res) => 
       q.productId = req.query.productId;
     }
 
+    if (req.query.branchId && mongoose.isValidObjectId(req.query.branchId)) {
+      q.branchId = req.query.branchId;
+    }
+
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const rows = await StockMovement.find(q)
       .sort({ createdAt: -1, _id: -1 })
@@ -87,7 +92,7 @@ router.get("/movements", authenticate, member, perUser(60), async (req, res) => 
     res.json({
       ok: true,
       hasMore: rows.length > 50,
-      movements: rows.slice(0, 50),
+      movements: rows.slice(0, 50)
     });
   } catch (e) {
     fail(res, e, "inventory movements");
@@ -108,12 +113,10 @@ router.get("/export.csv", authenticate, member, perUser(5), async (req, res) => 
       "Content-Disposition": `attachment; filename="sokodigi-inventory-${new Date()
         .toISOString()
         .slice(0, 10)}.csv"`,
-      "Cache-Control": "no-store",
+      "Cache-Control": "no-store"
     });
 
-    res.write(
-      "\ufeffSKU,Barcode,Name,Category,Price,In stock,Delivery fee,Status\n"
-    );
+    res.write("\ufeffSKU,Barcode,Name,Category,Price,In stock,Delivery fee,Status\n");
 
     for await (const p of Product.find({ sellerId: req.user._id })
       .sort({ createdAt: 1 })
@@ -128,7 +131,7 @@ router.get("/export.csv", authenticate, member, perUser(5), async (req, res) => 
           p.price,
           p.quantity,
           p.deliveryFee,
-          p.status,
+          p.status
         ]
           .map(cell)
           .join(",") + "\n"
@@ -152,7 +155,7 @@ router.get("/costs", authenticate, member, perUser(30), async (req, res) => {
       ok: true,
       costs: Object.fromEntries(
         rows.map((r) => [String(r.productId), r.costPrice])
-      ),
+      )
     });
   } catch (e) {
     fail(res, e, "inventory costs");
@@ -190,7 +193,7 @@ router.put(
           { productId: id },
           {
             $set: { costPrice: c },
-            $setOnInsert: { sellerId: req.user._id },
+            $setOnInsert: { sellerId: req.user._id }
           },
           { upsert: true }
         );
