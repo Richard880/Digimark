@@ -2,6 +2,7 @@ const Product = require("../models/Product");
 const StockMovement = require("../models/StockMovement");
 const { getOrCreatePrimaryBranch } = require("./branchService");
 
+
 const record = (
   session,
   { product, delta, type, ref, note, actorId, branchId }
