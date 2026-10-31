@@ -15,8 +15,9 @@ const E = (message, http = 400) => Object.assign(new Error(message), { http });
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const txt = (v, max) => (typeof v === "string" ? v.replace(/[\u0000-\u001F\u007F]/g, "").trim().slice(0, max) : "");
 const h = (fn) => async (req, res) => {
-  try { await fn(req, res); }
-  catch (e) {
+  try {
+    await fn(req, res);
+  } catch (e) {
     if (e.http) return res.status(e.http).json({ error: e.message });
     console.error("❌ customers:", e.stack || e.message);
     return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
@@ -44,7 +45,6 @@ const cell = (v) => {
   return `"${s.replace(/"/g, '""')}"`;
 };
 
-// Reading is open to every shop member; writing requires the relevant permission.
 router.get("/summary", authenticate, shop, can("customers.read"), perUser(30), h(async (req, res) => {
   const [s] = await Customer.aggregate([
     { $match: { sellerId: req.shop.ownerId, balance: { $gt: 0 } } },
@@ -191,7 +191,6 @@ router.get("/:id", authenticate, shop, can("customers.read"), perUser(60), h(asy
   res.json({ ok: true, customer: view(c), hasMore: rows.length > 30, entries: rows.slice(0, 30) });
 }));
 
-// Record a payment against a debt. A retry with the same clientRef is harmless.
 router.post("/:id/payments", authenticate.strict, shop, can("customers.pay"), requireFeature("customers"), perUser(60), h(async (req, res) => {
   if (!isId(req.params.id)) throw E("INVALID_ID");
 
@@ -208,6 +207,8 @@ router.post("/:id/payments", authenticate.strict, shop, can("customers.pay"), re
   if (mpesaRef && !/^[A-Z0-9]{10}$/.test(mpesaRef)) throw E("INVALID_MPESA_REF");
 
   const ref = `pay:${clientRef}`;
+  const branch = b.branchId ? await resolveBranch(req, b.branchId) : null;
+
   const prior = await CustomerEntry.findOne({ sellerId: me, ref }).lean();
   if (prior) return res.json({ ok: true, replay: true, balance: prior.balanceAfter });
 
@@ -233,7 +234,9 @@ router.post("/:id/payments", authenticate.strict, shop, can("customers.pay"), re
         method: b.method,
         mpesaRef,
         note: txt(b.note, 200),
-        ref
+        ref,
+        branchId: branch?._id,
+        actorId: req.user._id
       }], { session });
 
       return c.balance;
