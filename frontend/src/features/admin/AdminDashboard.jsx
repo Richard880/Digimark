@@ -70,7 +70,9 @@ export default function AdminDashboard() {
   const [loadErr, setLoadErr] = useState("");
   const [reports, setReports] = useState([]); 
   const [disputes, setDisputes] = useState([]);
-  
+  const [support, setSupport] = useState([]);
+  const [supportReplies, setSupportReplies] = useState({});
+  const [supportBusy, setSupportBusy] = useState("");
 
 
   const navigate = useNavigate();
@@ -128,6 +130,21 @@ useEffect(() => { if (tab === "disputes") loadDisputes(); }, [tab, loadDisputes]
     <button key={id} type="button" onClick={() => setTab(id)}
       className={`border-b-2 px-4 py-3 text-xs font-black ${tab === id ? "border-emerald-600 text-emerald-700" : "border-transparent text-slate-400"}`}>{label}</button>
   );
+
+  const loadSupport = useCallback(async () => {
+  try {
+    const { data } = await apiClient.get("/admin/support");
+    setSupport(Array.isArray(data.items) ? data.items : []);
+    setLoadErr("");
+  } catch (e) {
+    setLoadErr(errCode(e));
+  }
+}, []);
+
+useEffect(() => {
+  if (tab === "support") loadSupport();
+}, [tab, loadSupport]);
+  
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -227,6 +244,7 @@ useEffect(() => { if (tab === "disputes") loadDisputes(); }, [tab, loadDisputes]
   {tabBtn("audit", "Audit log")}
   {tabBtn("disputes", `Disputes${overview?.disputesOpen ? ` (${overview.disputesOpen})` : ""}`)} 
   {tabBtn("reports", "Reports")}
+  {tabBtn("support", "Support")}
 </div>
 
       {tab === "attention" && (
@@ -408,6 +426,102 @@ useEffect(() => { if (tab === "disputes") loadDisputes(); }, [tab, loadDisputes]
         </ul>
       </li>
     ))}
+  </ul>
+)}
+
+      {tab === "support" && (
+  <ul className="mt-5 space-y-3">
+    {support.length === 0 && (
+      <p className="text-xs text-slate-400">No open support messages.</p>
+    )}
+
+    {support.map((r) => {
+      const text = supportReplies[r._id] || "";
+      const busy = supportBusy === r._id;
+
+      const reply = async (close = false) => {
+        if (!text.trim() || busy) return;
+
+        setSupportBusy(r._id);
+        setLoadErr("");
+
+        try {
+          await apiClient.post(`/admin/support/${r._id}/reply`, {
+            text: text.trim(),
+            ...(close ? { close: true } : {}),
+          });
+          setSupportReplies((prev) => ({ ...prev, [r._id]: "" }));
+          await loadSupport();
+        } catch (e) {
+          setLoadErr(errCode(e));
+        } finally {
+          setSupportBusy("");
+        }
+      };
+
+      return (
+        <li
+          key={r._id}
+          className="space-y-3 rounded-xl border border-slate-100 bg-white p-4 text-xs"
+        >
+          <div>
+            <p className="font-black text-slate-800">
+              {r.priority && "PRIORITY"} {r.who}
+            </p>
+          </div>
+
+          <ul className="space-y-2">
+            {(r.messages || []).map((m, i) => (
+              <li
+                key={m._id || i}
+                className={`rounded-lg p-3 ${
+                  m.by === "admin" ? "bg-emerald-50" : "bg-slate-50"
+                }`}
+              >
+                <p className="mb-1 text-[10px] font-black uppercase text-slate-400">
+                  {m.by} · {when(m.createdAt)}
+                </p>
+                <p className="whitespace-pre-line text-slate-800">{m.text}</p>
+              </li>
+            ))}
+          </ul>
+
+          <div className="space-y-2">
+            <textarea
+              className={`${input} resize-y`}
+              rows={3}
+              maxLength={2000}
+              placeholder="Write a reply"
+              value={text}
+              onChange={(e) =>
+                setSupportReplies((prev) => ({
+                  ...prev,
+                  [r._id]: e.target.value,
+                }))
+              }
+            />
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={busy || !text.trim()}
+                onClick={() => reply(false)}
+                className={`${btn} bg-emerald-600 text-white`}
+              >
+                {busy ? "Sending…" : "Reply"}
+              </button>
+              <button
+                type="button"
+                disabled={busy || !text.trim()}
+                onClick={() => reply(true)}
+                className={`${btn} bg-slate-900 text-white`}
+              >
+                Reply and close
+              </button>
+            </div>
+          </div>
+        </li>
+      );
+    })}
   </ul>
 )}
 
