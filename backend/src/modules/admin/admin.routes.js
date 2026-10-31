@@ -486,7 +486,24 @@ router.post("/disputes/:id/resolve", h(async (req, res) => {
   res.json({ ok: true });
 }));
 
-
+const SupportTicket = require("../../models/SupportTicket");
+router.get("/support", h(async (req, res) => {
+  const rows = await SupportTicket.find({ status: { $in: ["open", "answered"] } }).sort({ status: 1, priority: -1, lastMessageAt: 1 }).limit(50).select("-__v").lean();
+  const profs = await UserProfile.find({ userId: { $in: rows.map((r) => r.ownerId) } }).select("userId brandName displayName username").lean();
+  const nm = new Map(profs.map((p) => [String(p.userId), p.brandName || p.displayName || p.username]));
+  res.json({ ok: true, items: rows.map((r) => ({ ...r, who: nm.get(String(r.ownerId)) || String(r.ownerId) })) });
+}));
+router.post("/support/:id/reply", h(async (req, res) => {
+  if (!isId(req.params.id)) throw E("INVALID_ID");
+  const text = typeof req.body?.text === "string" ? req.body.text.trim().slice(0, 2000) : "";
+  if (text.length < 2) throw E("TEXT_LENGTH_INVALID");
+  const t = await SupportTicket.findOneAndUpdate({ _id: req.params.id, status: { $ne: "closed" } },
+    { $push: { messages: { by: "support", text, at: new Date() } }, $set: { status: req.body.close === true ? "closed" : "answered", lastMessageAt: new Date() } }).select("ownerId subject");
+  if (!t) throw E("ALREADY_SETTLED", 409);
+  await notify("SUPPORT_REPLY", t.ownerId, { subject: t.subject });
+  await audit(req, "support_reply", "ticket", t._id, "reply", {});
+  res.json({ ok: true });
+}));
 
 
 
