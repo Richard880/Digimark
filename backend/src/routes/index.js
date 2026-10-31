@@ -28,6 +28,7 @@ router.use("/supply", require("../modules/supply/supply.routes"));
 router.use("/shop", require("../modules/shop/shop.routes"));
 router.use("/v1", require("../modules/api/v1.routes"));
 
+router.use("/support", require("../modules/support/support.routes"));
 router.use("/disputes", require("../modules/disputes/dispute.routes"));
 
 router.use("/onboarding", require("../modules/onboarding/onboarding.routes"));
