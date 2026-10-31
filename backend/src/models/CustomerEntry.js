@@ -11,6 +11,8 @@ const schema = new mongoose.Schema(
     mpesaRef: { type: String, maxlength: 10, immutable: true },
     note: { type: String, default: "", maxlength: 200, immutable: true },
     ref: { type: String, maxlength: 80, immutable: true },
+    branchId: { type: mongoose.Schema.Types.ObjectId, immutable: true }, 
+    actorId: { type: mongoose.Schema.Types.ObjectId, immutable: true },
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );
