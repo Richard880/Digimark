@@ -17,7 +17,6 @@ const UserProfile = require("../../models/UserProfile");
 const Counter = require("../../models/Counter");
 const { changeBranchStock, ensureRows } = require("../../services/branchStock");
 const { audit } = require("../../services/shopAudit");
-const crypto = require("crypto");
 const ApiKey = require("../../models/ApiKey");
 const ShopSettings = require("../../models/ShopSettings");
 const Sale = require("../../models/Sale");
@@ -42,20 +41,54 @@ const h = (fn) => async (req, res) => {
 const limitErr = (limit, max) => E("PLAN_LIMIT_REACHED", 403, { limit, max });
 
 /* ───────── Who am I in this shop ───────── */
-router.get("/me", authenticate, shop, perUser(60), h(async (req, res) => {
-  const { ownerId, owner, role, perms, branchIds, mainBranchId } = req.shop;
-  const [all, prof] = await Promise.all([
-    Branch.find({ ownerId, archived: false }).sort({ isMain: -1, name: 1 }).select("name address isMain").lean(),
-    UserProfile.findOne({ userId: ownerId }).select("brandName displayName location.county").lean(),
-  ]);
-  res.json({
-    ok: true, role, perms, ownerId, mainBranchId, status: owner.membershipStatus, memberName: req.shop.memberName,
-    ownerName: prof?.brandName || prof?.displayName || "Shop", county: prof?.location?.county || "",
-    branches: branchIds ? all.filter((b) => branchIds.includes(String(b._id))) : all,
-    allBranches: all.map((b) => ({ _id: b._id, name: b.name })), // names only, so a transfer can name a destination
-    ent: entitlementsFor(owner), built: BUILT,
-  });
-}));
+router.get(
+  "/me",
+  authenticate,
+  shop,
+  perUser(60),
+  h(async (req, res) => {
+    const { ownerId, owner, role, perms, branchIds, mainBranchId } = req.shop;
+    const ent = entitlementsFor(owner);
+
+    const [all, prof, st] = await Promise.all([
+      Branch.find({ ownerId, archived: false })
+        .sort({ isMain: -1, name: 1 })
+        .select("name address isMain")
+        .lean(),
+      UserProfile.findOne({ userId: ownerId })
+        .select("brandName displayName location.county")
+        .lean(),
+      ShopSettings.findOne({ ownerId }).lean(),
+    ]);
+
+    res.json({
+      ok: true,
+      role,
+      perms,
+      ownerId,
+      mainBranchId,
+      status: owner.membershipStatus,
+      memberName: req.shop.memberName,
+      ownerName: prof?.brandName || prof?.displayName || "Shop",
+      county: prof?.location?.county || "",
+      branches: branchIds
+        ? all.filter((b) => branchIds.includes(String(b._id)))
+        : all,
+      allBranches: all.map((b) => ({ _id: b._id, name: b.name })),
+      ent,
+      built: BUILT,
+      branding:
+        ent.features.receiptBranding && st
+          ? {
+              logo: st.logo,
+              footer: st.footer,
+              phone: st.phone,
+              taxPin: st.taxPin,
+            }
+          : null,
+    });
+  })
+);
 
 /* ───────── Branches (owner) ───────── */
 router.post("/branches", authenticate, shop, can("branches"), requireFeature("multiBranch"), perUser(20), h(async (req, res) => {
