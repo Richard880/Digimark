@@ -75,6 +75,6 @@ const EVENTS = {
   TEAM_INVITE:          E("SYSTEM", "Team invitation", (c) => `You've been invited to join ${c.teamName}.`, () => "/team"),
   TEAM_MEMBER_JOINED:   E("SYSTEM", "New team member", (c) => `${c.memberName} joined ${c.teamName}.`, () => "/team"),
   TEAM_ROLE_CHANGED:    E("SYSTEM", "Role updated", (c) => `Your role in ${c.teamName} is now ${c.role}.`, () => "/team"),
-  SUPPORT_REPLY: E("SYSTEM", "Support replied", (c) => Support replied to “${c.subject}”., () => "/dashboard"),
+  SUPPORT_REPLY: E("SYSTEM", "Support replied", (c) => `Support replied to “${c.subject}”.`, () => "/dashboard"),
 }
 module.exports = { EVENTS };
