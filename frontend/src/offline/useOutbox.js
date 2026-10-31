@@ -18,7 +18,7 @@ const wire = (s) => ({
   customerId: s.customerId,
   amountTendered: s.amountTendered,
   mpesaRef: s.mpesaRef,
-  customerName: s.customerName
+  customerName: s.customerName,
 });
 
 const bySoldAt = (a, b) => (a.soldAt < b.soldAt ? -1 : 1);
@@ -35,17 +35,29 @@ export const provisionalReceipt = (s) => ({
   change: s.change,
   mpesaRef: s.mpesaRef || "",
   customerName: s.display.customerName || "",
-  creditAmount: s.localCredit || 0
+  creditAmount: s.localCredit || 0,
 });
 
 // Keeps syncing in the background anywhere in the app (render it once in MainLayout)
 export function OutboxSync() {
   const { auth } = useAuth();
-  useOutbox(auth.authenticated && auth.user?._id ? String(auth.user._id) : "", true);
+  const uid =
+    auth.authenticated && auth.user?._id ? String(auth.user._id) : "";
+
+  let fast = false;
+  try {
+    fast = !!JSON.parse(
+      localStorage.getItem(`sokodigi_shop_snap_${uid}`) || "null"
+    )?.data?.ent?.features?.prioritySync;
+  } catch {
+    // Default sync speed.
+  }
+
+  useOutbox(uid, true, fast);
   return null;
 }
 
-export default function useOutbox(userId, autoSync = false) {
+export default function useOutbox(userId, autoSync = false, fast = false) {
   const [items, setItems] = useState([]);
   const [syncing, setSyncing] = useState(false);
   const [blocked, setBlocked] = useState("");
@@ -78,7 +90,7 @@ export default function useOutbox(userId, autoSync = false) {
 
         try {
           ({ data } = await apiClient.post("/pos/sales/sync", {
-            sales: batch.map(wire)
+            sales: batch.map(wire),
           }));
         } catch (e) {
           if (e.response?.status === 403) {
@@ -88,7 +100,7 @@ export default function useOutbox(userId, autoSync = false) {
                 : "Renew the shop's membership to send your saved sales. They are safe on this device."
             );
           }
-          break; // offline or the server is down: try again later
+          break; // Offline or server down: try again later.
         }
 
         for (const r of data.results || []) {
@@ -103,7 +115,7 @@ export default function useOutbox(userId, autoSync = false) {
               ...item,
               error: r.error,
               retry: !!r.retry,
-              product: r.product || ""
+              product: r.product || "",
             });
           }
         }
@@ -133,31 +145,40 @@ export default function useOutbox(userId, autoSync = false) {
   useEffect(() => {
     if (!autoSync || !userId) return undefined;
 
-    Promise.resolve(navigator.storage?.persist?.()).catch(() => {}); // ask the browser not to evict saved sales
+    Promise.resolve(navigator.storage?.persist?.()).catch(() => {});
     sync();
 
-    const onVis = () => document.visibilityState === "visible" && sync();
+    const onVis = () =>
+      document.visibilityState === "visible" && sync();
+
     window.addEventListener("online", sync);
     document.addEventListener("visibilitychange", onVis);
-    const t = setInterval(sync, 60000);
+
+    const t = setInterval(sync, fast ? 15000 : 60000);
 
     return () => {
       window.removeEventListener("online", sync);
       document.removeEventListener("visibilitychange", onVis);
       clearInterval(t);
     };
-  }, [autoSync, userId, sync]);
+  }, [autoSync, userId, sync, fast]);
 
-  const queueSale = useCallback(async (item) => {
-    await outboxPut(item);
-    window.dispatchEvent(new Event(EVT));
-    sync();
-  }, [sync]);
+  const queueSale = useCallback(
+    async (item) => {
+      await outboxPut(item);
+      window.dispatchEvent(new Event(EVT));
+      sync();
+    },
+    [sync]
+  );
 
-  const retry = useCallback(async (item) => {
-    await outboxPut({ ...item, error: "", retry: false });
-    sync();
-  }, [sync]);
+  const retry = useCallback(
+    async (item) => {
+      await outboxPut({ ...item, error: "", retry: false });
+      sync();
+    },
+    [sync]
+  );
 
   const discard = useCallback(async (item) => {
     await outboxDelete(item.clientRef);
@@ -175,6 +196,6 @@ export default function useOutbox(userId, autoSync = false) {
     queueSale,
     sync,
     retry,
-    discard
+    discard,
   };
 }
