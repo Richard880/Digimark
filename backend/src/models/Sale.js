@@ -35,11 +35,16 @@ const schema = new Schema(
     offline: { type: Boolean, default: false },
     syncedAt: Date,
     voidedAt: Date,
+    branchId: { type: Schema.Types.ObjectId }, 
+    terminalId: { type: Schema.Types.ObjectId },
+    cashierName: { type: String, default: "", maxlength: 80 }, 
+    flagged: { type: Boolean, default: false },
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );
 schema.index({ sellerId: 1, createdAt: -1 });
 schema.index({ sellerId: 1, clientRef: 1 }, { unique: true });
 schema.index({ sellerId: 1, receiptNo: 1 }, { unique: true });
+schema.index({ sellerId: 1, branchId: 1, createdAt: -1 });
 
 module.exports = mongoose.models.Sale || mongoose.model("Sale", schema);
