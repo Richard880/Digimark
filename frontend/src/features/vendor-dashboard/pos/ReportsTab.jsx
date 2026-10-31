@@ -27,10 +27,11 @@ const ERR = {
 export default function ReportsTab() {
   const { auth } = useAuth();
   const { shop, can } = useShop();
-  const shopInfo = {
-    name: shop?.ownerName || "Sokodigi shop",
-    place: shop?.county || "",
-  };
+ const shopInfo = {
+  name: shop?.ownerName || "Sokodigi shop",
+  place: shop?.county || "",
+  ...(shop?.branding || {}),
+};
 
   const [date, setDate] = useState(today);
   const [branchId, setBranchId] = useState("all");
