@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import apiClient from "../../../services/apiClient";
 import useAuth from "../../auth/hooks/useAuth";
-import useEntitlements from "../../membership/useEntitlements";
+import useShop from "../../shop/useShop";
+import useTerminal from "../../../offline/useTerminal";.
 import { usePWA } from "../../../pwa/usePWA";
 import { sizedImage } from "../../../utils/image";
 import { kvGet, kvSet, nextLocalNo } from "../../../offline/db";
