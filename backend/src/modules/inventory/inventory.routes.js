@@ -25,31 +25,35 @@ router.get("/summary", authenticate, member, perUser(30), async (req, res) => {
   try {
     const ent = entitlementsFor(req.user);
 
-    const [s] = await Product.aggregate([
-      { $match: { sellerId: req.user._id } },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: 1 },
-          retailValue: { $sum: { $multiply: ["$price", "$quantity"] } },
-          low: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $gt: ["$quantity", 0] },
-                    { $lte: ["$quantity", LOW] }
-                  ]
-                },
-                1,
-                0
-              ]
-            }
-          },
-          out: { $sum: { $cond: [{ $lte: ["$quantity", 0] }, 1, 0] }
-        }
-      }
-    ]);
+   const [s] = await Product.aggregate([
+  { $match: { sellerId: req.user._id } },
+  {
+    $group: {
+      _id: null,
+      total: { $sum: 1 },
+      retailValue: { $sum: { $multiply: ["$price", "$quantity"] } },
+      low: {
+        $sum: {
+          $cond: [
+            {
+              $and: [
+                { $gt: ["$quantity", 0] },
+                { $lte: ["$quantity", LOW] },
+              ],
+            },
+            1,
+            0,
+          ],
+        },
+      },
+      out: {
+        $sum: {
+          $cond: [{ $lte: ["$quantity", 0] }, 1, 0],
+        },
+      },
+    },
+  },
+]);
 
     res.json({
       ok: true,
