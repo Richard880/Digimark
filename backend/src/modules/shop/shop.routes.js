@@ -326,4 +326,100 @@ router.get("/audit", authenticate, shop, can("audit"), requireFeature("auditLog"
   res.json({ ok: true, hasMore: rows.length > 50, items: rows.slice(0, 50) });
 }));
 
+/* ───────── API keys (owner) ───────── */
+router.get("/api-keys", authenticate, shop, can("apikeys"), perUser(30), h(async (req, res) => {
+  res.json({ ok: true, keys: await ApiKey.find({ ownerId: req.shop.ownerId, revokedAt: null }).sort({ createdAt: -1 }).select("name prefix lastUsedAt createdAt").lean() });
+}));
+router.post("/api-keys", authenticate.strict, shop, can("apikeys"), requireFeature("apiAccess"), perUser(10), h(async (req, res) => {
+  const { ownerId } = req.shop;
+  const name = txt(req.body?.name, 40);
+  if (!name) throw E("INVALID_NAME");
+  if ((await ApiKey.countDocuments({ ownerId, revokedAt: null })) >= 5) throw E("PLAN_LIMIT_REACHED", 403, { limit: "apiKeys", max: 5 });
+  const key = `sk_live_${crypto.randomBytes(24).toString("base64url")}`;
+  const k = await ApiKey.create({ ownerId, name, prefix: key.slice(0, 12), hash: sha(key) });
+  await audit(req, "api_key_create", { targetType: "apikey", targetId: k._id, detail: name });
+  res.status(201).json({ ok: true, key, id: k._id }); // shown once: only the hash is stored
+}));
+router.delete("/api-keys/:id", authenticate.strict, shop, can("apikeys"), perUser(20), h(async (req, res) => {
+  if (!isId(req.params.id)) throw E("INVALID_ID");
+  const k = await ApiKey.findOneAndUpdate({ _id: req.params.id, ownerId: req.shop.ownerId, revokedAt: null }, { $set: { revokedAt: new Date() } });
+  if (!k) throw E("KEY_NOT_FOUND", 404);
+  await audit(req, "api_key_revoke", { targetType: "apikey", targetId: k._id, detail: k.name });
+  res.json({ ok: true });
+}));
+
+/* ───────── Receipt branding (owner) ───────── */
+router.put("/branding", authenticate, shop, can("branding"), requireFeature("receiptBranding"), perUser(20), h(async (req, res) => {
+  const b = req.body || {};
+  const cloud = (process.env.CLOUDINARY_CLOUD_NAME || "").replace(/[^\w-]/g, "");
+  const logo = typeof b.logo === "string" ? b.logo.trim() : "";
+  if (logo && !new RegExp(`^https://res\\.cloudinary\\.com/${cloud}/image/upload/(v\\d+/)?sokodigi/profiles/${String(req.user._id)}_[a-f0-9]{16}\\.(jpg|jpeg|png|webp)$`).test(logo)) throw E("INVALID_LOGO");
+  const phone = typeof b.phone === "string" ? b.phone.replace(/[^\d+ ]/g, "").slice(0, 20) : "";
+  const taxPin = typeof b.taxPin === "string" ? b.taxPin.trim().toUpperCase() : "";
+  if (taxPin && !/^[A-Z]\d{9}[A-Z]$/.test(taxPin)) throw E("INVALID_TAX_PIN");
+  await ShopSettings.updateOne({ ownerId: req.shop.ownerId }, { $set: { logo, footer: txt(b.footer, 120), phone, taxPin } }, { upsert: true });
+  await audit(req, "branding_update", {});
+  res.json({ ok: true });
+}));
+
+/* ───────── Accounting exports (owner) ───────── */
+const csvCell = (v) => { let s = String(v ?? ""); if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`; return `"${s.replace(/"/g, '""')}"`; };
+const row = (a) => a.map(csvCell).join(",") + "\n";
+const EAT = 3 * 3600 * 1000, DAY = 86400000;
+const nairobi = (d) => new Date(new Date(d).getTime() + EAT).toISOString().replace("T", " ").slice(0, 19);
+function span(q) {
+  const p = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || "")); if (!m) throw E("INVALID_DATE"); const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])); if (d.getUTCMonth() !== +m[2] - 1) throw E("INVALID_DATE"); return new Date(d.getTime() - EAT); };
+  const from = p(q.from), to = new Date(p(q.to).getTime() + DAY);
+  if (to <= from || to - from > 366 * DAY) throw E("INVALID_RANGE");
+  return { from, to };
+}
+
+router.get("/export/:kind", authenticate, shop, can("export"), requireFeature("accountingExport"), perUser(5), h(async (req, res) => {
+  const { ownerId } = req.shop;
+  const kind = req.params.kind;
+  if (!["sales", "daily", "stock", "ledger"].includes(kind)) throw E("INVALID_EXPORT", 404);
+  const { from, to } = kind === "stock" ? { from: null, to: null } : span(req.query);
+  const branches = new Map((await Branch.find({ ownerId }).select("name").lean()).map((b) => [String(b._id), b.name]));
+  res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="sokodigi-${kind}-${new Date().toISOString().slice(0, 10)}.csv"`, "Cache-Control": "no-store" });
+  res.write("\ufeff");
+  try {
+    if (kind === "sales") {
+      res.write(row(["Date (EAT)", "Receipt", "Branch", "Cashier", "SKU", "Product", "Qty", "Unit price", "Line total (after discount)", "Unit cost", "Payment", "On credit", "Voided"]));
+      for await (const s of Sale.find({ sellerId: ownerId, createdAt: { $gte: from, $lt: to } }).sort({ createdAt: 1 }).lean().cursor()) {
+        for (const l of s.lines) res.write(row([nairobi(s.createdAt), s.receiptNo, branches.get(String(s.branchId)) || "", s.cashierName, l.sku, l.name, l.quantity, l.unitPrice, l.lineTotal, l.unitCost ?? "", s.paymentMethod, s.creditAmount || 0, s.voided ? "yes" : "no"]));
+      }
+    } else if (kind === "daily") {
+      res.write(row(["Date", "Branch", "Sales", "Revenue", "Discounts", "Cash received", "M-Pesa received", "Given on credit"]));
+      const rows = await Sale.aggregate([
+        { $match: { sellerId: ownerId, voided: false, createdAt: { $gte: from, $lt: to } } },
+        { $group: { _id: { d: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "+03:00" } }, b: "$branchId" }, n: { $sum: 1 }, revenue: { $sum: "$total" }, discount: { $sum: "$discount" },
+          cash: { $sum: { $cond: [{ $eq: ["$paymentMethod", "cash"] }, { $subtract: ["$total", { $ifNull: ["$creditAmount", 0] }] }, 0] } },
+          mpesa: { $sum: { $cond: [{ $eq: ["$paymentMethod", "mpesa"] }, { $subtract: ["$total", { $ifNull: ["$creditAmount", 0] }] }, 0] } },
+          credit: { $sum: { $ifNull: ["$creditAmount", 0] } } } },
+        { $sort: { "_id.d": 1 } },
+      ]);
+      for (const r of rows) res.write(row([r._id.d, branches.get(String(r._id.b)) || "", r.n, r.revenue, r.discount, r.cash, r.mpesa, r.credit]));
+    } else if (kind === "stock") {
+      res.write(row(["SKU", "Name", "Main branch", "Other branches", "Total", "Cost each", "Retail each", "Stock at cost", "Stock at retail"]));
+      const [costs, other] = await Promise.all([
+        ProductCost.find({ sellerId: ownerId }).select("productId costPrice").lean(),
+        BranchStock.aggregate([{ $match: { ownerId } }, { $group: { _id: "$productId", q: { $sum: "$quantity" } } }]),
+      ]);
+      const cm = new Map(costs.map((c) => [String(c.productId), c.costPrice])), om = new Map(other.map((o) => [String(o._id), o.q]));
+      for await (const p of Product.find({ sellerId: ownerId }).sort({ name: 1 }).select("name productCode price quantity").lean().cursor()) {
+        const o = om.get(String(p._id)) || 0, total = p.quantity + o, cost = cm.get(String(p._id));
+        res.write(row([p.productCode, p.name, p.quantity, o, total, cost ?? "", p.price, cost != null ? cost * total : "", p.price * total]));
+      }
+    } else {
+      res.write(row(["Date (EAT)", "Customer", "Type", "Amount (+ owed, - paid)", "Balance after", "Method", "M-Pesa code", "Note"]));
+      const names = new Map((await Customer.find({ sellerId: ownerId }).select("name").lean()).map((c) => [String(c._id), c.name]));
+      for await (const e of CustomerEntry.find({ sellerId: ownerId, createdAt: { $gte: from, $lt: to } }).sort({ createdAt: 1 }).lean().cursor()) {
+        res.write(row([nairobi(e.createdAt), names.get(String(e.customerId)) || "", e.type, e.amount, e.balanceAfter, e.method || "", e.mpesaRef || "", e.note]));
+      }
+    }
+    await audit(req, "export", { detail: `${kind}${from ? ` ${from.toISOString().slice(0, 10)}…` : ""}` });
+    res.end();
+  } catch (e) { console.error("❌ export:", e.stack || e.message); res.end(); }
+}));
+
 module.exports = router;
