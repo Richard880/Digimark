@@ -14,7 +14,6 @@ import RegisterPage from "../features/auth/pages/RegisterPage/RegisterPage";
 import MembershipPage from "../features/membership/MembershipPage";
 import BecomeMarketerPage from "../features/membership/BecomeMarketerPage";
 
-
 import AdminDashboard from "../features/admin/AdminDashboard";
 import LegalPage from "../features/public/legal/LegalPage";
 
