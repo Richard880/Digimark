@@ -20,6 +20,7 @@ import useEntitlements from "../membership/useEntitlements";
 import RestockTab from "./RestockTab";
 import StockTab from "../shop/StockTab";
 import TeamTab from "../shop/TeamTab";
+import ToolsTab from "../shop/ToolsTab";
 
 const LOW = 10;
 const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -1137,6 +1138,7 @@ const tabs = [
   ["stock", "🏬", "Branches", 0],
   ["team", "👤", "Team", 0],
   ["reports", "📊", "Reports", 0],
+  ["tools", "🧰", "Tools", 0],
 ];
 
 
@@ -1496,6 +1498,7 @@ const tabs = [
             {tab === "restock" && <RestockTab />}
             {tab === "stock" && <StockTab />}
             {tab === "team" && <TeamTab />}
+            {tab === "tools" && <ToolsTab />}
           </>
         )}
       </main>
