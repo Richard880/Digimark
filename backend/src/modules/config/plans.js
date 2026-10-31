@@ -3,7 +3,7 @@ const PLAN_ORDER = ["phase1", "phase2", "phase3", "phase4"];
 const F1 = { pos: true, export: true, stockHistory: true, lowStockInApp: true, receiptsPdf: true, dailyReport: true };
 const F2 = { ...F1, promoteOthers: true, barcodes: true, thermalPrint: true, customers: true, creditSales: true, suppliers: true, profitReports: true, lowStockSms: true, csvImport: true };
 const F3 = { ...F2, multiTerminal: true, staffRoles: true, shifts: true, multiBranch: true, auditLog: true };
-const F4 = { ...F3, apiAccess: true, accountingExport: true, prioritySync: true, prioritySupport: true };
+const F4 = { ...F3, apiAccess: true, accountingExport: true, prioritySync: true, prioritySupport: true, receiptBranding: true };
 
 const PLANS = {
   phase1: { name: "Solo Retailer", fee: 100, earnDepth: 1, limits: { products: 50, terminals: 1, staff: 0, branches: 1, smsPerMonth: 0 }, features: F1 },
@@ -20,7 +20,11 @@ const BUILT = ["pos", "export",
                "creditSales", "barcodes",
                "suppliers",
                "multiTerminal", "staffRoles", 
-               "multiBranch", "auditLog"];
+               "multiBranch", "auditLog",
+              "accountingExport", "apiAccess",
+               "prioritySync", "prioritySupport",
+               "receiptBranding"];
+
 
 module.exports = {
   PLANS, PLAN_ORDER, BUILT,
