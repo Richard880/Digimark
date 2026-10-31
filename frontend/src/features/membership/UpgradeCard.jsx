@@ -26,6 +26,7 @@ const FEATURES = [
   ["prioritySync", "Priority offline sync"], 
   ["prioritySupport", "Priority support"],
   ["creditSales", "Credit sales (customer debts)"],
+  ["auditLog", "Staff activity log"],
 ];
 const ERR = {
   INSUFFICIENT_FUNDS: "Your wallet balance is too low for this upgrade.", UPGRADE_NOT_AVAILABLE: "That upgrade isn't available right now.",
