@@ -17,6 +17,14 @@ const UserProfile = require("../../models/UserProfile");
 const Counter = require("../../models/Counter");
 const { changeBranchStock, ensureRows } = require("../../services/branchStock");
 const { audit } = require("../../services/shopAudit");
+const crypto = require("crypto");
+const ApiKey = require("../../models/ApiKey");
+const ShopSettings = require("../../models/ShopSettings");
+const Sale = require("../../models/Sale");
+const Customer = require("../../models/Customer");
+const CustomerEntry = require("../../models/CustomerEntry");
+const ProductCost = require("../../models/ProductCost");
+const { sha } = require("../../middleware/apiKey");
 
 const router = express.Router();
 const MAX_QTY = 100000;
