@@ -117,10 +117,12 @@ export default function PosTab({ outbox }) {
   const canPrice =
     !!shop &&
     (shop.perms.includes("*") || shop.perms.includes("price.override"));
+ 
   const shopInfo = {
-    name: shop?.ownerName || "Sokodigi shop",
-    place: shop?.county || "",
-  };
+  name: shop?.ownerName || "Sokodigi shop",
+  place: shop?.county || "",
+  ...(shop?.branding || {}),
+};
 
   const branches = shop?.branches || [];
   const [branchId, setBranchId] = useState("");
