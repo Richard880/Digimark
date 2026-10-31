@@ -20,6 +20,12 @@ const ERR = {
   TOO_MANY_REQUESTS: "You're going too fast. Wait a moment.", PRODUCT_NOT_FOUND: "A product in this sale no longer exists.",
   CREDIT_LIMIT_EXCEEDED: "That would take the customer over their credit limit.", CUSTOMER_NOT_FOUND: "That customer was removed or archived.",
   CREDIT_CUSTOMER_REQUIRED: "Choose a customer for a credit sale.", INVALID_CREDIT: "Check the credit amount.", SERVER_ERROR: "The server had a problem. It will be tried again.",
+  PRICE_OVERRIDE_FORBIDDEN,
+  DISCOUNT_FORBIDDEN, 
+  TERMINAL_REQUIRED, 
+  TERMINAL_REVOKED, 
+  BRANCH_FORBIDDEN,
+  BRANCH_NOT_FOUND,
 };
 
 function OutboxPanel({ outbox, onReceipt }) {
