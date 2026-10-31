@@ -1,5 +1,4 @@
-
- // src/constants/routes.js
+// src/constants/routes.js
 
 const ROUTES = {
   /* Public */
@@ -16,9 +15,9 @@ const ROUTES = {
   MESSAGES: "/messages",
   NOTIFICATIONS: "/notifications",
 
-  /* Retail users: marketer onboarding */
+  /* Retail users: marketer onboarding and shop access */
   BECOME_MARKETER: "/become-marketer",
- JOIN_SHOP: "/join-shop",
+  JOIN_SHOP: "/join-shop",
 
   /* Marketers */
   MEMBERSHIP: "/membership",
