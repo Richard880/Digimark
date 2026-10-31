@@ -42,6 +42,8 @@ const topLink = ({ isActive }) =>
 const tabLink = ({ isActive }) =>
   `relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-bold ${isActive ? "text-emerald-700" : "text-slate-500"}`;
 
+const readStaffFlag = () => { try { return localStorage.getItem("sokodigi_staff") === "1"; } catch { return false; } };
+
 export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate, socket }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -63,22 +65,23 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate, so
   const needsMembership = user?.destination === "membership";
   const isBuyer = signedIn && user?.accountCategory === "retail";
   const isAdmin = ["admin", "super_admin"].includes(user?.role);
+  const isStaff = signedIn && !isMarketer && !isAdmin && readStaffFlag();
 
-  const links = useMemo(
-    () =>
-      [
-        { to: ROUTES.HOME, label: "Home", end: true },
-        { to: ROUTES.MARKETPLACE, label: "MarketHub" },
-        signedIn && { to: ROUTES.MESSAGES, label: "Messages", badge: unreadMsgs },
-        isMarketer && { to: ROUTES.MEMBER_DASHBOARD, label: "Dashboard" },
-        needsMembership && { to: ROUTES.MEMBERSHIP, label: "Membership" },
-        isBuyer && { to: ROUTES.BECOME_MARKETER, label: "Sell & Earn" },
-        !signedIn && { to: ROUTES.REGISTER, label: "Sell & Earn" },
-        isAdmin && { to: ROUTES.ADMIN_DASHBOARD, label: "Admin" },
-      ].filter(Boolean),
-    [signedIn, isMarketer, needsMembership, isBuyer, isAdmin, unreadMsgs]
-  );
-
+const links = useMemo(
+  () =>
+    [
+      { to: ROUTES.HOME, label: "Home", end: true },
+      { to: ROUTES.MARKETPLACE, label: "MarketHub" },
+      signedIn && { to: ROUTES.MESSAGES, label: "Messages", badge: unreadMsgs },
+      isMarketer && { to: ROUTES.MEMBER_DASHBOARD, label: "Dashboard" },
+      isStaff && { to: ROUTES.MEMBER_DASHBOARD, label: "Shop workspace" },
+      needsMembership && { to: ROUTES.MEMBERSHIP, label: "Membership" },
+      isBuyer && { to: ROUTES.BECOME_MARKETER, label: "Sell & Earn" },
+      !signedIn && { to: ROUTES.REGISTER, label: "Sell & Earn" },
+      isAdmin && { to: ROUTES.ADMIN_DASHBOARD, label: "Admin" },
+    ].filter(Boolean),
+  [signedIn, isMarketer, isStaff, needsMembership, isBuyer, isAdmin, unreadMsgs]
+);
   const closeAll = useCallback(() => {
     setMenuOpen(false);
     setSearchOpen(false);
@@ -238,7 +241,7 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate, so
               <button type="button" onClick={() => { closeAll(); onAuthClick?.(); }}
                 className="rounded-full bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 sm:text-sm">Get Started</button>
             )}
-
+              
             <button type="button" onClick={() => setMenuOpen((o) => !o)} aria-label="Menu" aria-expanded={menuOpen}
               className="rounded-full p-2 text-slate-700 hover:bg-slate-100 lg:hidden"><Icon name={menuOpen ? "close" : "menu"} /></button>
           </div>
@@ -258,7 +261,9 @@ export default function Navbar({ user, onLogout, onAuthClick, onSearchUpdate, so
               ))}
               {signedIn && (
                 <>
+                  
                   <NavLink to={ROUTES.WALLET} className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50">Wallet</NavLink>
+                  {isStaff && <Link to={ROUTES.MEMBER_DASHBOARD} className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50">Shop workspace</Link>}
                   <button type="button" onClick={() => { closeAll(); onLogout?.(); }} className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50">Log out</button>
                 </>
               )}
