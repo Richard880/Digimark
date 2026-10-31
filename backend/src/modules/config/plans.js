@@ -18,7 +18,9 @@ const BUILT = ["pos", "export",
                "promoteOthers", "receiptsPdf",
                "dailyReport", "customers",
                "creditSales", "barcodes",
-               "suppliers"];
+               "suppliers",
+               "multiTerminal", "staffRoles", 
+               "multiBranch", "auditLog"];
 
 module.exports = {
   PLANS, PLAN_ORDER, BUILT,
