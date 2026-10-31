@@ -241,6 +241,22 @@ const Empty = ({ icon, text }) => (
   <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-xs text-slate-500"><span className="mb-2 block text-3xl" aria-hidden="true">{icon}</span>{text}</p>
 );
 
+// Shrinks a photo to about 800px JPEG in the browser (phone photos are often 3 to 8 MB)
+async function shrinkPhoto(file) {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 800 / Math.max(bmp.width, bmp.height));
+  const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(bmp, 0, 0, w, h);
+  bmp.close?.();
+  const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.85));
+  if (!blob) throw new Error("SHRINK_FAILED");
+  return new File([blob], "profile.jpg", { type: "image/jpeg" });
+}
+
 /* ───────── Page ───────── */
 export default function Profile() {
   const { username: usernameParam } = useParams();
@@ -331,25 +347,35 @@ export default function Profile() {
       .catch(() => setMatrixState("error"));
   }, [tab, matrixState]);
 
-  const onAvatarFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (!AVATAR_TYPES.includes(file.type)) return setNotice("Please choose a JPG, PNG or WebP image.");
-    if (file.size > 2 * 1024 * 1024) return setNotice("Profile pictures can be up to 2 MB.");
-    setUpdatingAvatar(true); setNotice("");
-    try {
-      const url = await uploadImageToCloudinary(file, "profiles", () => auth.currentUser.getIdToken());
-      await patchProfile({ profilePhoto: url });
-      setBrand((b) => ({ ...(b || {}), profilePhoto: url }));
-      setAvatarOpen(false);
-      refreshProfile();
-      window.dispatchEvent(new CustomEvent("profile-avatar-updated", { detail: { profilePhoto: url } }));
-    } catch (err) {
-      console.error("Avatar update failed:", err);
-      setNotice(err.message === "UPLOAD_FAILED" ? "Image upload failed. Check your connection." : err.code ? friendlyError(err) : err.message || "Couldn't update your picture.");
-    } finally { setUpdatingAvatar(false); }
-  };
+const onAvatarFile = async (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  if (!file) return;
+  if (!AVATAR_TYPES.includes(file.type)) return setNotice("Please choose a JPG, PNG or WebP image.");
+  if (file.size > 15 * 1024 * 1024) return setNotice("That photo is too large. Choose one under 15 MB.");
+  setUpdatingAvatar(true); setNotice("");
+  try {
+    const small = await shrinkPhoto(file);
+    const url = await uploadImageToCloudinary(small, "profiles", () => auth.currentUser.getIdToken());
+    const saved = await patchProfile({ profilePhoto: url });
+    const finalUrl = saved?.profile?.profilePhoto;
+    if (finalUrl !== url) throw new Error("NOT_SAVED"); // the server kept the old photo
+    setBrand((b) => ({ ...(b || {}), profilePhoto: finalUrl }));
+    setAvatarOpen(false);
+    window.dispatchEvent(new CustomEvent("profile-avatar-updated", { detail: { profilePhoto: finalUrl } }));
+    await refreshProfile();
+    setNotice("Profile photo updated.");
+    setTimeout(() => setNotice(""), 3000);
+  } catch (err) {
+    console.error("Avatar update failed:", err);
+    setNotice(
+      err.message === "UPLOAD_FAILED" ? "Image upload failed. Check your connection."
+      : err.message === "NOT_SAVED" ? "The photo uploaded but couldn't be saved. Please try again."
+      : err.message === "SHRINK_FAILED" ? "That image couldn't be read. Try another photo."
+      : err.code ? friendlyError(err) : "Couldn't update your picture. Please try again."
+    );
+  } finally { setUpdatingAvatar(false); }
+};
 
   const copy = async (text, okMsg) => {
     try { await navigator.clipboard.writeText(text); setNotice(okMsg); setTimeout(() => setNotice(""), 2500); }
@@ -404,7 +430,7 @@ export default function Profile() {
             <div className="-mt-12 flex flex-col items-center gap-4 sm:-mt-14 sm:flex-row sm:items-end">
               <button type="button" onClick={() => isOwnProfile && setAvatarOpen(true)} aria-label={isOwnProfile ? "Change profile picture" : displayName}
                 className={`relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-emerald-50 shadow-lg ring-2 ring-emerald-500 sm:h-28 sm:w-28 ${isOwnProfile ? "cursor-pointer" : "cursor-default"}`}>
-                {avatar ? <img src={avatar} alt={displayName} className="h-full w-full object-cover" /> : <span className="text-4xl font-black text-emerald-700">{displayName.charAt(0).toUpperCase()}</span>}
+                {avatar ?<img key={avatar} src={avatar} alt={displayName} className="h-full w-full object-cover" /> : <span className="text-4xl font-black text-emerald-700">{displayName.charAt(0).toUpperCase()}</span>}
                 {updatingAvatar && <div className="absolute inset-0 flex items-center justify-center bg-black/50"><div className="h-6 w-6 animate-spin rounded-full border-2 border-white border-t-transparent" /></div>}
               </button>
 
@@ -421,7 +447,11 @@ export default function Profile() {
               <div className="flex flex-wrap justify-center gap-2">
                 {isOwnProfile && <button type="button" onClick={() => setEditing(true)} className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 hover:border-emerald-300">Edit profile</button>}
                 {isOwnProfile && isMarketer && <Link to={ROUTES.MEMBER_DASHBOARD} className="flex min-h-10 items-center rounded-xl bg-emerald-700 px-4 text-xs font-bold text-white hover:bg-emerald-800">Manage shop</Link>}
-                {!isOwnProfile && auth.authenticated && brand.userId && null}
+                  {isOwnProfile && !isMarketer && me.accountCategory !== "network" && (
+                    <p className="mt-3 text-center sm:text-left">
+                      <Link to={ROUTES.JOIN_SHOP} className="text-xs font-bold text-emerald-700 underline">Work at a shop? Join with an invite code</Link>
+                    </p>
+                  )}
                 {shopUrl && <button type="button" onClick={() => copy(shopUrl, "Shop link copied")} className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 hover:border-emerald-300">Share shop</button>}
                 {isOwnProfile && isMarketer && brand.username && <button type="button" onClick={() => copy(`${origin}${registerPath(brand.username)}`, "Invite link copied")} className="min-h-10 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-xs font-bold text-emerald-800">Copy invite link</button>}
               </div>
