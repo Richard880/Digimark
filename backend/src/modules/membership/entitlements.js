@@ -24,9 +24,10 @@ function upgradeQuote(u, toKey, now = new Date()) {
 }
 
 const requireFeature = (feature) => (req, res, next) => {
-  const ent = entitlementsFor(req.user);
+  const ent = entitlementsFor(req.shop ? req.shop.owner : req.user);
   if (ent.features[feature]) { req.ent = ent; return next(); }
   return res.status(403).json({ error: "PLAN_UPGRADE_REQUIRED", feature, requiredPlan: cheapest((p) => p.features[feature]) });
 };
+
 
 module.exports = { entitlementsFor, upgradeQuote, requireFeature, cheapest, isActive };
