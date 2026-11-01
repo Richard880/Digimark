@@ -29,11 +29,7 @@ function Icon({ name, className = "h-5 w-5" }) {
       viewBox="0 0 24 24"
       aria-hidden="true"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d={ICONS[name]}
-      />
+      <path strokeLinecap="round" strokeLinejoin="round" d={ICONS[name]} />
     </svg>
   );
 }
@@ -102,6 +98,7 @@ export default function Navbar({
   const isBuyer = signedIn && user?.accountCategory === "retail";
   const isAdmin = ["admin", "super_admin"].includes(user?.role);
   const isStaff = signedIn && !isMarketer && !isAdmin && readStaffFlag();
+  const onDashboard = location.pathname.startsWith(ROUTES.MEMBER_DASHBOARD);
 
   const links = useMemo(
     () =>
@@ -615,7 +612,7 @@ export default function Navbar({
       </header>
 
       {/* Bottom tab bar: phones and tablets, signed-in users only */}
-      {signedIn && (
+      {signedIn && !onDashboard && (
         <nav
           aria-label="Quick navigation"
           className="fixed inset-x-0 bottom-0 z-40 flex border-t border-slate-200 bg-white lg:hidden"
