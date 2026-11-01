@@ -1151,492 +1151,490 @@ const tabs = [
 
   if (!myId) return null;
 
-  return (
-    <div className="min-h-screen bg-slate-50 pb-24 md:pb-10">
-      <header
-        className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur"
-        style={{ paddingTop: "env(safe-area-inset-top)" }}
-      >
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:px-6">
-          <div className="flex min-w-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate(ROUTES.HOME)}
-              className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-            >
-              ← Home
-            </button>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-black text-slate-900">
-                {auth.profile?.brandName || "My shop"}
-              </p>
-              <p className="hidden text-[11px] text-slate-500 sm:block">
-                Inventory and orders
-              </p>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-2">
-            {username && (
-              <Link
-                to={profilePath(username)}
-                className="hidden rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:block"
-              >
-                View my shop
-              </Link>
-            )}
-            <button
-              type="button"
-              onClick={() => setDialog({ type: "add" })}
-              className={`${btn} bg-emerald-700 text-white`}
-            >
-              + Add product
-            </button>
+return (
+  <div className="min-h-screen bg-slate-50 pb-24 md:pb-10">
+    <header className="sticky top-14 z-30 border-b border-slate-200 bg-white/95 backdrop-blur sm:top-16">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate(ROUTES.HOME)}
+            className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+          >
+            ← Home
+          </button>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-black text-slate-900">
+              {auth.profile?.brandName || "My shop"}
+            </p>
+            <p className="hidden text-[11px] text-slate-500 sm:block">
+              Inventory and orders
+            </p>
           </div>
         </div>
 
-        <nav
-          className="mx-auto hidden max-w-6xl gap-1 px-6 md:flex"
-          aria-label="Shop sections"
-        >
-          {tabs.map(([k, icon, label, badge]) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => setTab(k)}
-              aria-pressed={tab === k}
-              className={`border-b-2 px-4 py-3 text-xs font-black ${
-                tab === k
-                  ? "border-emerald-700 text-emerald-800"
-                  : "border-transparent text-slate-400 hover:text-slate-700"
-              }`}
+        <div className="flex shrink-0 items-center gap-2">
+          {username && (
+            <Link
+              to={profilePath(username)}
+              className="hidden rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:block"
             >
-              {icon} {label}
-              {badge > 0 && (
-                <span className="ml-1.5 rounded-full bg-rose-500 px-1.5 text-[10px] text-white">
-                  {badge}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
-      </header>
-
-      <main className="mx-auto max-w-6xl space-y-5 px-3 py-5 sm:px-6">
-        {notice && (
-          <p
-            role={notice.type === "error" ? "alert" : "status"}
-            className={`rounded-xl border px-4 py-3 text-xs font-bold ${
-              notice.type === "error"
-                ? "border-red-200 bg-red-50 text-red-700"
-                : "border-emerald-200 bg-emerald-50 text-emerald-800"
-            }`}
+              View my shop
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => setDialog({ type: "add" })}
+            className={`${btn} bg-emerald-700 text-white`}
           >
-            {notice.text}
-          </p>
-        )}
-
-        {error && (
-          <div
-            role="alert"
-            className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700"
-          >
-            {error}{" "}
-            <button
-              type="button"
-              onClick={loadAll}
-              className="ml-2 underline"
-            >
-              Try again
-            </button>
-          </div>
-        )}
-
-        <OnboardingChecklist compact />
-        <PlanStatusCard
-          summary={inventorySummary}
-          onUpgrade={handleUpgrade}
-        />
-
-        <section
-          className="grid grid-cols-2 gap-3 lg:grid-cols-4"
-          aria-label="Overview"
-        >
-          {[
-            [
-              "New orders",
-              stats.newOrders,
-              "text-amber-600",
-              () => {
-                setTab("orders");
-                setOrderFilter("PROCESSING");
-              },
-            ],
-            [
-              "On the way",
-              stats.onTheWay,
-              "text-sky-700",
-              () => {
-                setTab("orders");
-                setOrderFilter("DISPATCHED");
-              },
-            ],
-            [
-              "Low or out of stock",
-              stats.lowStock,
-              "text-red-600",
-              () => {
-                setTab("inventory");
-                setFilter("low");
-              },
-            ],
-            ["Counter sales", "Open POS", "text-emerald-700", () => setTab("pos")],
-          ].map(([label, value, tone, go]) => (
-            <button
-              key={label}
-              type="button"
-              onClick={go}
-              className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-emerald-300"
-            >
-              <p className="text-[11px] font-bold text-slate-500">{label}</p>
-              <p className={`mt-2 truncate text-2xl font-black ${tone}`}>
-                {value}
-              </p>
-            </button>
-          ))}
-        </section>
-
-        <PushAsk reason="Get alerted the moment a customer places an order, so you can confirm it fast." />
-
-        {loading ? (
-          <div className="space-y-3">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="h-36 animate-pulse rounded-2xl bg-slate-100"
-              />
-            ))}
-          </div>
-        ) : (
-          <>
-            {tab === "inventory" && (
-              <section className="space-y-4">
-                <InventoryPanel refreshKey={products.length} />
-
-                <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11px] leading-relaxed text-slate-600">
-                  <b className="text-slate-800">Unlisted</b> products stay in
-                  your inventory but are hidden from your shop page and the
-                  MarketHub, so customers can't order them. You can still record
-                  sales and adjust their stock. Open orders carry on as normal.
-                </p>
-
-                <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <input
-                    type="search"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search name, SKU, barcode or category…"
-                    aria-label="Search inventory"
-                    className={input}
-                  />
-                  <div
-                    className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
-                    role="group"
-                    aria-label="Filter inventory"
-                  >
-                    {[
-                      ["all", "All"],
-                      ["listed", "On MarketHub"],
-                      ["unlisted", "Unlisted"],
-                      ["low", "Low stock"],
-                      ["out", "Out of stock"],
-                    ].map(([v, l]) => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => setFilter(v)}
-                        aria-pressed={filter === v}
-                        className={chip(filter === v)}
-                      >
-                        {l}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {shown.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {shown.map((p) => (
-                      <ProductCard
-                        key={p._id}
-                        p={p}
-                        busy={busyId === p._id}
-                        onSale={() => setTab("pos")}
-                        onStock={(x) =>
-                          setDialog({ type: "stock", product: x })
-                        }
-                        onEdit={(x) =>
-                          setDialog({ type: "edit", product: x })
-                        }
-                        onToggle={toggleListing}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
-                    <p className="text-4xl" aria-hidden="true">
-                      📦
-                    </p>
-                    <h3 className="mt-3 font-black text-slate-900">
-                      {products.length === 0
-                        ? "Your inventory is empty"
-                        : "No matching products"}
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {products.length === 0
-                        ? "Add your first product to open your shop."
-                        : "Try another search or filter."}
-                    </p>
-                    {products.length === 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setDialog({ type: "add" })}
-                        className={`${btn} mt-4 bg-emerald-700 px-5 text-white`}
-                      >
-                        + Add your first product
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {hasMore && (
-                  <div className="text-center">
-                    <button
-                      type="button"
-                      onClick={() => loadProducts(page + 1)}
-                      className={`${btn} border border-emerald-800/20 bg-white px-8 text-emerald-900`}
-                    >
-                      Show more products
-                    </button>
-                  </div>
-                )}
-              </section>
-            )}
-
-            {tab === "orders" && (
-              <section className="space-y-4">
-                <ol className="flex flex-wrap gap-x-4 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11px] font-bold text-slate-500">
-                  <li>1. Buyer pays (held in escrow)</li>
-                  <li>2. You confirm the order</li>
-                  <li>3. You deliver</li>
-                  <li>4. Buyer gives you the PIN</li>
-                  <li>5. You're paid</li>
-                </ol>
-
-                <div
-                  className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
-                  role="group"
-                  aria-label="Filter orders"
-                >
-                  {[
-                    ["all", "All"],
-                    ["PROCESSING", "New"],
-                    ["DISPATCHED", "On the way"],
-                    ["DELIVERED", "Completed"],
-                    ["CANCELLED", "Cancelled"],
-                  ].map(([v, l]) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => setOrderFilter(v)}
-                      aria-pressed={orderFilter === v}
-                      className={chip(orderFilter === v)}
-                    >
-                      {l}
-                    </button>
-                  ))}
-                </div>
-
-                {shownOrders.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    {shownOrders.map((o) => (
-                      <OrderCard
-                        key={o._id}
-                        o={o}
-                        busy={busyId === o._id}
-                        pin={pins[o.orderNumber]}
-                        setPin={(n, v) =>
-                          setPins((p) => ({ ...p, [n]: v }))
-                        }
-                        onConfirm={confirmOrder}
-                        onCancel={cancelOrder}
-                        onVerify={verifyPin}
-                        loadOrders={loadOrders}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
-                    <p className="text-4xl" aria-hidden="true">
-                      📋
-                    </p>
-                    <h3 className="mt-3 font-black text-slate-900">
-                      No orders here
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Orders from customers will appear when they buy from your
-                      shop.
-                    </p>
-                  </div>
-                )}
-              </section>
-            )}
-
-            {tab === "pos" && <PosTab outbox={outbox} />}
-            {tab === "customers" && <CustomersTab />}
-            {tab === "reports" && <ReportsTab />}
-            {tab === "restock" && <RestockTab />}
-            {tab === "stock" && <StockTab />}
-            {tab === "team" && <TeamTab />}
-            {tab === "tools" && <ToolsTab />}
-          </>
-        )}
-      </main>
+            + Add product
+          </button>
+        </div>
+      </div>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-30 flex border-t border-slate-200 bg-white md:hidden"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="mx-auto hidden max-w-6xl gap-1 px-6 md:flex"
         aria-label="Shop sections"
       >
-       {tabs.slice(0, 4).map(([k, icon, label, badge]) => (
-  <button
-    key={k}
-    type="button"
-    onClick={() => setTab(k)}
-    aria-pressed={tab === k}
-    className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-bold ${
-      tab === k ? "text-emerald-700" : "text-slate-500"
-    }`}
-  >
-    <span className="relative text-lg" aria-hidden="true">
-      {icon}
-      {badge > 0 && (
-        <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
-          {badge}
-        </span>
-      )}
-    </span>
-    {label}
-  </button>
-))}
-<button
-  type="button"
-  onClick={() => setMore(true)}
-  className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-bold ${
-    tabs.slice(4).some((t) => t[0] === tab)
-      ? "text-emerald-700"
-      : "text-slate-500"
-  }`}
->
-  <span className="text-lg" aria-hidden="true">⋯</span>
-  More
-</button>
-
-        {more && (
-  <div
-    className="fixed inset-0 z-[3000] flex items-end justify-center bg-slate-900/60 sm:items-center sm:p-4"
-    onMouseDown={(e) => e.target === e.currentTarget && setMore(false)}
-  >
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="More shop sections"
-      className="w-full rounded-t-3xl bg-white p-4 shadow-xl sm:max-w-md sm:rounded-2xl"
-    >
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-black text-slate-900">More</h3>
-        <button
-          type="button"
-          onClick={() => setMore(false)}
-          aria-label="Close"
-          className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100"
-        >
-          ✕
-        </button>
-      </div>
-      <div className="space-y-1">
-        {tabs.slice(4).map(([k, icon, label, badge]) => (
+        {tabs.map(([k, icon, label, badge]) => (
           <button
             key={k}
             type="button"
-            onClick={() => {
-              setTab(k);
-              setMore(false);
-            }}
-            className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-bold ${
+            onClick={() => setTab(k)}
+            aria-pressed={tab === k}
+            className={`border-b-2 px-4 py-3 text-xs font-black ${
               tab === k
-                ? "bg-emerald-50 text-emerald-800"
-                : "text-slate-700 hover:bg-slate-50"
+                ? "border-emerald-700 text-emerald-800"
+                : "border-transparent text-slate-400 hover:text-slate-700"
             }`}
           >
-            <span aria-hidden="true">{icon}</span>
-            <span className="flex-1">{label}</span>
+            {icon} {label}
             {badge > 0 && (
-              <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">
+              <span className="ml-1.5 rounded-full bg-rose-500 px-1.5 text-[10px] text-white">
                 {badge}
               </span>
             )}
           </button>
         ))}
-      </div>
-    </div>
-  </div>
-)}
       </nav>
+    </header>
 
-      <AddProductModal
-        isOpen={dialog?.type === "add"}
-        onClose={() => setDialog(null)}
-        onSuccess={(np) => {
-          if (np) setProducts((prev) => [np, ...prev]);
-          else loadProducts(1);
-          setDialog(null);
-          flash("Product added to your inventory.");
-          loadSummary();
-        }}
-        uploadImageToCloudinary={uploadImageToCloudinary}
+    <main className="mx-auto max-w-6xl space-y-5 px-3 py-5 sm:px-6">
+      {notice && (
+        <p
+          role={notice.type === "error" ? "alert" : "status"}
+          className={`rounded-xl border px-4 py-3 text-xs font-bold ${
+            notice.type === "error"
+              ? "border-red-200 bg-red-50 text-red-700"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          }`}
+        >
+          {notice.text}
+        </p>
+      )}
+
+      {error && (
+        <div
+          role="alert"
+          className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700"
+        >
+          {error}{" "}
+          <button
+            type="button"
+            onClick={loadAll}
+            className="ml-2 underline"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
+      <OnboardingChecklist compact />
+      <PlanStatusCard
+        summary={inventorySummary}
+        onUpgrade={handleUpgrade}
       />
 
-      {dialog?.type === "edit" && (
-        <EditDialog
-          product={dialog.product}
-          getToken={getToken}
-          onClose={() => setDialog(null)}
-          onSaved={(p) => {
-            swap(p);
-            setDialog(null);
-            flash("Product updated.");
-          }}
-          onDeleted={(id) => {
-            setProducts((prev) => prev.filter((x) => x._id !== id));
-            setDialog(null);
-            flash("Product deleted.");
-            loadSummary();
-          }}
-        />
-      )}
+      <section
+        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+        aria-label="Overview"
+      >
+        {[
+          [
+            "New orders",
+            stats.newOrders,
+            "text-amber-600",
+            () => {
+              setTab("orders");
+              setOrderFilter("PROCESSING");
+            },
+          ],
+          [
+            "On the way",
+            stats.onTheWay,
+            "text-sky-700",
+            () => {
+              setTab("orders");
+              setOrderFilter("DISPATCHED");
+            },
+          ],
+          [
+            "Low or out of stock",
+            stats.lowStock,
+            "text-red-600",
+            () => {
+              setTab("inventory");
+              setFilter("low");
+            },
+          ],
+          ["Counter sales", "Open POS", "text-emerald-700", () => setTab("pos")],
+        ].map(([label, value, tone, go]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={go}
+            className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm hover:border-emerald-300"
+          >
+            <p className="text-[11px] font-bold text-slate-500">{label}</p>
+            <p className={`mt-2 truncate text-2xl font-black ${tone}`}>
+              {value}
+            </p>
+          </button>
+        ))}
+      </section>
 
-      {dialog?.type === "stock" && (
-        <StockDialog
-          product={dialog.product}
-          onClose={() => setDialog(null)}
-          onDone={(p) => {
-            swap(p);
-            setDialog(null);
-            flash("Stock updated.");
-          }}
-        />
+      <PushAsk reason="Get alerted the moment a customer places an order, so you can confirm it fast." />
+
+      {loading ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-36 animate-pulse rounded-2xl bg-slate-100"
+            />
+          ))}
+        </div>
+      ) : (
+        <>
+          {tab === "inventory" && (
+            <section className="space-y-4">
+              <InventoryPanel refreshKey={products.length} />
+
+              <p className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11px] leading-relaxed text-slate-600">
+                <b className="text-slate-800">Unlisted</b> products stay in
+                your inventory but are hidden from your shop page and the
+                MarketHub, so customers can't order them. You can still record
+                sales and adjust their stock. Open orders carry on as normal.
+              </p>
+
+              <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search name, SKU, barcode or category…"
+                  aria-label="Search inventory"
+                  className={input}
+                />
+                <div
+                  className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+                  role="group"
+                  aria-label="Filter inventory"
+                >
+                  {[
+                    ["all", "All"],
+                    ["listed", "On MarketHub"],
+                    ["unlisted", "Unlisted"],
+                    ["low", "Low stock"],
+                    ["out", "Out of stock"],
+                  ].map(([v, l]) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setFilter(v)}
+                      aria-pressed={filter === v}
+                      className={chip(filter === v)}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {shown.length > 0 ? (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {shown.map((p) => (
+                    <ProductCard
+                      key={p._id}
+                      p={p}
+                      busy={busyId === p._id}
+                      onSale={() => setTab("pos")}
+                      onStock={(x) =>
+                        setDialog({ type: "stock", product: x })
+                      }
+                      onEdit={(x) =>
+                        setDialog({ type: "edit", product: x })
+                      }
+                      onToggle={toggleListing}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
+                  <p className="text-4xl" aria-hidden="true">
+                    📦
+                  </p>
+                  <h3 className="mt-3 font-black text-slate-900">
+                    {products.length === 0
+                      ? "Your inventory is empty"
+                      : "No matching products"}
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {products.length === 0
+                      ? "Add your first product to open your shop."
+                      : "Try another search or filter."}
+                  </p>
+                  {products.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setDialog({ type: "add" })}
+                      className={`${btn} mt-4 bg-emerald-700 px-5 text-white`}
+                    >
+                      + Add your first product
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {hasMore && (
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => loadProducts(page + 1)}
+                    className={`${btn} border border-emerald-800/20 bg-white px-8 text-emerald-900`}
+                  >
+                    Show more products
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {tab === "orders" && (
+            <section className="space-y-4">
+              <ol className="flex flex-wrap gap-x-4 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-[11px] font-bold text-slate-500">
+                <li>1. Buyer pays (held in escrow)</li>
+                <li>2. You confirm the order</li>
+                <li>3. You deliver</li>
+                <li>4. Buyer gives you the PIN</li>
+                <li>5. You're paid</li>
+              </ol>
+
+              <div
+                className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+                role="group"
+                aria-label="Filter orders"
+              >
+                {[
+                  ["all", "All"],
+                  ["PROCESSING", "New"],
+                  ["DISPATCHED", "On the way"],
+                  ["DELIVERED", "Completed"],
+                  ["CANCELLED", "Cancelled"],
+                ].map(([v, l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setOrderFilter(v)}
+                    aria-pressed={orderFilter === v}
+                    className={chip(orderFilter === v)}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+
+              {shownOrders.length > 0 ? (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {shownOrders.map((o) => (
+                    <OrderCard
+                      key={o._id}
+                      o={o}
+                      busy={busyId === o._id}
+                      pin={pins[o.orderNumber]}
+                      setPin={(n, v) =>
+                        setPins((p) => ({ ...p, [n]: v }))
+                      }
+                      onConfirm={confirmOrder}
+                      onCancel={cancelOrder}
+                      onVerify={verifyPin}
+                      loadOrders={loadOrders}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-14 text-center">
+                  <p className="text-4xl" aria-hidden="true">
+                    📋
+                  </p>
+                  <h3 className="mt-3 font-black text-slate-900">
+                    No orders here
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Orders from customers will appear when they buy from your
+                    shop.
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
+
+          {tab === "pos" && <PosTab outbox={outbox} />}
+          {tab === "customers" && <CustomersTab />}
+          {tab === "reports" && <ReportsTab />}
+          {tab === "restock" && <RestockTab />}
+          {tab === "stock" && <StockTab />}
+          {tab === "team" && <TeamTab />}
+          {tab === "tools" && <ToolsTab />}
+        </>
       )}
-    </div>
-  );
-}
+    </main>
+
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-slate-200 bg-white md:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      aria-label="Shop sections"
+    >
+      {tabs.slice(0, 4).map(([k, icon, label, badge]) => (
+        <button
+          key={k}
+          type="button"
+          onClick={() => setTab(k)}
+          aria-pressed={tab === k}
+          className={`relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-bold ${
+            tab === k ? "text-emerald-700" : "text-slate-500"
+          }`}
+        >
+          <span className="relative text-lg" aria-hidden="true">
+            {icon}
+            {badge > 0 && (
+              <span className="absolute -right-2 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-black text-white">
+                {badge}
+              </span>
+            )}
+          </span>
+          {label}
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={() => setMore(true)}
+        className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-bold ${
+          tabs.slice(4).some((t) => t[0] === tab)
+            ? "text-emerald-700"
+            : "text-slate-500"
+        }`}
+      >
+        <span className="text-lg" aria-hidden="true">
+          ⋯
+        </span>
+        More
+      </button>
+    </nav>
+
+    {more && (
+      <div
+        className="fixed inset-0 z-[3000] flex items-end justify-center bg-slate-900/60 sm:items-center sm:p-4"
+        onMouseDown={(e) => e.target === e.currentTarget && setMore(false)}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="More shop sections"
+          className="w-full rounded-t-3xl bg-white p-4 shadow-xl sm:max-w-md sm:rounded-2xl"
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-black text-slate-900">More</h3>
+            <button
+              type="button"
+              onClick={() => setMore(false)}
+              aria-label="Close"
+              className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="space-y-1">
+            {tabs.slice(4).map(([k, icon, label, badge]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => {
+                  setTab(k);
+                  setMore(false);
+                }}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-bold ${
+                  tab === k
+                    ? "bg-emerald-50 text-emerald-800"
+                    : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <span aria-hidden="true">{icon}</span>
+                <span className="flex-1">{label}</span>
+                {badge > 0 && (
+                  <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">
+                    {badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
+
+    <AddProductModal
+      isOpen={dialog?.type === "add"}
+      onClose={() => setDialog(null)}
+      onSuccess={(np) => {
+        if (np) setProducts((prev) => [np, ...prev]);
+        else loadProducts(1);
+        setDialog(null);
+        flash("Product added to your inventory.");
+        loadSummary();
+      }}
+      uploadImageToCloudinary={uploadImageToCloudinary}
+    />
+
+    {dialog?.type === "edit" && (
+      <EditDialog
+        product={dialog.product}
+        getToken={getToken}
+        onClose={() => setDialog(null)}
+        onSaved={(p) => {
+          swap(p);
+          setDialog(null);
+          flash("Product updated.");
+        }}
+        onDeleted={(id) => {
+          setProducts((prev) => prev.filter((x) => x._id !== id));
+          setDialog(null);
+          flash("Product deleted.");
+          loadSummary();
+        }}
+      />
+    )}
+
+    {dialog?.type === "stock" && (
+      <StockDialog
+        product={dialog.product}
+        onClose={() => setDialog(null)}
+        onDone={(p) => {
+          swap(p);
+          setDialog(null);
+          flash("Stock updated.");
+        }}
+      />
+    )}
+  </div>
+);
