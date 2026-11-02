@@ -78,7 +78,8 @@ reminders: { confirm: Date, deliver1: Date, deliver2: Date },
 idempotencyKey: { type: String, maxlength: 64, immutable: true },
     // Set to true ONLY inside the same transaction that releases escrow.
     // EscrowAccount.status is the source of truth.
-    isEscrowReleased: { type: Boolean, default: false },
+courier: { memberId: mongoose.Schema.Types.ObjectId, name: String, photo: String, vehicleType: String, plate: String, assignedAt: Date },
+isEscrowReleased: { type: Boolean, default: false },
     deliveredAt: Date,
     dispatchedAt: Date,
     cancelledAt: Date,      
