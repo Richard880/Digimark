@@ -4,6 +4,7 @@ import apiClient from "../../services/apiClient";
 import ROUTES from "../../constants/routes";
 import useShop from "./useShop";
 import { Sheet, Err, field, btn, errMsg, when, ROLE } from "./ui";
+import CouriersSection from "../couriers/CouriersSection";
 
 const BLURB = { manager: "Sells, changes prices, voids sales, runs reports, manages stock.", cashier: "Sells at catalogue prices and takes customer payments.", stock_clerk: "Counts, adjusts and transfers stock." };
 
@@ -109,7 +110,7 @@ export default function TeamTab() {
               </li>))}</ul>)}
         </div>
       )}
-
+    
       {!f.auditLog ? <Locked icon="📜" title="Activity log" text="See who sold, voided, adjusted stock or changed staff, and when. Available from Smart-Hub." /> : (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="mb-2 text-sm font-black text-slate-800">Recent activity</h3>
@@ -117,6 +118,8 @@ export default function TeamTab() {
             <ul className="divide-y divide-slate-100 text-xs">{log.map((a) => <li key={a._id} className="py-2.5"><p className="font-bold text-slate-800">{a.actorName} <span className="font-normal text-slate-500">({ROLE[a.role] || a.role})</span> · {a.action.replace(/_/g, " ")}</p><p className="text-slate-500">{a.detail} · {when(a.createdAt)}</p></li>)}</ul>)}
         </div>
       )}
+
+       <CouriersSection />
       {invite && <InviteSheet shop={shop} onClose={() => setInvite(false)} onDone={loadStaff} />}
     </section>
   );
