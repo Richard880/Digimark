@@ -336,5 +336,5 @@ async function devTopUp(req, res) {
 module.exports = {
   getMyWalletDetails, handleMpesaTopUp, mpesaCallback, getTopUpStatus, devTopUp,
   darajaFetch, getAccessToken, normalizePhone, safeEq, // shared with withdraw.controller
-  MPESA_ENABLED,
+  MPESA_ENABLED,creditTopUp,
 };
