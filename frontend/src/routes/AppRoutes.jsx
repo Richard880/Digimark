@@ -16,7 +16,7 @@ import BecomeMarketerPage from "../features/membership/BecomeMarketerPage";
 
 import AdminDashboard from "../features/admin/AdminDashboard";
 import LegalPage from "../features/public/legal/LegalPage";
-import ShoppingListsPage from "../features/public/ShoppingLists/ShoppingListsPage";
+import ShoppingListsPage from "../features/lists/ShoppingListsPage";
 
 
 import useAuth from "../features/auth/hooks/useAuth";
