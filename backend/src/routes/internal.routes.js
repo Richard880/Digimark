@@ -46,6 +46,7 @@ router.get("/daily", async (req, res) => {
     const expiry = await runExpirySweep(Math.floor(total * 0.2));
     const eligibility = await runEligibilitySweep(Math.max(1000, Math.floor(total * 0.4)));
     const reconciliation = await runReconciliation();
+    const lists = await runLists(Math.floor(total * 0.2));
     return res.json({ ok: true, orders, expiry, eligibility, reconciliation });
   } catch (e) {
     console.error("❌ daily job:", e.stack || e.message);
