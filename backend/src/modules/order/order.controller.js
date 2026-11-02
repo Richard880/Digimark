@@ -88,8 +88,15 @@ async function listOrders(req, res) {
       .lean();
 
     // Promoters only see sale info, never the buyer's address or phone
-   const safe = orders.map(withDeadlines).map((o) =>
-  same(o.buyerId, me) || same(o.sellerId, me) ? o : { ...o, shippingDetails: undefined, buyerId: undefined }
+  const safe = orders.map(withDeadlines).map((o) =>
+  same(o.buyerId, me) || same(o.sellerId, me)
+    ? o
+    : {
+        ...o,
+        shippingDetails: undefined,
+        buyerId: undefined,
+        courier: undefined,
+      }
 );
     return res.status(200).json(safe);
   } catch (err) {
