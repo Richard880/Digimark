@@ -12,6 +12,7 @@ router.use("/network", require("../modules/network/network.routes"));
 router.use("/notifications", require("./notification.routes"));
 
 router.use("/orders", require("../modules/order/order.routes"));
+router.use("/lists", require("../modules/lists/lists.routes"));
 router.use("/wallet", require("../modules/wallet/wallet.routes"));
 
 router.use("/membership", require("../modules/membership/membership.routes"));
