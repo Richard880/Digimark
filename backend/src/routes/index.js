@@ -20,6 +20,7 @@ router.use("/internal", require("./internal.routes"));
 router.use("/search", require("./search.routes"));
 router.use("/chats", require("../modules/chats/chat.routes"));
 
+
 router.use("/branches", require("../modules/branch/branch.routes"));
 router.use("/staff", require("../modules/staff/staff.routes"));
 router.use("/terminals", require("../modules/terminal/terminal.routes"));
@@ -28,6 +29,8 @@ router.use("/customers", require("../modules/customers/customers.routes"));
 router.use("/supply", require("../modules/supply/supply.routes"));
 router.use("/shop", require("../modules/shop/shop.routes"));
 router.use("/v1", require("../modules/api/v1.routes"));
+
+router.use("/couriers", require("../modules/couriers/couriers.routes"));
 
 router.use("/support", require("../modules/support/support.routes"));
 router.use("/disputes", require("../modules/disputes/dispute.routes"));
