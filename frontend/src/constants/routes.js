@@ -18,7 +18,7 @@ const ROUTES = {
   /* Retail users: marketer onboarding and shop access */
   BECOME_MARKETER: "/become-marketer",
   JOIN_SHOP: "/join-shop",
-
+  SHOPPING_LISTS: "/shopping-lists",
   /* Marketers */
   MEMBERSHIP: "/membership",
   MEMBER_DASHBOARD: "/dashboard",
