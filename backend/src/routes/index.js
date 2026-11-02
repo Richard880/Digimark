@@ -39,5 +39,6 @@ router.use("/onboarding", require("../modules/onboarding/onboarding.routes"));
 router.use("/push", require("../modules/push/push.routes"));
 
 router.use("/admin", require("../modules/admin/admin.routes"));
+if (process.env.ALLOW_TEST_TOOLS === "true") router.use("/test-tools", require("../modules/devtools/devtools.routes"));
 
 module.exports = router;
