@@ -211,6 +211,9 @@ const load = useCallback(async () => {
           <div className="mb-2 flex items-center justify-between gap-3">
             <h2 className="text-sm font-black text-slate-800">Commission eligibility</h2>
             <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${activity.eligible ? "bg-emerald-700 text-white" : "bg-amber-100 text-amber-800"}`}>{activity.eligible ? "Eligible" : "Not yet"}</span>
+                 {activity.score >= activity.passMark && !activity.commercialOk && !activity.inGrace && (
+              <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">You've passed enough checks, but one of them must be a completed sale or purchase. Complete an order to qualify.</p>
+              )}
           </div>
           <p className="mb-3 text-xs leading-relaxed text-slate-500">
             Pass {activity.passMark} of {activity.checks.length} checks in the last {activity.windowDays} days to receive network commissions
