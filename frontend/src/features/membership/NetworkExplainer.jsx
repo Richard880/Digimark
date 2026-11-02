@@ -47,14 +47,19 @@ export function NetworkExplainerContent({ fee = 100, planName = "Phase 1" }) {
         <p className="mt-2 text-xs text-slate-500">Those place counts are the most the network allows, not a forecast. Very few members will ever fill all four levels. New members are placed in the next open spot, so some people under you may have been invited by someone else.</p>
       </section>
 
-      <section>
-        <H>What you need to receive commissions</H>
-        <ul className="list-disc space-y-1 pl-5">
-          <li>An active membership that hasn't expired.</li>
-          <li>At least <b>3 of 5</b> monthly checks passed: a new active recruit, 5 wallet transactions of Ksh 50 or more, a product listed, a completed order of Ksh 200 or more, and being active on 5 different days.</li>
-          <li>New members count as eligible during a 14-day welcome period.</li>
-        </ul>
-      </section>
+    <section>
+  <H>What you need to receive commissions</H>
+  <ul className="list-disc space-y-1 pl-5">
+    <li>An active membership that hasn't expired.</li>
+    <li>
+      Pass at least <b>3 of 5</b> monthly checks, and one of them must be a
+      completed sale or purchase of Ksh 200 or more: a new active recruit, 5
+      wallet transactions of Ksh 50 or more, a product listed, a completed
+      order of Ksh 200 or more, and being active on 5 different days.
+    </li>
+    <li>New members count as eligible during a 14-day welcome period.</li>
+  </ul>
+</section>
 
       <section>
         <H>When a commission isn't paid</H>
