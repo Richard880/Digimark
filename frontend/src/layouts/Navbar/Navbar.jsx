@@ -504,20 +504,23 @@ export default function Navbar({
                       >
                         My profile &amp; orders
                       </Link>
+                      
                       <Link
                         to={ROUTES.WALLET}
                         className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
                       >
                         Wallet
                       </Link>
-
-                       </Link>
-                  <Link
+                      
+                      <Link
                         to={ROUTES.SHOPPING_LISTS}
                         className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
                       >
                         Shopping lists
                       </Link>
+
+                       </Link>
+                  
                   
                       {(isMarketer || needsMembership) && (
                         <Link
