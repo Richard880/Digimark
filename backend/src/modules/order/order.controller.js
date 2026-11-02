@@ -72,8 +72,11 @@ async function listOrders(req, res) {
     if (!me) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
 
     const role = req.query.role;
-    const filter = role === "seller" ? { sellerId: me }
-      : role === "buyer" ? { buyerId: me }
+   const filter =
+  role === "seller"
+    ? { sellerId: me, courier: { $exists: false } }
+    : role === "buyer"
+      ? { buyerId: me }
       : { $or: [{ buyerId: me }, { sellerId: me }, { promoterId: me }] };
     
     const { status } = req.query;
