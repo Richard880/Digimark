@@ -21,6 +21,8 @@ const PIN_LOCK_MS = 15 * 60 * 1000;
 const STATUSES = ["PENDING_PAYMENT", "PROCESSING", "DISPATCHED", "DISPUTED", "DELIVERED", "CANCELLED"];
 const OPEN = ["PROCESSING", "DISPATCHED"];
 
+/** POST /api/orders : price & stock from DB, funds -> escrow, all-or-nothing */
+const SCHEDULED_CONFIRM_BEFORE_MS = (Number(process.env.SCHEDULED_CONFIRM_BEFORE_HOURS) || 12) * 3600e3;
 const fail = (code, status = 400, extra) => new EscrowError(code, status, extra);
 const isId = (v) => typeof v === "string" && /^[a-f\d]{24}$/i.test(v);
 const isStr = (v, max = 100) => typeof v === "string" && v.trim().length > 0 && v.length <= max;
@@ -49,13 +51,12 @@ async function resolvePromoter(shareCode, productId, buyerId) {
   return link.promoterId;
 }
 
-
 const withDeadlines = (o) => {
   const t = (d, ms) => (d ? new Date(new Date(d).getTime() + ms) : null);
   return {
     ...o,
     deadlines: {
-      confirmBy: o.orderStatus === "PROCESSING" ? t(o.createdAt, C.CONFIRM_WINDOW_MS) : null,
+      confirmBy: o.orderStatus === "PROCESSING" ? (o.confirmDeadline || t(o.createdAt, C.CONFIRM_WINDOW_MS)) : null,
       autoReleaseAt: o.orderStatus === "DISPATCHED" ? t(o.dispatchedAt, C.PROTECTION_MS) : null,
       sellerDisputeAt: o.orderStatus === "DISPATCHED" ? t(o.dispatchedAt, C.SELLER_DISPUTE_AFTER_MS) : null,
     },
@@ -87,7 +88,7 @@ async function listOrders(req, res) {
       .lean();
 
     // Promoters only see sale info, never the buyer's address or phone
-    const safe = orders.map((o) =>
+   const safe = orders.map(withDeadlines).map((o) =>
   same(o.buyerId, me) || same(o.sellerId, me) ? o : { ...o, shippingDetails: undefined, buyerId: undefined }
 );
     return res.status(200).json(safe);
@@ -96,136 +97,105 @@ async function listOrders(req, res) {
   }
 }
 
-/** POST /api/orders : price & stock from DB, funds -> escrow, all-or-nothing */
-async function createOrder(req, res) {
-  let idemKey = null;
-  
-    // ...the rest of your existing code, unchanged...
- try {
-    const buyerId = req.user?._id;
-    if (!buyerId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
 
-    idemKey = req.get("Idempotency-Key");
-    if (!/^[A-Za-z0-9_-]{16,64}$/.test(idemKey || "")) throw fail("IDEMPOTENCY_KEY_REQUIRED");
-    const prior = await Order.findOne({ buyerId, idempotencyKey: idemKey }).select("+escrowReleasePin orderNumber financials");
-    if (prior) {
-      return res.status(200).json({ ok: true, replay: true, order: { orderNumber: prior.orderNumber, totalAmountLocked: prior.financials.totalRetailPaid, deliveryReleasePin: prior.escrowReleasePin } });
-    }
-   
-   const { productId, shareCode, shippingDetails: sd } = req.body || {};
-    
-  const quantity = req.body?.quantity === undefined ? 1 : req.body.quantity;
+const replayOf = (o) => ({ replay: true, order: { orderNumber: o.orderNumber, totalAmountLocked: o.financials.totalRetailPaid, deliveryReleasePin: o.escrowReleasePin } });
 
-    if (!isId(productId)) throw fail("INVALID_PRODUCT_ID");
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QTY) throw fail("INVALID_QUANTITY");
-    if (!sd || !isStr(sd.fullName, 80) || !/^\+?\d{9,15}$/.test(String(sd.phoneNumber || "")) ||
-        !isStr(sd.county, 40) || !isStr(sd.subCounty, 40)) {
-      throw fail("SHIPPING_DETAILS_INVALID");
-    }
-    const promoter = await resolvePromoter(shareCode, productId, buyerId);
+/** Used by the HTTP route and by the shopping-list scheduler. Throws the same errors as before. */
+async function placeOrder({ buyerId, productId, quantity = 1, shareCode, shippingDetails: sd, idempotencyKey, scheduledFor = null }) {
+  if (!buyerId) throw fail("AUTHENTICATION_REQUIRED", 401);
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(idempotencyKey || "")) throw fail("IDEMPOTENCY_KEY_REQUIRED");
 
-       const order = await mongoose.connection.transaction(async (session) => {
-      // Atomic stock reservation: check + decrement in ONE operation (no oversell race).
-      // Only listed, shelved products can be bought.
+  const prior = await Order.findOne({ buyerId, idempotencyKey }).select("+escrowReleasePin orderNumber financials");
+  if (prior) return replayOf(prior);
+
+  if (!isId(String(productId))) throw fail("INVALID_PRODUCT_ID");
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QTY) throw fail("INVALID_QUANTITY");
+  if (!sd || !isStr(sd.fullName, 80) || !/^\+?\d{9,15}$/.test(String(sd.phoneNumber || "")) ||
+      !isStr(sd.county, 40) || !isStr(sd.subCounty, 40)) {
+    throw fail("SHIPPING_DETAILS_INVALID");
+  }
+  const promoter = await resolvePromoter(shareCode, productId, buyerId);
+  const confirmDeadline = scheduledFor
+    ? new Date(Math.max(new Date(scheduledFor).getTime() - SCHEDULED_CONFIRM_BEFORE_MS, Date.now() + 6 * 3600e3))
+    : undefined;
+
+  let order;
+  try {
+    order = await mongoose.connection.transaction(async (session) => {
       const product = await Product.findOneAndUpdate(
-        {
-          _id: productId,
-          quantity: { $gte: quantity },
-          status: { $in: ["LISTED", "ACTIVE"] },
-          isShelved: true,
-        },
+        { _id: productId, quantity: { $gte: quantity }, status: { $in: ["LISTED", "ACTIVE"] }, isShelved: true },
         { $inc: { quantity: -quantity } },
         { new: true, session }
       );
-
       if (!product) {
         const p = await Product.findOne({ _id: productId }).select("status isShelved").session(session).lean();
         const visible = p && p.isShelved === true && ["LISTED", "ACTIVE"].includes(p.status);
         throw visible ? fail("INSUFFICIENT_STOCK", 409) : fail("PRODUCT_NOT_FOUND", 404);
       }
 
-      // The seller must still have a live membership (a second guard on top of the daily expiry job)
+      const sellerId = product.sellerId || product.merchantId;
+      if (!sellerId) throw fail("PRODUCT_HAS_NO_SELLER", 500);
+      if (same(sellerId, buyerId)) throw fail("SELF_PURCHASE_NOT_ALLOWED", 403);
       const live = await User.exists({
-        _id: product.sellerId || product.merchantId,
-        membershipStatus: "active",
-        isActive: true,
+        _id: sellerId, membershipStatus: "active", isActive: true,
         $or: [{ membershipExpiresAt: null }, { membershipExpiresAt: { $gt: new Date() } }],
       }).session(session);
       if (!live) throw fail("PRODUCT_NOT_FOUND", 404); // rolls the stock reservation back too
 
-      const sellerId = product.sellerId || product.merchantId;
       const delivery = product.deliveryFee || 0;
-      if (!sellerId) throw fail("PRODUCT_HAS_NO_SELLER", 500);
-      if (!Number.isSafeInteger(product.price) || product.price <= 0 ||
-          !Number.isSafeInteger(delivery) || delivery < 0) throw fail("PRODUCT_PRICE_INVALID", 500);
+      if (!Number.isSafeInteger(product.price) || product.price <= 0 || !Number.isSafeInteger(delivery) || delivery < 0) throw fail("PRODUCT_PRICE_INVALID", 500);
 
       const amount = product.price * quantity + delivery;
       const orderId = new mongoose.Types.ObjectId();
-     await require("../../services/stockLedger").record(session, { product, delta: -quantity, type: "sale_marketplace", ref: `order:${orderId}`, note: "Online order", actorId: buyerId });
+      await require("../../services/stockLedger").record(session, { product, delta: -quantity, type: "sale_marketplace", ref: `order:${orderId}`, note: "Online order", actorId: buyerId });
 
-      // Single source of truth for fees: the escrow service
-      const hold = await holdOrderFunds(
-       { orderId, buyerId, vendorId: sellerId, affiliateId: promoter, amount, feeBase: product.price * quantity },
-        session
-      );
+      const hold = await holdOrderFunds({ orderId, buyerId, vendorId: sellerId, affiliateId: promoter, amount, feeBase: product.price * quantity }, session);
 
-      const [created] = await Order.create(
-        [{
-          _id: orderId,
-          buyerId,
-          sellerId,
-          promoterId: hold.affiliateId || null,
-          items: [{
-            productId: product._id,
-            name: product.name,
-            quantity,
-            pricePaid: product.price,
-            commissionAllocated: hold.affiliateBonus,
-          }],
-          shippingDetails: {
-            fullName: sd.fullName.trim(),
-            phoneNumber: sd.phoneNumber,
-            county: sd.county.trim(),
-            subCounty: sd.subCounty.trim(),
-            deliveryNotes: isStr(sd.deliveryNotes, 300) ? sd.deliveryNotes.trim() : "",
-          },
-          financials: {
-            totalRetailPaid: amount,
-            totalWholesaleToShop: hold.vendorNet,
-            totalCommissionSplit: hold.affiliateBonus,
-            platformFee: hold.platformFee,
-            deliveryFeePaid: delivery,
-          },
-          orderStatus: "PROCESSING", // safe: funds are held in this same transaction
-          idempotencyKey: idemKey
-        }],
-      
-        { session }
-      );
+      const [created] = await Order.create([{
+        _id: orderId, buyerId, sellerId, promoterId: hold.affiliateId || null,
+        items: [{ productId: product._id, name: product.name, quantity, pricePaid: product.price, commissionAllocated: hold.affiliateBonus }],
+        shippingDetails: {
+          fullName: sd.fullName.trim(), phoneNumber: String(sd.phoneNumber), county: sd.county.trim(), subCounty: sd.subCounty.trim(),
+          deliveryNotes: isStr(sd.deliveryNotes, 300) ? sd.deliveryNotes.trim() : "",
+        },
+        financials: { totalRetailPaid: amount, totalWholesaleToShop: hold.vendorNet, totalCommissionSplit: hold.affiliateBonus, platformFee: hold.platformFee, deliveryFeePaid: delivery },
+        orderStatus: "PROCESSING", // safe: funds are held in this same transaction
+        idempotencyKey,
+        ...(scheduledFor ? { scheduledFor: new Date(scheduledFor), confirmDeadline } : {}),
+      }], { session });
       return created;
     });
-
-    const ctx = { orderId: order._id, orderRef: order.orderNumber, amount: order.financials.totalRetailPaid };
-      await notify("ORDER_PLACED", order.sellerId, ctx, { actorId: buyerId });
-      await notify("ESCROW_FUNDED", order.sellerId, ctx, { actorId: buyerId });
-
-    return res.status(201).json({
-      ok: true,
-      order: {
-        orderNumber: order.orderNumber,
-        totalAmountLocked: order.financials.totalRetailPaid,
-        deliveryReleasePin: order.escrowReleasePin, // shown to the buyer only
-      },
-    });
-    } catch (err) {
-    if (err.code === 11000 && idemKey) { // two identical requests arrived at once: the second one is rolled back, so return the first
-      const prior = await Order.findOne({ buyerId: req.user._id, idempotencyKey: idemKey }).select("+escrowReleasePin orderNumber financials");
-      if (prior) return res.status(200).json({ ok: true, replay: true, order: { orderNumber: prior.orderNumber, totalAmountLocked: prior.financials.totalRetailPaid, deliveryReleasePin: prior.escrowReleasePin } });
+  } catch (err) {
+    if (err.code === 11000) { // two identical requests arrived at once: the second is rolled back, so return the first
+      const again = await Order.findOne({ buyerId, idempotencyKey }).select("+escrowReleasePin orderNumber financials");
+      if (again) return replayOf(again);
     }
+    throw err;
+  }
+
+  const ctx = { orderId: order._id, orderRef: order.orderNumber, amount: order.financials.totalRetailPaid };
+  await notify("ORDER_PLACED", order.sellerId, ctx, { actorId: buyerId });
+  await notify("ESCROW_FUNDED", order.sellerId, ctx, { actorId: buyerId });
+
+  return { replay: false, order: { orderNumber: order.orderNumber, totalAmountLocked: order.financials.totalRetailPaid, deliveryReleasePin: order.escrowReleasePin } };
+}
+
+/** POST /api/orders */
+async function createOrder(req, res) {
+  try {
+    const buyerId = req.user?._id;
+    if (!buyerId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    const b = req.body || {};
+    // scheduledFor is deliberately NOT read from the request: only the list scheduler may set it
+    const r = await placeOrder({
+      buyerId, productId: b.productId, quantity: b.quantity === undefined ? 1 : b.quantity,
+      shareCode: b.shareCode, shippingDetails: b.shippingDetails, idempotencyKey: req.get("Idempotency-Key"),
+    });
+    return res.status(r.replay ? 200 : 201).json({ ok: true, ...(r.replay ? { replay: true } : {}), order: r.order });
+  } catch (err) {
     return sendError(res, err, "createOrder");
   }
 }
-
 /** GET /api/orders/:orderNumber/pin : buyer only */
 async function getDeliveryPin(req, res) {
   try {
@@ -389,6 +359,7 @@ module.exports = {
   completeDelivery,
   cancelOrder,
   confirmOrder,
+  placeOrder,
   // Old names kept so your existing routes keep working. All use the same safe handler.
   releaseEscrowViaQrScan: completeDelivery,
   releaseEscrowViaPinVerification: completeDelivery,
