@@ -31,6 +31,8 @@ const EVENTS = {
   ORDER_CANCELLED: E("ORDERS", "Order cancelled", (c) => `Order #${c.orderRef} was cancelled.`),
   ORDER_DISPATCHED: E("ORDERS", "Order on its way", (c) => `Order #${c.orderRef} was confirmed by the seller and is on its way. Give the seller your PIN only after it arrives.`),
 
+  COURIER_ASSIGNED: E("ORDERS", "Your courier", (c) => `${c.courierName} will deliver order #${c.orderRef}${c.vehicle ? ` by ${c.vehicle}` : ""}. Give your PIN only after you've received your item.`),
+  COURIER_JOB: E("ORDERS", "New delivery", (c) => `You've been assigned order #${c.orderRef} for ${c.shopName}.`, () => "/courier"),
 
   LIST_UPCOMING: E("ORDERS", "Shopping list coming up", (c) => `Your list "${c.listName}" will be ordered in about 24 hours (about ${money(c.total)}).${c.short > 0 ? ` Your wallet is ${money(c.short)} short: top up in time.` : ""}`, () => "/shopping-lists"),
   LIST_ACTION_NEEDED: E("ORDERS", "Check your shopping list", (c) => ({
