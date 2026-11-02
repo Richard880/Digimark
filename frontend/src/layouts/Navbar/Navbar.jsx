@@ -622,27 +622,34 @@ export default function Navbar({
               </NavLink>
             ))}
 
-            {signedIn && (
-              <>
-                <NavLink
-                  to={ROUTES.WALLET}
-                  className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50"
-                >
-                  Wallet
-                </NavLink>
+          {signedIn && (
+  <>
+    <NavLink
+      to={ROUTES.SHOPPING_LISTS}
+      className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50"
+    >
+      Shopping lists
+    </NavLink>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    closeAll();
-                    onLogout?.();
-                  }}
-                  className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50"
-                >
-                  Log out
-                </button>
-              </>
-            )}
+    <NavLink
+      to={ROUTES.WALLET}
+      className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50"
+    >
+      Wallet
+    </NavLink>
+
+    <button
+      type="button"
+      onClick={() => {
+        closeAll();
+        onLogout?.();
+      }}
+      className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50"
+    >
+      Log out
+    </button>
+  </>
+)}
           </div>
         </nav>
       )}
