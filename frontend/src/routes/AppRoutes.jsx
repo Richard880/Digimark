@@ -18,8 +18,8 @@ import AdminDashboard from "../features/admin/AdminDashboard";
 import LegalPage from "../features/public/legal/LegalPage";
 import ShoppingListsPage from "../features/lists/ShoppingListsPage";
 
-import JoinCourier from "../features/courier/JoinCourier";
-import CourierJobs from "../features/courier/CourierJobs";
+import JoinCourier from "../features/couriers/JoinCourier";
+import CourierJobs from "../features/couriers/CourierJobs";
 
 import useAuth from "../features/auth/hooks/useAuth";
 import ROUTES from "../constants/routes";
