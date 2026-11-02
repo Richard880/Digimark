@@ -478,13 +478,6 @@ export default function Navbar({
                   className="hidden rounded-full p-2 text-slate-600 hover:bg-slate-100 lg:block"
                 >
                   <Icon name="wallet" />
-                </Link>
-                  <Link
-                        to={ROUTES.SHOPPING_LISTS}
-                        className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
-                      >
-                        Shopping lists
-                      </Link>
 
                 <div className="relative hidden lg:block" ref={userRef}>
                   <button
@@ -517,6 +510,15 @@ export default function Navbar({
                       >
                         Wallet
                       </Link>
+
+                       </Link>
+                  <Link
+                        to={ROUTES.SHOPPING_LISTS}
+                        className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
+                      >
+                        Shopping lists
+                      </Link>
+                  
                       {(isMarketer || needsMembership) && (
                         <Link
                           to={ROUTES.MEMBERSHIP}
