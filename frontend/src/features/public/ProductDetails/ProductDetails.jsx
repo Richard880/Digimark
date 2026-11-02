@@ -5,6 +5,7 @@ import apiClient from "../../../services/apiClient";
 import ROUTES from "../../../constants/routes";
 import { sizedImage } from "../../../utils/image";
 import ShareButton from "./ShareButton";
+import AddToListSheet from "../../lists/AddToListSheet";
 
 const REF_RE = /^[A-Za-z0-9_-]{8,32}$/;
 const fmt = (n) => `Ksh ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -32,6 +33,7 @@ export default function ProductDetails() {
   const [tab, setTab] = useState("details");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [listSheet, setListSheet] = useState(false);
 
   // Remember the promoter's code for THIS product until checkout (shared links end in ?ref=<code>)
   useEffect(() => {
@@ -243,6 +245,9 @@ export default function ProductDetails() {
       className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-emerald-800/20 bg-white text-sm font-bold text-emerald-900 transition hover:bg-emerald-50">
       💬 Message the seller
     </button>
+    <button type="button" onClick={() => (signedIn ? setListSheet(true) : needSignIn("Sign in to use shopping lists."))}
+  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-700 hover:bg-slate-50">🧾 Add to shopping list</button>
+
   </div>
 )}
           
@@ -293,6 +298,8 @@ export default function ProductDetails() {
           </div>
         </div>
       )}
+      
+      {listSheet && <AddToListSheet product={product} quantity={quantity} onClose={() => setListSheet(false)} />}
     </div>
   );
 }
