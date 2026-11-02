@@ -18,6 +18,8 @@ import AdminDashboard from "../features/admin/AdminDashboard";
 import LegalPage from "../features/public/legal/LegalPage";
 import ShoppingListsPage from "../features/lists/ShoppingListsPage";
 
+import JoinCourier from "../features/courier/JoinCourier";
+import CourierJobs from "../features/courier/CourierJobs";
 
 import useAuth from "../features/auth/hooks/useAuth";
 import ROUTES from "../constants/routes";
@@ -34,7 +36,6 @@ function Screen({ children }) {
     </div>
   );
 }
-
 
 function RequireAuth({ children }) {
   const { auth, refreshProfile } = useAuth();
@@ -103,9 +104,23 @@ function MarketerCheck({ children, allowPending }) {
 /** Membership page for signed-in network accounts, including pending or lapsed members. */
 function RequireNetworkAccount({ children }) {
   const { auth } = useAuth();
-  if (auth.loading) return <Screen><div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" /></Screen>;
-  if (!auth.authenticated) return <Navigate to={ROUTES.HOME} replace />;
-  if (auth.user?.accountCategory !== "network") return <Navigate to={ROUTES.BECOME_MARKETER} replace />;
+
+  if (auth.loading) {
+    return (
+      <Screen>
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+      </Screen>
+    );
+  }
+
+  if (!auth.authenticated) {
+    return <Navigate to={ROUTES.HOME} replace />;
+  }
+
+  if (auth.user?.accountCategory !== "network") {
+    return <Navigate to={ROUTES.BECOME_MARKETER} replace />;
+  }
+
   return children;
 }
 
@@ -198,8 +213,32 @@ export default function AppRoutes() {
           <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
           <Route path={ROUTES.TERMS} element={<LegalPage page="terms" />} />
           <Route path={ROUTES.PRIVACY} element={<LegalPage page="privacy" />} />
-          <Route path={ROUTES.SHOPPING_LISTS} element={<RequireAuth><ShoppingListsPage /></RequireAuth>} />
-          
+
+          <Route
+            path={ROUTES.SHOPPING_LISTS}
+            element={
+              <RequireAuth>
+                <ShoppingListsPage />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path={ROUTES.JOIN_COURIER}
+            element={
+              <RequireAuth>
+                <JoinCourier />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path={ROUTES.COURIER_JOBS}
+            element={
+              <RequireAuth>
+                <CourierJobs />
+              </RequireAuth>
+            }
+          />
+
           {/* Signed-in accounts */}
           <Route
             path={ROUTES.CHECKOUT}
