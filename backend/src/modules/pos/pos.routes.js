@@ -304,4 +304,57 @@ router.post("/close", authenticate.strict, shop, can("close"), requireFeature("p
   } catch (e) { if (e.code === 11000) throw E("ALREADY_CLOSED", 409); throw e; }
 }));
 
+router.get("/profit", authenticate, shop, can("reports"), requireFeature("profitReports"), perUser(20), h(async (req, res) => {
+  const { ownerId } = req.shop;
+  const from = dayRange(req.query.from).start;
+  const to = new Date(dayRange(req.query.to).start.getTime() + DAY);
+  if (to <= from || to - from > 366 * DAY) throw E("INVALID_RANGE");
+  const scope = branchScope(req, req.query.branchId);
+  const all = !scope.branchId || !!scope.branchId.$in;
+  const live = { sellerId: ownerId, voided: false, createdAt: { $gte: from, $lt: to }, ...scope };
+  const fmt = to - from > 92 * DAY ? "%Y-%m" : "%Y-%m-%d";
+  const lineSums = {
+    revenue: { $sum: "$lines.lineTotal" }, qty: { $sum: "$lines.quantity" },
+    cost: { $sum: { $cond: [{ $ne: ["$lines.unitCost", null] }, { $multiply: ["$lines.unitCost", "$lines.quantity"] }, 0] } },
+    costed: { $sum: { $cond: [{ $ne: ["$lines.unitCost", null] }, "$lines.lineTotal", 0] } },
+  };
+  const [tot, daily, prods, orders] = await Promise.all([
+    Sale.aggregate([{ $match: live }, { $unwind: "$lines" }, { $group: { _id: null, ...lineSums } }]),
+    Sale.aggregate([{ $match: live }, { $unwind: "$lines" }, { $group: { _id: { $dateToString: { format: fmt, date: "$createdAt", timezone: "+03:00" } }, ...lineSums } }, { $sort: { _id: 1 } }]),
+    Sale.aggregate([{ $match: live }, { $unwind: "$lines" }, { $group: { _id: "$lines.productId", name: { $first: "$lines.name" }, ...lineSums } }, { $sort: { revenue: -1 } }, { $limit: 200 }]),
+    all && !req.shop.branchIds
+      ? Order.find({ sellerId: ownerId, orderStatus: "DELIVERED", deliveredAt: { $gte: from, $lt: to } }).limit(5000).select("items financials.totalWholesaleToShop").lean()
+      : [],
+  ]);
+
+  const t = tot[0] || { revenue: 0, cost: 0, costed: 0, qty: 0 };
+  const counter = { revenue: t.revenue, cost: t.cost, profit: t.costed - t.cost, unknown: t.revenue - t.costed, items: t.qty };
+
+  // Online orders: received amount (after Sokodigi's fee) against your current cost prices
+  const online = { count: orders.length, received: 0, cost: 0, profit: 0, unknown: 0 };
+  if (orders.length) {
+    const ids = [...new Set(orders.flatMap((o) => o.items.map((i) => String(i.productId))))];
+    const cm = new Map((await ProductCost.find({ sellerId: ownerId, productId: { $in: ids } }).select("productId costPrice").lean()).map((c) => [String(c.productId), c.costPrice]));
+    for (const o of orders) {
+      const got = o.financials?.totalWholesaleToShop || 0;
+      online.received += got;
+      if (o.items.every((i) => cm.has(String(i.productId)))) {
+        const c = o.items.reduce((s, i) => s + cm.get(String(i.productId)) * i.quantity, 0);
+        online.cost += c; online.profit += got - c;
+      } else online.unknown += got;
+    }
+  }
+
+  const revenue = counter.revenue + online.received;
+  const profit = counter.profit + online.profit;
+  const costedRevenue = (t.costed || 0) + (online.received - online.unknown);
+  res.json({
+    ok: true, from: req.query.from, to: req.query.to, grouped: fmt === "%Y-%m" ? "month" : "day",
+    total: { revenue, profit, unknown: counter.unknown + online.unknown, margin: costedRevenue > 0 ? Math.round((profit / costedRevenue) * 1000) / 10 : null },
+    counter, online: all && !req.shop.branchIds ? online : null,
+    daily: daily.map((d) => ({ d: d._id, revenue: d.revenue, profit: d.costed - d.cost })),
+    products: prods.map((p) => ({ name: p.name, qty: p.qty, revenue: p.revenue, profit: p.costed ? p.costed - p.cost : null })).sort((a, b) => (b.profit ?? -Infinity) - (a.profit ?? -Infinity)).slice(0, 15),
+  });
+}));
+
 module.exports = router;
