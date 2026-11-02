@@ -31,6 +31,15 @@ const getUserCategory = (req) => req.userCategory || "guest";
 const isNetworkUser = (req) => getUserCategory(req) === "network";
 const isProductOwner = (p, user) => !!(p && user?._id && String(p.sellerId) === String(user._id));
 
+const UserProfile = require("../../models/UserProfile");
+const withShop = (p, out) => ({ ...out, goldShop: !!p.goldShop, sellerUsername: p.sellerUsername || "" });
+async function withShops(rows) {
+  const ids = [...new Set(rows.map((r) => String(r.sellerId)))];
+  const profs = await UserProfile.find({ userId: { $in: ids } }).select("userId brandName username").lean();
+  const m = new Map(profs.map((p) => [String(p.userId), p]));
+  return rows.map((r) => { const p = m.get(String(r.sellerId)); return { ...r, brandName: p?.brandName || r.brandName, sellerUsername: p?.username || "" }; });
+}
+
 const withShop = (p, out) => {
   const { shopScore, ...safe } = out || {};
   return {
