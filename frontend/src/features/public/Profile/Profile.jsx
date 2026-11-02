@@ -427,53 +427,149 @@ const onAvatarFile = async (e) => {
           </div>
         )}
 
-        {/* Header */}
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="h-24 bg-gradient-to-r from-emerald-950 via-emerald-800 to-emerald-600 sm:h-36" />
-          <div className="px-4 pb-5 sm:px-8">
-            <div className="-mt-12 flex flex-col items-center gap-4 sm:-mt-14 sm:flex-row sm:items-end">
-              <button type="button" onClick={() => isOwnProfile && setAvatarOpen(true)} aria-label={isOwnProfile ? "Change profile picture" : displayName}
-                className={`relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-emerald-50 shadow-lg ring-2 ring-emerald-500 sm:h-28 sm:w-28 ${isOwnProfile ? "cursor-pointer" : "cursor-default"}`}>
-                {avatar ?<img key={avatar} src={avatar} alt={displayName} className="h-full w-full object-cover" /> : <span className="text-4xl font-black text-emerald-700">{displayName.charAt(0).toUpperCase()}</span>}
-                {updatingAvatar && <div className="absolute inset-0 flex items-center justify-center bg-black/50"><div className="h-6 w-6 animate-spin rounded-full border-2 border-white border-t-transparent" /></div>}
-              </button>
+       {/* Header */}
+<section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+  <div className="h-24 bg-gradient-to-r from-emerald-950 via-emerald-800 to-emerald-600 sm:h-36" />
 
-              <div className="min-w-0 flex-1 text-center sm:pb-1 sm:text-left">
-                <h1 className="truncate text-xl font-black tracking-tight text-slate-900 sm:text-2xl">{displayName}</h1>
-                <p className="text-sm text-slate-500">{brand.username ? `@${brand.username}` : isOwnProfile ? "Buyer account" : ""}{brand.brandName && brand.username ? ` · ${brand.brandName}` : ""}</p>
-                <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-                  {showShop && <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">{levelLabel}</span>}
-                  {isOwnProfile && brand.membershipNumber && <span className="rounded-full border border-slate-200 px-2.5 py-1 font-mono text-[10px] font-bold text-slate-500">#{brand.membershipNumber}</span>}
-                  {!isOwnProfile && brand.location?.county && <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">📍 {brand.location.county}</span>}
-                </div>
-              </div>
+  <div className="px-4 pb-5 sm:px-8">
+    <div className="-mt-12 flex flex-col items-center gap-4 sm:-mt-14 sm:flex-row sm:items-end">
+      <button
+        type="button"
+        onClick={() => isOwnProfile && setAvatarOpen(true)}
+        aria-label={
+          isOwnProfile ? "Change profile picture" : displayName
+        }
+        className={`relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-emerald-50 shadow-lg ring-2 ring-emerald-500 sm:h-28 sm:w-28 ${
+          isOwnProfile ? "cursor-pointer" : "cursor-default"
+        }`}
+      >
+        {avatar ? (
+          <img
+            key={avatar}
+            src={avatar}
+            alt={displayName}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="text-4xl font-black text-emerald-700">
+            {displayName.charAt(0).toUpperCase()}
+          </span>
+        )}
 
-              <div className="flex flex-wrap justify-center gap-2">
-                {isOwnProfile && <button type="button" onClick={() => setEditing(true)} className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 hover:border-emerald-300">Edit profile</button>}
-                {isOwnProfile && isMarketer && <Link to={ROUTES.MEMBER_DASHBOARD} className="flex min-h-10 items-center rounded-xl bg-emerald-700 px-4 text-xs font-bold text-white hover:bg-emerald-800">Manage shop</Link>}
-                  {isOwnProfile && !isMarketer && me.accountCategory !== "network" && (
-                    <p className="mt-3 text-center sm:text-left">
-                      <Link to={ROUTES.JOIN_SHOP} className="text-xs font-bold text-emerald-700 underline">Work at a shop? Join with an invite code</Link>
-                    </p>
-                  )}
-                {isOwnProfile && !isMarketer && (
-                        <p className="mt-1 text-center sm:text-left">
-                          <Link
-                            to={ROUTES.JOIN_COURIER}
-                            className="text-xs font-bold text-emerald-700 underline"
-                          >
-                            Deliver for a shop? Join as a courier
-                          </Link>
-                        </p>
-                      )}
-                {shopUrl && <button type="button" onClick={() => copy(shopUrl, "Shop link copied")} className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 hover:border-emerald-300">Share shop</button>}
-                {isOwnProfile && isMarketer && brand.username && <button type="button" onClick={() => copy(`${origin}${registerPath(brand.username)}`, "Invite link copied")} className="min-h-10 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-xs font-bold text-emerald-800">Copy invite link</button>}
-              </div>
-            </div>
-
-            {brand.bio && <p className="mx-auto mt-4 max-w-3xl text-center text-sm leading-6 text-slate-600 sm:mx-0 sm:text-left">{brand.bio}</p>}
+        {updatingAvatar && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-white border-t-transparent" />
           </div>
-        </section>
+        )}
+      </button>
+
+      <div className="min-w-0 flex-1 text-center sm:pb-1 sm:text-left">
+        <h1 className="truncate text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
+          {displayName}
+        </h1>
+
+        <p className="text-sm text-slate-500">
+          {brand.username ? `@${brand.username}` : isOwnProfile ? "Buyer account" : ""}
+          {brand.brandName && brand.username ? ` · ${brand.brandName}` : ""}
+        </p>
+
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+          {showShop && (
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black uppercase text-emerald-700">
+              {levelLabel}
+            </span>
+          )}
+
+          {isOwnProfile && brand.membershipNumber && (
+            <span className="rounded-full border border-slate-200 px-2.5 py-1 font-mono text-[10px] font-bold text-slate-500">
+              #{brand.membershipNumber}
+            </span>
+          )}
+
+          {!isOwnProfile && brand.location?.county && (
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">
+              📍 {brand.location.county}
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-1 flex w-full flex-col gap-3 sm:mt-0 sm:w-auto sm:shrink-0 sm:items-end">
+        <div className="flex w-full flex-wrap justify-center gap-2 sm:w-auto sm:justify-end">
+          {isOwnProfile && (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 hover:border-emerald-300"
+            >
+              Edit profile
+            </button>
+          )}
+
+          {isOwnProfile && isMarketer && (
+            <Link
+              to={ROUTES.MEMBER_DASHBOARD}
+              className="flex min-h-11 items-center justify-center rounded-xl bg-emerald-700 px-4 text-xs font-bold text-white hover:bg-emerald-800"
+            >
+              Manage shop
+            </Link>
+          )}
+
+          {shopUrl && (
+            <button
+              type="button"
+              onClick={() => copy(shopUrl, "Shop link copied")}
+              className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 hover:border-emerald-300"
+            >
+              Share shop
+            </button>
+          )}
+
+          {isOwnProfile && isMarketer && brand.username && (
+            <button
+              type="button"
+              onClick={() =>
+                copy(
+                  `${origin}${registerPath(brand.username)}`,
+                  "Invite link copied"
+                )
+              }
+              className="min-h-11 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-xs font-bold text-emerald-800"
+            >
+              Copy invite link
+            </button>
+          )}
+        </div>
+
+        {isOwnProfile && !isMarketer && (
+          <div className="flex flex-col items-center gap-2 text-center sm:items-end sm:text-right">
+            {me.accountCategory !== "network" && (
+              <Link
+                to={ROUTES.JOIN_SHOP}
+                className="text-xs font-bold text-emerald-700 underline"
+              >
+                Work at a shop? Join with an invite code
+              </Link>
+            )}
+
+            <Link
+              to={ROUTES.JOIN_COURIER}
+              className="text-xs font-bold text-emerald-700 underline"
+            >
+              Deliver for a shop? Join as a courier
+            </Link>
+          </div>
+        )}
+      </div>
+    </div>
+
+    {brand.bio && (
+      <p className="mx-auto mt-4 max-w-3xl text-center text-sm leading-6 text-slate-600 sm:mx-0 sm:text-left">
+        {brand.bio}
+      </p>
+    )}
+  </div>
+</section>
 
         {notice && <p role="status" className="mt-3 rounded-xl bg-emerald-50 px-4 py-2.5 text-center text-xs font-bold text-emerald-800">{notice}</p>}
 
