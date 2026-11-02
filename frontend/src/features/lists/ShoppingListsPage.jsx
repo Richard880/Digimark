@@ -86,7 +86,11 @@ function ListSheet({ id, onClose, onChanged }) {
               return (
                 <li key={i.id} className="space-y-1.5 py-3">
                   <div className="flex items-start justify-between gap-2"><p className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{r?.name || i.name}</p>
-                    <button type="button" aria-label={`Remove ${i.name}`} onClick={() => confirm([i.id]).catch(() => {}) || act(() => apiClient.put(`/lists/${id}`, { items: list.items.filter((x) => x.id !== i.id).map((x) => ({ id: x.id, ...edits[x.id] })) }))} className="px-1 text-slate-400">✕</button></div>
+                   <button type="button" aria-label={`Remove ${i.name}`} className="px-1 text-slate-400"
+                            onClick={() => act(() => apiClient.put(`/lists/${id}`, 
+                                                                   { items: list.items.filter((x) => x.id !== i.id).map((x) => 
+                                                                     ({ id: x.id, ...edits[x.id] }))
+                                                                   }))}>✕</button></div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center overflow-hidden rounded-xl border border-slate-200">
                       <button type="button" aria-label="Less" onClick={() => setE(i.id, "quantity", Math.max(1, (e.quantity || 1) - 1))} className="h-10 w-10 bg-slate-50 font-bold">−</button>
