@@ -81,6 +81,7 @@ async function myActivity(req, res) {
         { key: "deliveries", label: "Completed orders", value: r.values.deliveries, target: C.MIN_ORDERS, passed: r.checks.deliveries },
         { key: "activeDays", label: "Days active", value: r.values.activeDays, target: C.MIN_ACTIVE_DAYS, passed: r.checks.activeDays },
       ],
+      commercialOk: r.commercialOk,
     });
   } catch (e) {
     console.error("❌ myActivity:", e.stack || e.message);
