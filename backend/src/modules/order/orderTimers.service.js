@@ -15,7 +15,10 @@ const ago = (ms) => new Date(Date.now() - ms);
 async function cancelOne(id) {
   const order = await mongoose.connection.transaction(async (session) => {
     const o = await Order.findOneAndUpdate(
-      { _id: id, orderStatus: "PROCESSING", isEscrowReleased: false, createdAt: { $lte: ago(C.CONFIRM_WINDOW_MS) } },
+      { _id: id, orderStatus: "PROCESSING", isEscrowReleased: false, 
+         $or: [{ confirmDeadline: { $lte: new Date() } },
+               { confirmDeadline: null, createdAt: { $lte: ago(C.CONFIRM_WINDOW_MS) } }], } },
+     
       { $set: { orderStatus: "CANCELLED", cancelledAt: new Date(), cancelReason: "AUTO_SELLER_NO_CONFIRM" } },
       { session }
     );
