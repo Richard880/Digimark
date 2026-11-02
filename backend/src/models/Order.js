@@ -66,6 +66,7 @@ const orderSchema = new mongoose.Schema(
 
    orderStatus: { type: String, enum: ["PENDING_PAYMENT", "PROCESSING", "DISPATCHED", "DISPUTED", "DELIVERED", "CANCELLED"], default: "PENDING_PAYMENT", index: true },
 
+
 // add next to deliveredAt:
 cancelReason: { type: String, maxlength: 60 },
 settledBy: { type: String, enum: ["pin", "auto", "admin"] },
@@ -78,7 +79,9 @@ idempotencyKey: { type: String, maxlength: 64, immutable: true },
     isEscrowReleased: { type: Boolean, default: false },
     deliveredAt: Date,
     dispatchedAt: Date,
-    cancelledAt: Date,
+    cancelledAt: Date,      
+    scheduledFor: Date,
+    confirmDeadline: Date,
   },
   { timestamps: true }
 );
