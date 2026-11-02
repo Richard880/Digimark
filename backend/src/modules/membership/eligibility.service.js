@@ -95,10 +95,15 @@ async function evaluateUsers(users, now = new Date()) {
       deliveries: values.deliveries >= C.MIN_ORDERS,
       activeDays: values.activeDays >= C.MIN_ACTIVE_DAYS,
     };
+       
     const score = Object.values(checks).filter(Boolean).length;
     const lapsed = !!(u.membershipExpiresAt && u.membershipExpiresAt <= now);
     const inGrace = !!(u.membershipStartedAt && now - u.membershipStartedAt < C.GRACE_DAYS * DAY);
-    out.set(String(u._id), { checks, values, score, eligible: !lapsed && (score >= C.PASS_SCORE || inGrace), inGrace });
+    const commercialOk = checks.deliveries; // a real completed sale or purchase is required
+    out.set(String(u._id), {
+      checks, values, score, commercialOk, inGrace,
+      eligible: !lapsed && (inGrace || (score >= C.PASS_SCORE && commercialOk)),
+    });
   }
   return out;
 }
