@@ -454,6 +454,8 @@ export default function Navbar({
                       >
                         See all notifications →
                       </Link>
+
+                      <Link to={ROUTES.SHOPPING_LISTS} className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50">Shopping lists</Link>
                     </div>
                   )}
                 </div>
