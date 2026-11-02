@@ -29,6 +29,8 @@ import JoinShop from "../features/shop/JoinShop";
 import StaffDashboard from "../features/shop/StaffDashboard";
 import MyShopDashboard from "../features/vendor-dashboard/MyShopDashboard";
 
+import TestTools from "../features/admin/TestTools";
+
 function Screen({ children }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 text-center">
@@ -335,6 +337,8 @@ export default function AppRoutes() {
             </RequireAdmin>
           }
         />
+
+        {import.meta.env.VITE_TEST_TOOLS === "true" && <Route path="/dev-tools" element={<RequireAdmin><TestTools /></RequireAdmin>} />}
 
         <Route
           path={ROUTES.NOT_FOUND}
