@@ -7,6 +7,8 @@ const { notify } = require("../../services/notification.service");
 const User = require("../../models/User");
 const C = require("../config/orders");
 const { changeStock } = require("../../services/stockLedger");
+const Courier = require("../../models/Courier");  
+const Trip = require("../../models/Trip");
 
 const {
   holdOrderFunds,
@@ -235,8 +237,8 @@ async function getDeliveryPin(req, res) {
  */
 async function completeDelivery(req, res) {
   try {
-    const sellerId = req.user?._id;
-    if (!sellerId) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    const me = req.user?._id;
+    if (!me) return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
 
     const orderNumber = req.params?.orderNumber ?? req.body?.orderNumber;
     const { pin, qrToken, providedPin } = req.body || {};
@@ -244,54 +246,137 @@ async function completeDelivery(req, res) {
 
     let submitted = null;
     const rawPin = pin ?? providedPin;
+
     if (typeof rawPin === "string") {
       submitted = rawPin.trim();
     } else if (typeof qrToken === "string") {
-      const m = /^sokodigi:order:([A-Za-z0-9-]{1,30}):(\d{6})$/.exec(qrToken.trim());
-      if (!m || m[1].toUpperCase() !== orderNumber.toUpperCase()) throw fail("INVALID_QR", 422);
+      const m = /^sokodigi:order:([A-Za-z0-9-]{1,30}):(\d{6})$/.exec(
+        qrToken.trim()
+      );
+
+      if (!m || m[1].toUpperCase() !== orderNumber.toUpperCase()) {
+        throw fail("INVALID_QR", 422);
+      }
+
       submitted = m[2];
     }
-    if (!/^\d{6}$/.test(submitted || "")) throw fail("INVALID_PIN_FORMAT");
 
-    // Only this order's seller can find it; anyone else just gets "not found"
-    const order = await Order.findOne({ orderNumber: orderNumber.toUpperCase(), sellerId })
-      .select("+escrowReleasePin +pinAttempts +pinLockedUntil");
+    if (!/^\d{6}$/.test(submitted || "")) {
+      throw fail("INVALID_PIN_FORMAT");
+    }
+
+    // The shop owner or an active courier assigned to this order.
+    const jobs = await Courier.find({ userId: me, status: "active" })
+      .select("_id")
+      .lean();
+
+    const order = await Order.findOne({
+      orderNumber: orderNumber.toUpperCase(),
+      $or: [
+        { sellerId: me },
+        ...(jobs.length
+          ? [{ "courier.memberId": { $in: jobs.map((job) => job._id) } }]
+          : []),
+      ],
+    }).select("+escrowReleasePin +pinAttempts +pinLockedUntil");
+
     if (!order) throw fail("ORDER_NOT_FOUND", 404);
-    if (order.isEscrowReleased || order.orderStatus === "DELIVERED") throw fail("ALREADY_FULFILLED", 409);
-    if (!OPEN.includes(order.orderStatus)) throw fail("ORDER_NOT_DELIVERABLE", 409);
-    if (order.pinLockedUntil && order.pinLockedUntil > new Date()) throw fail("TOO_MANY_ATTEMPTS", 429);
+    if (order.isEscrowReleased || order.orderStatus === "DELIVERED") {
+      throw fail("ALREADY_FULFILLED", 409);
+    }
+    if (!OPEN.includes(order.orderStatus)) {
+      throw fail("ORDER_NOT_DELIVERABLE", 409);
+    }
+    if (order.pinLockedUntil && order.pinLockedUntil > new Date()) {
+      throw fail("TOO_MANY_ATTEMPTS", 429);
+    }
 
     const a = Buffer.from(submitted);
     const b = Buffer.from(order.escrowReleasePin);
+
     if (!(a.length === b.length && crypto.timingSafeEqual(a, b))) {
-      // Runs OUTSIDE the transaction so the failed attempt is always recorded
-      const u = await Order.findOneAndUpdate({ _id: order._id }, { $inc: { pinAttempts: 1 } }, { new: true })
-        .select("+pinAttempts");
-      if (u.pinAttempts >= MAX_PIN_ATTEMPTS) {
-        await Order.updateOne({ _id: order._id },
-          { $set: { pinAttempts: 0, pinLockedUntil: new Date(Date.now() + PIN_LOCK_MS) } });
+      // Record failed attempts outside the transaction.
+      const updated = await Order.findOneAndUpdate(
+        { _id: order._id },
+        { $inc: { pinAttempts: 1 } },
+        { new: true }
+      ).select("+pinAttempts");
+
+      if (updated.pinAttempts >= MAX_PIN_ATTEMPTS) {
+        await Order.updateOne(
+          { _id: order._id },
+          {
+            $set: {
+              pinAttempts: 0,
+              pinLockedUntil: new Date(Date.now() + PIN_LOCK_MS),
+            },
+          }
+        );
       }
+
       throw fail("INVALID_RELEASE_PIN", 422);
     }
 
     const result = await mongoose.connection.transaction(async (session) => {
-      // The status flip is the lock: only one request can ever win this
+      // The status change ensures only one request can complete the order.
       const claimed = await Order.findOneAndUpdate(
-        { _id: order._id, isEscrowReleased: false, orderStatus: { $in: OPEN } },
-        { $set: { orderStatus: "DELIVERED", isEscrowReleased: true, deliveredAt: new Date(), pinAttempts: 0, settledBy: "pin" } },
+        {
+          _id: order._id,
+          isEscrowReleased: false,
+          orderStatus: { $in: OPEN },
+        },
+        {
+          $set: {
+            orderStatus: "DELIVERED",
+            isEscrowReleased: true,
+            deliveredAt: new Date(),
+            pinAttempts: 0,
+            settledBy: "pin",
+            deliveredBy: me,
+          },
+        },
         { session }
       );
+
       if (!claimed) throw fail("ALREADY_FULFILLED", 409);
-      return releaseEscrowToVendor(order._id, session); // pays vendor + promoter + platform
+
+      return releaseEscrowToVendor(order._id, session);
     });
 
-    const f = order.financials;
-const ctx = { orderId: order._id, orderRef: order.orderNumber };
-await notify("ESCROW_RELEASED", order.sellerId, { ...ctx, amount: f.totalWholesaleToShop }, { actorId: sellerId, includeActor: true });
-await notify("ORDER_COMPLETED", order.buyerId, ctx, { actorId: sellerId });
-if (order.promoterId && f.totalCommissionSplit > 0) await notify("PROMOTER_BONUS", order.promoterId, { ...ctx, amount: f.totalCommissionSplit });
+    const financials = order.financials;
+    const ctx = { orderId: order._id, orderRef: order.orderNumber };
 
-    return res.status(200).json({ ok: true, status: "DELIVERED", releasedToVendor: result.releasedToVendor });
+    await notify(
+      "ESCROW_RELEASED",
+      order.sellerId,
+      { ...ctx, amount: financials.totalWholesaleToShop },
+      { actorId: me, includeActor: true }
+    );
+
+    await notify("ORDER_COMPLETED", order.buyerId, ctx, { actorId: me });
+
+    if (order.promoterId && financials.totalCommissionSplit > 0) {
+      await notify(
+        "PROMOTER_BONUS",
+        order.promoterId,
+        { ...ctx, amount: financials.totalCommissionSplit }
+      );
+    }
+
+    // Remove location data as soon as the order is delivered.
+    Trip.deleteOne({ orderId: order._id }).catch(() => {});
+
+    const isOwner = same(order.sellerId, me);
+
+    return res.status(200).json(
+      isOwner
+        ? {
+            ok: true,
+            status: "DELIVERED",
+            releasedToVendor: result.releasedToVendor,
+          }
+        : { ok: true, status: "DELIVERED" }
+    );
   } catch (err) {
     return sendError(res, err, "completeDelivery");
   }
