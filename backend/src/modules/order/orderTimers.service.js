@@ -80,7 +80,7 @@ async function drain(find, handle, endAt, stats, key) {
 const REMINDERS = [
   {
     stat: "confirm", field: "reminders.confirm", event: "SELLER_CONFIRM_REMINDER", to: "sellerId",
-    match: () => ({ orderStatus: "PROCESSING", createdAt: { $lte: ago(C.CONFIRM_REMIND_AFTER_MS), $gt: ago(C.CONFIRM_WINDOW_MS) } }),
+    match: () => ({ orderStatus: "PROCESSING", confirmDeadline: null, createdAt: { $lte: ago(C.CONFIRM_REMIND_AFTER_MS), $gt: ago(C.CONFIRM_WINDOW_MS) } }),
     ctx: (o) => ({ hours: Math.max(1, Math.round((new Date(o.createdAt).getTime() + C.CONFIRM_WINDOW_MS - Date.now()) / H)) }),
   },
   {
