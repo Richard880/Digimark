@@ -23,6 +23,14 @@ router.get("/orders", async (req, res) => {
   catch (e) { console.error("❌ order timers:", e.stack || e.message); return res.status(500).json({ error: "JOB_FAILED" }); }
 });
 
+const { runLists } = require("../modules/lists/listRunner.service");
+
+router.get("/lists", async (req, res) => {
+  if (!authorized(req)) return res.sendStatus(404);
+  try { return res.json({ ok: true, ...(await runLists(Number(process.env.CRON_BUDGET_MS) || 8000)) }); }
+  catch (e) { console.error("❌ lists job:", e.stack || e.message); return res.status(500).json({ error: "JOB_FAILED" }); }
+});
+
 router.get("/reconcile", async (req, res) => {
   if (!authorized(req)) return res.sendStatus(404);
   try { return res.json({ ok: true, ...(await runReconciliation()) }); }
