@@ -31,6 +31,16 @@ const EVENTS = {
   ORDER_CANCELLED: E("ORDERS", "Order cancelled", (c) => `Order #${c.orderRef} was cancelled.`),
   ORDER_DISPATCHED: E("ORDERS", "Order on its way", (c) => `Order #${c.orderRef} was confirmed by the seller and is on its way. Give the seller your PIN only after it arrives.`),
 
+
+  LIST_UPCOMING: E("ORDERS", "Shopping list coming up", (c) => `Your list "${c.listName}" will be ordered in about 24 hours (about ${money(c.total)}).${c.short > 0 ? ` Your wallet is ${money(c.short)} short: top up in time.` : ""}`, () => "/shopping-lists"),
+  LIST_ACTION_NEEDED: E("ORDERS", "Check your shopping list", (c) => ({
+    funds: `Your wallet didn't cover "${c.listName}", so nothing was ordered. Top up, check the list and start it again.`,
+    missed: `The delivery time for "${c.listName}" passed before it could be ordered. Check the list and pick a new time.`,
+    nothing: `None of the items in "${c.listName}" could be ordered. Check the list.`,
+  }[c.reason] || `Please check "${c.listName}".`), () => "/shopping-lists"),
+  LIST_PLACED: E("ORDERS", "Shopping list ordered", (c) => `${c.placed} order${c.placed === 1 ? "" : "s"} placed from "${c.listName}"${c.skipped ? `, ${c.skipped} item${c.skipped === 1 ? "" : "s"} skipped` : ""}. Your money is held in escrow. Find your PINs under My orders.`, () => "/profile"),
+
+  
   // Messages
   NEW_MESSAGE: E("MESSAGES", "New message", (c) => `${c.senderName || "Someone"} sent you a message.`, URL.messages),
   CHAT_REQUEST: E("MESSAGES", "Chat request", (c) => `${c.senderName || "Someone"} wants to chat. Open Messages to turn on secure chat.`, URL.messages),
