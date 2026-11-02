@@ -868,6 +868,7 @@ function OrderCard({
             When the buyer has their item, enter the 6-digit PIN they give you.
             That releases your payment.
           </p>
+          
           <div className="flex gap-2">
             <input
               inputMode="numeric"
@@ -882,6 +883,7 @@ function OrderCard({
               }
               className="min-h-11 w-full rounded-xl border border-slate-200 px-3 text-center font-mono text-sm tracking-[0.3em] focus:border-emerald-500 focus:outline-none"
             />
+            
             <button
               type="button"
               disabled={busy || (pin || "").length !== 6}
@@ -891,6 +893,7 @@ function OrderCard({
               Confirm delivery
             </button>
           </div>
+          <AssignCourier order={o} onChanged={loadOrders} />
           <button
             type="button"
             disabled={busy}
