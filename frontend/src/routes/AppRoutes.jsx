@@ -16,6 +16,7 @@ import BecomeMarketerPage from "../features/membership/BecomeMarketerPage";
 
 import AdminDashboard from "../features/admin/AdminDashboard";
 import LegalPage from "../features/public/legal/LegalPage";
+import ShoppingListsPage from "../features/public/ShoppingLists/ShoppingListsPage";
 
 
 import useAuth from "../features/auth/hooks/useAuth";
@@ -197,7 +198,8 @@ export default function AppRoutes() {
           <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
           <Route path={ROUTES.TERMS} element={<LegalPage page="terms" />} />
           <Route path={ROUTES.PRIVACY} element={<LegalPage page="privacy" />} />
-
+          <Route path={ROUTES.SHOPPING_LISTS} element={<RequireAuth><ShoppingListsPage /></RequireAuth>} />
+          
           {/* Signed-in accounts */}
           <Route
             path={ROUTES.CHECKOUT}
