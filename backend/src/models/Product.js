@@ -76,6 +76,7 @@ productSchema.index({ sellerId: 1, status: 1, createdAt: -1 });           // sel
 productSchema.index({ category: 1, price: 1 });                           // category browsing
 productSchema.index({ isShelved: 1, category: 1, "metrics.conversionRate": -1 }); // ranking
 productSchema.index({ sellerId: 1, barcode: 1 }, { unique: true, partialFilterExpression: { barcode: { $type: "string" } } });
+productSchema.index({ barcode: 1 }, { partialFilterExpression: { barcode: { $type: "string" } } });
 
 // Keep the legacy alias columns in sync (does NOT touch prices)
 productSchema.pre("save", function () {
