@@ -818,6 +818,9 @@ function OrderCard({
         </span>
       </div>
 
+      {o.scheduledFor && <p className="mt-2 rounded-xl bg-sky-50 px-3 py-2 text-xs font-bold text-sky-900">
+        Scheduled delivery: {when(o.scheduledFor)}. Confirm by {when(o.confirmDeadline)}</p>}
+
       {ship && o.orderStatus !== "CANCELLED" && (
         <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
           <p className="font-bold text-slate-800">
