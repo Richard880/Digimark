@@ -69,6 +69,14 @@ const readStaffFlag = () => {
   }
 };
 
+const readCourierFlag = () => {
+  try {
+    return localStorage.getItem("sokodigi_courier") === "1";
+  } catch {
+    return false;
+  }
+};
+
 export default function Navbar({
   user,
   onLogout,
@@ -98,6 +106,7 @@ export default function Navbar({
   const isBuyer = signedIn && user?.accountCategory === "retail";
   const isAdmin = ["admin", "super_admin"].includes(user?.role);
   const isStaff = signedIn && !isMarketer && !isAdmin && readStaffFlag();
+  const isCourier = signedIn && readCourierFlag();
   const onDashboard = location.pathname.startsWith(ROUTES.MEMBER_DASHBOARD);
 
   const links = useMemo(
@@ -117,6 +126,10 @@ export default function Navbar({
         isStaff && {
           to: ROUTES.MEMBER_DASHBOARD,
           label: "Shop workspace",
+        },
+        isCourier && {
+          to: ROUTES.COURIER_JOBS,
+          label: "Deliveries",
         },
         needsMembership && {
           to: ROUTES.MEMBERSHIP,
@@ -139,6 +152,7 @@ export default function Navbar({
       signedIn,
       isMarketer,
       isStaff,
+      isCourier,
       needsMembership,
       isBuyer,
       isAdmin,
@@ -455,7 +469,12 @@ export default function Navbar({
                         See all notifications →
                       </Link>
 
-                      <Link to={ROUTES.SHOPPING_LISTS} className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50">Shopping lists</Link>
+                      <Link
+                        to={ROUTES.SHOPPING_LISTS}
+                        className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
+                      >
+                        Shopping lists
+                      </Link>
                     </div>
                   )}
                 </div>
@@ -513,6 +532,14 @@ export default function Navbar({
                           className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
                         >
                           My team
+                        </Link>
+                      )}
+                      {isCourier && (
+                        <Link
+                          to={ROUTES.COURIER_JOBS}
+                          className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
+                        >
+                          Deliveries
                         </Link>
                       )}
                       <button
