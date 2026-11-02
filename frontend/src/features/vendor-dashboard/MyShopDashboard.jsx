@@ -1145,6 +1145,7 @@ const tabs = [
   ["team", "👤", "Team", 0],
   ["reports", "📊", "Reports", 0],
   ["tools", "🧰", "Tools", 0],
+  ["profit", "💹", "Profit", 0],
 ];
 
 
@@ -1502,6 +1503,7 @@ return (
           {tab === "stock" && <StockTab />}
           {tab === "team" && <TeamTab />}
           {tab === "tools" && <ToolsTab />}
+          {tab === "profit" && <ProfitTab />}
         </>
       )}
     </main>
