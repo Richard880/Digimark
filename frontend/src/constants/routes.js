@@ -19,6 +19,10 @@ const ROUTES = {
   BECOME_MARKETER: "/become-marketer",
   JOIN_SHOP: "/join-shop",
   SHOPPING_LISTS: "/shopping-lists",
+
+  JOIN_COURIER: "/join-courier", 
+  COURIER_JOBS: "/courier",
+  
   /* Marketers */
   MEMBERSHIP: "/membership",
   MEMBER_DASHBOARD: "/dashboard",
