@@ -22,6 +22,7 @@ export default function StaffDashboard() {
     ["customers", "👥", "Customers", can("customers.read")],
     ["stock", "📦", "Stock", can("stock.view")],
     ["reports", "📊", "Reports", can("reports")],
+    ["profit", "💹", "Profit", can("reports")],
   ].filter((t) => t[3]);
 
   const [tab, setTab] = useState("");
