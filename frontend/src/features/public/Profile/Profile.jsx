@@ -14,7 +14,7 @@ import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 
 import ShareButton from "../ProductDetails/ShareButton";
 import OrderDispute from "../../orders/OrderDispute";
-
+import CourierCard from "../../couriers/CourierCard";
 
 
 const money = (n) => `KSh ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -197,6 +197,10 @@ function OrderCard({ order, myId, onChanged }) {
               <p className="text-[11px] leading-5 text-emerald-800">Show this to the seller <b>only after you receive your item</b>.</p>
               <button type="button" onClick={() => setPinData(null)} className="mt-2 text-[11px] font-bold text-emerald-700 underline">Hide</button>
             </div>
+          )}
+
+          {role === "buyer" && status === "DISPATCHED" && order.courier && (
+                <CourierCard courier={order.courier} />
           )}
         </div>
       )}
@@ -452,6 +456,16 @@ const onAvatarFile = async (e) => {
                       <Link to={ROUTES.JOIN_SHOP} className="text-xs font-bold text-emerald-700 underline">Work at a shop? Join with an invite code</Link>
                     </p>
                   )}
+                {isOwnProfile && !isMarketer && (
+                        <p className="mt-1 text-center sm:text-left">
+                          <Link
+                            to={ROUTES.JOIN_COURIER}
+                            className="text-xs font-bold text-emerald-700 underline"
+                          >
+                            Deliver for a shop? Join as a courier
+                          </Link>
+                        </p>
+                      )}
                 {shopUrl && <button type="button" onClick={() => copy(shopUrl, "Shop link copied")} className="min-h-10 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 hover:border-emerald-300">Share shop</button>}
                 {isOwnProfile && isMarketer && brand.username && <button type="button" onClick={() => copy(`${origin}${registerPath(brand.username)}`, "Invite link copied")} className="min-h-10 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-xs font-bold text-emerald-800">Copy invite link</button>}
               </div>
