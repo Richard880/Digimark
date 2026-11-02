@@ -23,7 +23,7 @@ const BUILT = ["pos", "export",
                "multiBranch", "auditLog",
               "accountingExport", "apiAccess",
                "prioritySync", "prioritySupport",
-               "receiptBranding"];
+               "receiptBranding", "profitReports"];
 
 
 module.exports = {
