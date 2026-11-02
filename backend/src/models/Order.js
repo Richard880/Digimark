@@ -54,6 +54,8 @@ const orderSchema = new mongoose.Schema(
       deliveryNotes: { type: String, trim: true, default: "", maxlength: 300 },
     },
 
+
+    
     // Invariant (enforced below):
     // totalRetailPaid = totalWholesaleToShop + totalCommissionSplit + platformFee
     financials: {
