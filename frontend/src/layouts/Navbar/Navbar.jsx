@@ -340,342 +340,349 @@ export default function Navbar({
     </span>
   );
 
-  return (
-    <>
-      <header
-        className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur"
-        style={{ paddingTop: "env(safe-area-inset-top)" }}
-      >
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-6">
-          <Link
-            to={ROUTES.HOME}
-            className="flex shrink-0 items-center"
-            aria-label="Sokodigi home"
-          >
-            {brand.logo ? (
-              <img
-                src={brand.logo}
-                alt={brand.name || "SokoDigi"}
-                className="h-9 w-auto sm:h-10"
-              />
-            ) : (
-              <span className="text-lg font-black text-emerald-800">
-                {brand.name || "SokoDigi"}
-              </span>
-            )}
-          </Link>
+ return (
+  <>
+    <header
+      className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur"
+      style={{ paddingTop: "env(safe-area-inset-top)" }}
+    >
+      <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-6">
+        <Link
+          to={ROUTES.HOME}
+          className="flex shrink-0 items-center"
+          aria-label="Sokodigi home"
+        >
+          {brand.logo ? (
+            <img
+              src={brand.logo}
+              alt={brand.name || "SokoDigi"}
+              className="h-9 w-auto sm:h-10"
+            />
+          ) : (
+            <span className="text-lg font-black text-emerald-800">
+              {brand.name || "SokoDigi"}
+            </span>
+          )}
+        </Link>
 
-          <nav
-            className="ml-4 hidden items-center gap-1 lg:flex"
-            aria-label="Main"
+        <nav
+          className="ml-4 hidden items-center gap-1 lg:flex"
+          aria-label="Main"
+        >
+          {links.map((l) => (
+            <NavLink
+              key={l.label}
+              to={l.to}
+              end={l.end}
+              className={topLink}
+            >
+              <span className="relative">
+                {l.label}
+                <Badge n={l.badge} />
+              </span>
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="ml-auto hidden w-56 lg:block xl:w-72">
+          {searchField}
+        </div>
+
+        <div className="ml-auto flex items-center gap-1 lg:ml-0">
+          <button
+            type="button"
+            onClick={() => setSearchOpen((o) => !o)}
+            aria-label="Search"
+            aria-expanded={searchOpen}
+            className="rounded-full p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
           >
+            <Icon name={searchOpen ? "close" : "search"} />
+          </button>
+
+          {signedIn ? (
+            <>
+              <div className="relative" ref={bellRef}>
+                <button
+                  type="button"
+                  onClick={toggleBell}
+                  aria-label={`Notifications${
+                    unread ? `, ${unread} unread` : ""
+                  }`}
+                  aria-expanded={bellOpen}
+                  className="relative rounded-full p-2 text-slate-600 hover:bg-slate-100"
+                >
+                  <Icon name="bell" />
+                  <Badge n={unread} />
+                </button>
+
+                {bellOpen && (
+                  <div className="fixed inset-x-3 top-16 z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl md:absolute md:inset-x-auto md:right-0 md:top-auto md:mt-2 md:w-80">
+                    <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
+                      <span className="text-xs font-black text-slate-800">
+                        Notifications
+                      </span>
+
+                      {unread > 0 && (
+                        <button
+                          type="button"
+                          onClick={markAllRead}
+                          className="text-[11px] font-bold text-emerald-700 hover:underline"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="max-h-[60vh] divide-y divide-slate-50 overflow-y-auto md:max-h-72">
+                      {recent.length === 0 ? (
+                        <p className="p-5 text-center text-xs text-slate-400">
+                          Everything is quiet right now.
+                        </p>
+                      ) : (
+                        recent.map((n, i) => (
+                          <Link
+                            key={n._id || `${n.createdAt}-${i}`}
+                            to={safeLink(n.actionUrl)}
+                            className={`block px-4 py-3 hover:bg-slate-50 ${
+                              n.isRead ? "" : "bg-emerald-50/40"
+                            }`}
+                          >
+                            <p className="text-xs font-bold text-slate-800">
+                              {n.title}
+                            </p>
+                            <p className="text-xs text-slate-500">
+                              {n.message}
+                            </p>
+                            {n.createdAt && (
+                              <p className="mt-1 text-[10px] text-slate-400">
+                                {new Date(n.createdAt).toLocaleString()}
+                              </p>
+                            )}
+                          </Link>
+                        ))
+                      )}
+                    </div>
+
+                    <Link
+                      to={ROUTES.NOTIFICATIONS}
+                      className="block border-t border-slate-100 p-3 text-center text-xs font-bold text-emerald-700 hover:bg-emerald-50"
+                    >
+                      See all notifications →
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              <Link
+                to={ROUTES.WALLET}
+                aria-label="Wallet"
+                className="hidden rounded-full p-2 text-slate-600 hover:bg-slate-100 lg:block"
+              >
+                <Icon name="wallet" />
+              </Link>
+
+              <div className="relative hidden lg:block" ref={userRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBellOpen(false);
+                    setUserMenuOpen((o) => !o);
+                  }}
+                  aria-label="Account menu"
+                  aria-expanded={userMenuOpen}
+                  className="rounded-full p-0.5 ring-2 ring-transparent hover:ring-emerald-200"
+                >
+                  {avatar}
+                </button>
+
+                {userMenuOpen && (
+                  <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white text-sm shadow-xl">
+                    <p className="truncate border-b border-slate-100 px-4 py-3 text-xs font-black text-slate-800">
+                      {displayName}
+                    </p>
+
+                    <Link
+                      to={ROUTES.MY_PROFILE}
+                      className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
+                    >
+                      My profile &amp; orders
+                    </Link>
+
+                    <Link
+                      to={ROUTES.WALLET}
+                      className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
+                    >
+                      Wallet
+                    </Link>
+
+                    <Link
+                      to={ROUTES.SHOPPING_LISTS}
+                      className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
+                    >
+                      Shopping lists
+                    </Link>
+
+                    {(isMarketer || needsMembership) && (
+                      <Link
+                        to={ROUTES.MEMBERSHIP}
+                        className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
+                      >
+                        Membership
+                      </Link>
+                    )}
+
+                    {isMarketer && (
+                      <Link
+                        to={ROUTES.MY_TEAM}
+                        className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
+                      >
+                        My team
+                      </Link>
+                    )}
+
+                    {isCourier && (
+                      <Link
+                        to={ROUTES.COURIER_JOBS}
+                        className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
+                      >
+                        Deliveries
+                      </Link>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeAll();
+                        onLogout?.();
+                      }}
+                      className="block w-full border-t border-slate-100 px-4 py-2.5 text-left font-semibold text-rose-600 hover:bg-rose-50"
+                    >
+                      Log out
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                closeAll();
+                onAuthClick?.();
+              }}
+              className="rounded-full bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 sm:text-sm"
+            >
+              Get Started
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+            className="rounded-full p-2 text-slate-700 hover:bg-slate-100 lg:hidden"
+          >
+            <Icon name={menuOpen ? "close" : "menu"} />
+          </button>
+        </div>
+      </div>
+
+      {searchOpen && (
+        <div className="border-t border-slate-100 px-3 py-2 lg:hidden">
+          {searchField}
+        </div>
+      )}
+
+      {menuOpen && (
+        <nav
+          className="border-t border-slate-100 bg-white px-3 py-3 lg:hidden"
+          aria-label="Mobile"
+        >
+          <div className="grid gap-1">
             {links.map((l) => (
               <NavLink
                 key={l.label}
                 to={l.to}
                 end={l.end}
-                className={topLink}
+                className={({ isActive }) =>
+                  `flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold ${
+                    isActive
+                      ? "bg-emerald-700 text-white"
+                      : "text-slate-700 hover:bg-emerald-50"
+                  }`
+                }
               >
-                <span className="relative">
-                  {l.label}
-                  <Badge n={l.badge} />
-                </span>
+                {l.label}
+                {l.badge > 0 && (
+                  <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">
+                    {l.badge > 99 ? "99+" : l.badge}
+                  </span>
+                )}
               </NavLink>
             ))}
-          </nav>
 
-          <div className="ml-auto hidden w-56 lg:block xl:w-72">
-            {searchField}
-          </div>
-
-          <div className="ml-auto flex items-center gap-1 lg:ml-0">
-            <button
-              type="button"
-              onClick={() => setSearchOpen((o) => !o)}
-              aria-label="Search"
-              aria-expanded={searchOpen}
-              className="rounded-full p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
-            >
-              <Icon name={searchOpen ? "close" : "search"} />
-            </button>
-
-            {signedIn ? (
+            {signedIn && (
               <>
-                <div className="relative" ref={bellRef}>
-                  <button
-                    type="button"
-                    onClick={toggleBell}
-                    aria-label={`Notifications${
-                      unread ? `, ${unread} unread` : ""
-                    }`}
-                    aria-expanded={bellOpen}
-                    className="relative rounded-full p-2 text-slate-600 hover:bg-slate-100"
-                  >
-                    <Icon name="bell" />
-                    <Badge n={unread} />
-                  </button>
-
-                  {bellOpen && (
-                    <div className="fixed inset-x-3 top-16 z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl md:absolute md:inset-x-auto md:right-0 md:top-auto md:mt-2 md:w-80">
-                      <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-4 py-3">
-                        <span className="text-xs font-black text-slate-800">
-                          Notifications
-                        </span>
-                        {unread > 0 && (
-                          <button
-                            type="button"
-                            onClick={markAllRead}
-                            className="text-[11px] font-bold text-emerald-700 hover:underline"
-                          >
-                            Mark all read
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="max-h-[60vh] divide-y divide-slate-50 overflow-y-auto md:max-h-72">
-                        {recent.length === 0 ? (
-                          <p className="p-5 text-center text-xs text-slate-400">
-                            Everything is quiet right now.
-                          </p>
-                        ) : (
-                          recent.map((n, i) => (
-                            <Link
-                              key={n._id || `${n.createdAt}-${i}`}
-                              to={safeLink(n.actionUrl)}
-                              className={`block px-4 py-3 hover:bg-slate-50 ${
-                                n.isRead ? "" : "bg-emerald-50/40"
-                              }`}
-                            >
-                              <p className="text-xs font-bold text-slate-800">
-                                {n.title}
-                              </p>
-                              <p className="text-xs text-slate-500">
-                                {n.message}
-                              </p>
-                              {n.createdAt && (
-                                <p className="mt-1 text-[10px] text-slate-400">
-                                  {new Date(n.createdAt).toLocaleString()}
-                                </p>
-                              )}
-                            </Link>
-                          ))
-                        )}
-                      </div>
-
-                      <Link
-                        to={ROUTES.NOTIFICATIONS}
-                        className="block border-t border-slate-100 p-3 text-center text-xs font-bold text-emerald-700 hover:bg-emerald-50"
-                      >
-                        See all notifications →
-                      </Link>
-                    </div>
-                  )}
-                </div>
-
-                <Link
-                  to={ROUTES.WALLET}
-                  aria-label="Wallet"
-                  className="hidden rounded-full p-2 text-slate-600 hover:bg-slate-100 lg:block"
-                >
-                  <Icon name="wallet" />
-
-                <div className="relative hidden lg:block" ref={userRef}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBellOpen(false);
-                      setUserMenuOpen((o) => !o);
-                    }}
-                    aria-label="Account menu"
-                    aria-expanded={userMenuOpen}
-                    className="rounded-full p-0.5 ring-2 ring-transparent hover:ring-emerald-200"
-                  >
-                    {avatar}
-                  </button>
-
-                  {userMenuOpen && (
-                    <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white text-sm shadow-xl">
-                      <p className="truncate border-b border-slate-100 px-4 py-3 text-xs font-black text-slate-800">
-                        {displayName}
-                      </p>
-                      <Link
-                        to={ROUTES.MY_PROFILE}
-                        className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
-                      >
-                        My profile &amp; orders
-                      </Link>
-                      
-                      <Link
-                        to={ROUTES.WALLET}
-                        className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
-                      >
-                        Wallet
-                      </Link>
-                      
-                      <Link
-                        to={ROUTES.SHOPPING_LISTS}
-                        className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
-                      >
-                        Shopping lists
-                      </Link>
-
-                       </Link>
-                  
-                  
-                      {(isMarketer || needsMembership) && (
-                        <Link
-                          to={ROUTES.MEMBERSHIP}
-                          className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
-                        >
-                          Membership
-                        </Link>
-                      )}
-                      {isMarketer && (
-                        <Link
-                          to={ROUTES.MY_TEAM}
-                          className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
-                        >
-                          My team
-                        </Link>
-                      )}
-                      {isCourier && (
-                        <Link
-                          to={ROUTES.COURIER_JOBS}
-                          className="block px-4 py-2.5 font-semibold text-slate-700 hover:bg-emerald-50"
-                        >
-                          Deliveries
-                        </Link>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          closeAll();
-                          onLogout?.();
-                        }}
-                        className="block w-full border-t border-slate-100 px-4 py-2.5 text-left font-semibold text-rose-600 hover:bg-rose-50"
-                      >
-                        Log out
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  closeAll();
-                  onAuthClick?.();
-                }}
-                className="rounded-full bg-emerald-700 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-800 sm:text-sm"
-              >
-                Get Started
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setMenuOpen((o) => !o)}
-              aria-label="Menu"
-              aria-expanded={menuOpen}
-              className="rounded-full p-2 text-slate-700 hover:bg-slate-100 lg:hidden"
-            >
-              <Icon name={menuOpen ? "close" : "menu"} />
-            </button>
-          </div>
-        </div>
-
-        {searchOpen && (
-          <div className="border-t border-slate-100 px-3 py-2 lg:hidden">
-            {searchField}
-          </div>
-        )}
-
-        {menuOpen && (
-          <nav
-            className="border-t border-slate-100 bg-white px-3 py-3 lg:hidden"
-            aria-label="Mobile"
-          >
-            <div className="grid gap-1">
-              {links.map((l) => (
                 <NavLink
-                  key={l.label}
-                  to={l.to}
-                  end={l.end}
-                  className={({ isActive }) =>
-                    `flex items-center justify-between rounded-xl px-4 py-3 text-sm font-semibold ${
-                      isActive
-                        ? "bg-emerald-700 text-white"
-                        : "text-slate-700 hover:bg-emerald-50"
-                    }`
-                  }
+                  to={ROUTES.WALLET}
+                  className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50"
                 >
-                  {l.label}
-                  {l.badge > 0 && (
-                    <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">
-                      {l.badge > 99 ? "99+" : l.badge}
-                    </span>
-                  )}
+                  Wallet
                 </NavLink>
-              ))}
 
-              {signedIn && (
-                <>
-                  <NavLink
-                    to={ROUTES.WALLET}
-                    className="rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-emerald-50"
-                  >
-                    Wallet
-                  </NavLink>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      closeAll();
-                      onLogout?.();
-                    }}
-                    className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50"
-                  >
-                    Log out
-                  </button>
-                </>
-              )}
-            </div>
-          </nav>
-        )}
-      </header>
-
-      {/* Bottom tab bar: phones and tablets, signed-in users only */}
-      {signedIn && !onDashboard && (
-        <nav
-          aria-label="Quick navigation"
-          className="fixed inset-x-0 bottom-0 z-40 flex border-t border-slate-200 bg-white lg:hidden"
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-        >
-          <NavLink to={ROUTES.HOME} end className={tabLink}>
-            <Icon name="home" />
-            <span>Home</span>
-          </NavLink>
-          <NavLink to={ROUTES.MARKETPLACE} className={tabLink}>
-            <Icon name="shop" />
-            <span>Market</span>
-          </NavLink>
-          <NavLink to={ROUTES.MESSAGES} className={tabLink}>
-            <span className="relative">
-              <Icon name="chat" />
-              <Badge n={unreadMsgs} />
-            </span>
-            <span>Messages</span>
-          </NavLink>
-          <NavLink to={ROUTES.WALLET} className={tabLink}>
-            <Icon name="wallet" />
-            <span>Wallet</span>
-          </NavLink>
-          <NavLink to={ROUTES.MY_PROFILE} className={tabLink}>
-            {avatar}
-            <span>Profile</span>
-          </NavLink>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeAll();
+                    onLogout?.();
+                  }}
+                  className="rounded-xl px-4 py-3 text-left text-sm font-semibold text-rose-600 hover:bg-rose-50"
+                >
+                  Log out
+                </button>
+              </>
+            )}
+          </div>
         </nav>
       )}
-    </>
-  );
-}
+    </header>
+
+    {/* Bottom tab bar: phones and tablets, signed-in users only */}
+    {signedIn && !onDashboard && (
+      <nav
+        aria-label="Quick navigation"
+        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-slate-200 bg-white lg:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <NavLink to={ROUTES.HOME} end className={tabLink}>
+          <Icon name="home" />
+          <span>Home</span>
+        </NavLink>
+
+        <NavLink to={ROUTES.MARKETPLACE} className={tabLink}>
+          <Icon name="shop" />
+          <span>Market</span>
+        </NavLink>
+
+        <NavLink to={ROUTES.MESSAGES} className={tabLink}>
+          <span className="relative">
+            <Icon name="chat" />
+            <Badge n={unreadMsgs} />
+          </span>
+          <span>Messages</span>
+        </NavLink>
+
+        <NavLink to={ROUTES.WALLET} className={tabLink}>
+          <Icon name="wallet" />
+          <span>Wallet</span>
+        </NavLink>
+
+        <NavLink to={ROUTES.MY_PROFILE} className={tabLink}>
+          {avatar}
+          <span>Profile</span>
+        </NavLink>
+      </nav>
+    )}
+  </>
+);
