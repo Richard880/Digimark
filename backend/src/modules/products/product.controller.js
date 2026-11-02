@@ -136,14 +136,15 @@ async function listProducts(req, res) {
       { $match: match },
       {
         $addFields: {
-          rankingScore: {
-            $add: [
-              { $cond: [{ $eq: ["$isPremiumVendor", true] }, 50, 0] },
-              { $multiply: [{ $ifNull: ["$metrics.conversionRate", 0] }, 10] },
-              { $multiply: [{ $ifNull: ["$metrics.referralCount", 0] }, 2] },
-              { $multiply: [{ $ifNull: ["$metrics.escrowDisputeRate", 0] }, -30] },
-            ],
-          },
+         rankingScore: {
+  $add: [
+    { $cond: [{ $eq: ["$isPremiumVendor", true] }, 50, 0] },
+    { $multiply: [{ $ifNull: ["$metrics.conversionRate", 0] }, 10] },
+    { $multiply: [{ $ifNull: ["$metrics.referralCount", 0] }, 2] },
+    { $multiply: [{ $ifNull: ["$metrics.escrowDisputeRate", 0] }, -30] },
+    { $multiply: [{ $ifNull: ["$shopScore", 20] }, 0.5] },   // new
+  ],
+},
         },
       },
            { $sort: req.query.sort === "price-asc" ? { price: 1, _id: -1 }
