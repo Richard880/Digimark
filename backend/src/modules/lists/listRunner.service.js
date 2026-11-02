@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 const ShoppingList = require("../../models/ShoppingList");
-const { placeOrder } = require("../orders/order.controller");
+const { placeOrder } = require("../order/order.controller");
 const { notify } = require("../../services/notification.service");
 const { review, addCycle } = require("./lists.service");
 
