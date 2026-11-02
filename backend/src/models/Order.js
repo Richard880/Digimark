@@ -85,6 +85,7 @@ isEscrowReleased: { type: Boolean, default: false },
     cancelledAt: Date,      
     scheduledFor: Date,
     confirmDeadline: Date,
+    deliveredBy: mongoose.Schema.Types.ObjectId,
   },
   { timestamps: true }
 );
