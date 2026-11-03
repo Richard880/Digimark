@@ -14,6 +14,7 @@ import InventoryPanel from "./InventoryPanel";
 import { MovementsSheet } from "./InventoryPanel";
 import PosTab from "./pos/PosTab";
 import ReportsTab from "./pos/ReportsTab";
+import ProfitTab from "./pos/ProfitTab";
 import CustomersTab from "./CustomersTab";
 import BarcodeScanner from "./pos/BarcodeScanner";
 import useEntitlements from "../membership/useEntitlements";
