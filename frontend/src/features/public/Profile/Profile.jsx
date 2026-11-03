@@ -76,6 +76,8 @@ function ShopProfileHeader({ memberProfile }) {
 
 
 /* ───────── Edit profile ───────── */
+const LOCK_DAYS = 30; // Keep in sync with IDENTITY_LOCK_DAYS on the server.
+
 function EditProfileSheet({ brand, isMarketer, onClose, onSaved }) {
   const [f, setF] = useState({
     displayName: brand.displayName || "",
@@ -86,50 +88,184 @@ function EditProfileSheet({ brand, isMarketer, onClose, onSaved }) {
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
+
+  const until = brand.identityChangedAt
+    ? new Date(
+        new Date(brand.identityChangedAt).getTime() +
+          LOCK_DAYS * 86400000
+      )
+    : null;
+
+  const locked = !!until && until > new Date();
+
+  const set = (k) => (e) =>
+    setF((p) => ({ ...p, [k]: e.target.value }));
 
   const save = async (e) => {
     e.preventDefault();
-    const body = { displayName: f.displayName.trim(), bio: f.bio.trim() };
-    if (!body.displayName) return setError("Enter the name people will see.");
-    if (isMarketer) {
-      if (f.brandName.trim().length < 2) return setError("Enter your brand name.");
-      if (f.county.trim().length < 2) return setError("Enter your county.");
-      if (f.address.trim().length < 5) return setError("Enter your business address or town.");
-      Object.assign(body, { brandName: f.brandName.trim(), address: f.address.trim(), location: { county: f.county.trim() } });
+    setError("");
+
+    // Only free fields can be submitted while the identity lock is active.
+    const body = locked
+      ? { bio: f.bio.trim() }
+      : {
+          displayName: f.displayName.trim(),
+          bio: f.bio.trim(),
+        };
+
+    if (!locked && !body.displayName) {
+      return setError("Enter the name people will see.");
     }
-    setBusy(true); setError("");
+
+    if (!locked && isMarketer) {
+      if (f.brandName.trim().length < 2) {
+        return setError("Enter your brand name.");
+      }
+      if (f.county.trim().length < 2) {
+        return setError("Enter your county.");
+      }
+      if (f.address.trim().length < 5) {
+        return setError("Enter your business address or town.");
+      }
+
+      Object.assign(body, {
+        brandName: f.brandName.trim(),
+        address: f.address.trim(),
+        location: { county: f.county.trim() },
+      });
+    }
+
+    setBusy(true);
+
     try {
       const data = await patchProfile(body);
       onSaved(data.profile);
-    } catch (x) { setError(friendlyError(x)); } finally { setBusy(false); }
+    } catch (x) {
+      const code = x.code || x.response?.data?.error;
+
+      setError(
+        code === "PROFILE_LOCKED"
+          ? "Your shop details were changed recently. You can change them again later."
+          : friendlyError(x)
+      );
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <Sheet title="Edit profile" onClose={busy ? () => {} : onClose}>
       <form onSubmit={save} className="space-y-3">
-        <div><label className={lab}>Display name</label><input className={field} maxLength={100} value={f.displayName} onChange={set("displayName")} /></div>
+        {locked && (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+            Name and business details can be changed again on{" "}
+            {until.toLocaleDateString("en-KE", {
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+            . Your bio and photo can be changed any time.
+          </p>
+        )}
+
+        <div>
+          <label className={lab}>Display name</label>
+          <input
+            className={field}
+            maxLength={100}
+            value={f.displayName}
+            onChange={set("displayName")}
+            disabled={locked || busy}
+          />
+        </div>
+
         {isMarketer && (
           <>
-            <div><label className={lab}>Brand name</label><input className={field} maxLength={60} value={f.brandName} onChange={set("brandName")} /></div>
+            <div>
+              <label className={lab}>Brand name</label>
+              <input
+                className={field}
+                maxLength={60}
+                value={f.brandName}
+                onChange={set("brandName")}
+                disabled={locked || busy}
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
-              <div><label className={lab}>County</label><input className={field} maxLength={40} value={f.county} onChange={set("county")} /></div>
-              <div><label className={lab}>Address / town</label><input className={field} maxLength={200} value={f.address} onChange={set("address")} /></div>
+              <div>
+                <label className={lab}>County</label>
+                <input
+                  className={field}
+                  maxLength={40}
+                  value={f.county}
+                  onChange={set("county")}
+                  disabled={locked || busy}
+                />
+              </div>
+
+              <div>
+                <label className={lab}>Address / town</label>
+                <input
+                  className={field}
+                  maxLength={200}
+                  value={f.address}
+                  onChange={set("address")}
+                  disabled={locked || busy}
+                />
+              </div>
             </div>
           </>
         )}
-        <div><label className={lab}>About you</label><textarea className={`${field} resize-none py-2`} rows={3} maxLength={500} value={f.bio} onChange={set("bio")} placeholder="Tell customers about yourself" /></div>
-        <p className="text-[11px] text-slate-500">Your phone number and username are locked for payout safety. Contact support to change them.</p>
-        {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{error}</p>}
+
+        <div>
+          <label className={lab}>About you</label>
+          <textarea
+            className={`${field} resize-none py-2`}
+            rows={3}
+            maxLength={500}
+            value={f.bio}
+            onChange={set("bio")}
+            disabled={busy}
+            placeholder="Tell customers about yourself"
+          />
+        </div>
+
+        <p className="text-[11px] text-slate-500">
+          Your phone number and username are locked for payout safety. Contact
+          support to change them.
+        </p>
+
+        {error && (
+          <p
+            role="alert"
+            className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700"
+          >
+            {error}
+          </p>
+        )}
+
         <div className="flex gap-2">
-          <button type="button" onClick={onClose} disabled={busy} className="min-h-11 flex-1 rounded-xl bg-slate-100 text-xs font-bold text-slate-700">Cancel</button>
-          <button type="submit" disabled={busy} className="min-h-11 flex-1 rounded-xl bg-emerald-700 text-xs font-bold text-white disabled:opacity-50">{busy ? "Saving…" : "Save"}</button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="min-h-11 flex-1 rounded-xl bg-slate-100 text-xs font-bold text-slate-700"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={busy}
+            className="min-h-11 flex-1 rounded-xl bg-emerald-700 text-xs font-bold text-white disabled:opacity-50"
+          >
+            {busy ? "Saving…" : "Save"}
+          </button>
         </div>
       </form>
     </Sheet>
   );
 }
-
 /* ───────── One order, shown the right way for buyer, seller or promoter ───────── */
 function OrderCard({ order, myId, onChanged }) {
   const role = idOf(order.buyerId) === myId ? "buyer" : idOf(order.sellerId) === myId ? "seller" : "promoter";
