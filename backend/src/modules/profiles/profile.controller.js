@@ -122,91 +122,162 @@ async function getMyProfile(req, res) {
 // =========================================================================
 async function updateMyProfile(req, res) {
   try {
-    const b = req.body && typeof req.body === "object" && !Array.isArray(req.body) ? req.body : {};
+    const b =
+      req.body && typeof req.body === "object" && !Array.isArray(req.body)
+        ? req.body
+        : {};
     const set = {};
     const has = (k) => b[k] !== undefined;
 
+    const filter = { userId: req.user._id };
+    const profile = await UserProfile.findOne(filter).lean();
+
+    if (!profile) return fail(res, "PROFILE_NOT_FOUND", 404);
+
+    let stamp;
+    try {
+      stamp = assertCanChange(profile, b);
+    } catch (e) {
+      if (e?.code === "PROFILE_LOCKED" || e?.error === "PROFILE_LOCKED") {
+        return res.status(409).json({
+          error: "PROFILE_LOCKED",
+          until: e.until,
+        });
+      }
+      throw e;
+    }
+
     for (const [k, min, max] of [
-      ["firstName", 1, 50], ["lastName", 1, 50], ["displayName", 1, 100],
-      ["brandName", 2, 60], ["brandCategory", 2, 40], ["address", 5, 200],
+      ["firstName", 1, 50],
+      ["lastName", 1, 50],
+      ["displayName", 1, 100],
+      ["brandName", 2, 60],
+      ["brandCategory", 2, 40],
+      ["address", 5, 200],
     ]) {
       if (!has(k)) continue;
       const v = text(b[k], min, max);
       if (!v) return fail(res, "VALIDATION_ERROR", 400, { field: k });
       set[k] = v;
     }
+
     if (has("bio")) {
-      if (typeof b.bio !== "string" || b.bio.trim().length > 500) return fail(res, "VALIDATION_ERROR", 400, { field: "bio" });
+      if (typeof b.bio !== "string" || b.bio.trim().length > 500) {
+        return fail(res, "VALIDATION_ERROR", 400, { field: "bio" });
+      }
       set.bio = b.bio.trim();
     }
+
     if (b.location && typeof b.location === "object") {
       for (const k of ["county", "subCounty"]) {
         if (b.location[k] === undefined) continue;
         const v = text(b.location[k], 2, 40);
-        if (!v) return fail(res, "VALIDATION_ERROR", 400, { field: `location.${k}` });
+        if (!v) {
+          return fail(res, "VALIDATION_ERROR", 400, {
+            field: `location.${k}`,
+          });
+        }
         set[`location.${k}`] = v;
       }
     }
+
     for (const k of ["profilePhoto", "coverPhoto"]) {
       if (!has(k)) continue;
       const u = typeof b[k] === "string" ? cleanProfileImage(b[k]) : null;
       if (u === null) return fail(res, "INVALID_IMAGE_URL", 400, { field: k });
       set[k] = u;
     }
+
     if (has("publicProfile")) {
-      if (typeof b.publicProfile !== "boolean") return fail(res, "VALIDATION_ERROR", 400, { field: "publicProfile" });
+      if (typeof b.publicProfile !== "boolean") {
+        return fail(res, "VALIDATION_ERROR", 400, { field: "publicProfile" });
+      }
       set.publicProfile = b.publicProfile;
     }
-    // NOT editable here, on purpose: marketerLevel, kycStatus, membershipNumber, userId, featuredProducts
 
-    const filter = { userId: req.user._id };
+    // These fields are intentionally not editable here:
+    // marketerLevel, kycStatus, membershipNumber, userId, featuredProducts.
 
     // Username: choose once. It is the shop URL, so changing it would break shared links.
     if (has("username")) {
       const u = typeof b.username === "string" ? b.username.trim().toLowerCase() : "";
-      if (!USERNAME_RE.test(u)) return fail(res, "VALIDATION_ERROR", 400, { field: "username" });
+      if (!USERNAME_RE.test(u)) {
+        return fail(res, "VALIDATION_ERROR", 400, { field: "username" });
+      }
+
       const r = await UserProfile.updateOne(
-        { ...filter, $or: [{ username: { $exists: false } }, { username: null }, { username: "" }] },
+        {
+          ...filter,
+          $or: [
+            { username: { $exists: false } },
+            { username: null },
+            { username: "" },
+          ],
+        },
         { $set: { username: u } },
         { runValidators: true }
       );
+
       if (r.matchedCount === 0) {
         const same = await UserProfile.exists({ ...filter, username: u });
         if (!same) return fail(res, "USERNAME_CHANGE_NOT_ALLOWED", 409);
       }
     }
 
-    // Payout phone: can be SET once. Changing it needs a verified flow (not built yet).
+    // Payout phone: can be set once. Changing it needs a verified flow.
     if (has("phoneNumber")) {
       const p = normalizePhone(b.phoneNumber);
-      if (!p) return fail(res, "VALIDATION_ERROR", 400, { field: "phoneNumber" });
+      if (!p) {
+        return fail(res, "VALIDATION_ERROR", 400, { field: "phoneNumber" });
+      }
+
       const r = await UserProfile.updateOne(
-        { ...filter, $or: [{ phoneNumber: "" }, { phoneNumber: { $exists: false } }] },
+        {
+          ...filter,
+          $or: [
+            { phoneNumber: "" },
+            { phoneNumber: { $exists: false } },
+          ],
+        },
         { $set: { phoneNumber: p } },
         { runValidators: true }
       );
+
       if (r.matchedCount === 0) {
         const same = await UserProfile.exists({ ...filter, phoneNumber: p });
         if (!same) return fail(res, "PHONE_CHANGE_NOT_ALLOWED", 409);
       }
     }
 
-    if (Object.keys(set).length) {
-      await UserProfile.updateOne(filter, { $set: set }, { runValidators: true });
+    if (stamp) {
+      set.identityChangedAt = new Date();
     }
-    const profile = await UserProfile.findOne(filter).lean();
-    if (!profile) return fail(res, "PROFILE_NOT_FOUND", 404);
-    const { userId, ...rest } = profile;
+
+    if (Object.keys(set).length) {
+      await UserProfile.updateOne(
+        filter,
+        { $set: set },
+        { runValidators: true }
+      );
+    }
+
+    const updatedProfile = await UserProfile.findOne(filter).lean();
+    if (!updatedProfile) return fail(res, "PROFILE_NOT_FOUND", 404);
+
+    const { userId, ...rest } = updatedProfile;
     return res.json({ ok: true, profile: rest });
   } catch (e) {
     if (e && e.code === 11000) {
-      const f = Object.keys(e.keyPattern || {})[0];
-      return fail(res, f === "username" ? "USERNAME_TAKEN" : "ACCOUNT_DETAILS_IN_USE", 409);
+      const field = Object.keys(e.keyPattern || {})[0];
+      return fail(
+        res,
+        field === "username" ? "USERNAME_TAKEN" : "ACCOUNT_DETAILS_IN_USE",
+        409
+      );
     }
     return serverError(res, "updateMyProfile", e);
   }
 }
-
 // =========================================================================
 // POST /api/profiles/me/featured  { productId }  (max 5, atomic)
 // =========================================================================
