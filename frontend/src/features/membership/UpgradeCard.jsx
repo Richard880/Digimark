@@ -1,107 +1,618 @@
-import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import apiClient from "../../services/apiClient";
-import useEntitlements from "./useEntitlements";
-import ROUTES from "../../constants/routes";
+const mongoose = require("mongoose");
+const crypto = require("crypto");
+const Wallet = require("../../models/Wallet");
+const MpesaTopUp = require("../../models/MpesaTopUp");
 
-const fmt = (n) => `Ksh ${Number(n || 0).toLocaleString("en-KE")}`;
-const FEATURES = [
-  ["pos", "POS and counter sales"], 
-  ["export", "Inventory export (CSV)"], 
-  ["stockHistory", "Stock history"], 
-  ["lowStockInApp", "Low-stock alerts in the app"],
-  ["promoteOthers", "Promote others' products (5% bonus)"], 
-  ["barcodes", "Barcode scanning"], 
-  ["thermalPrint", "Thermal receipt printing"],
-  ["customers", "Customers and credit sales"], 
-  ["suppliers", "Suppliers and purchase orders"], 
-  ["profitReports", "Profit reports"],
-  ["lowStockSms", "Low-stock SMS"],
-  ["receiptsPdf", "Receipts (print, PDF, WhatsApp)"],
-  ["dailyReport", "Daily report and cash close"],
-  ["multiTerminal", "Several POS devices"],
-  ["staffRoles", "Staff logins and roles"], 
-  ["multiBranch", "Several branches"],
-  ["apiAccess", "API and accounting export"],
-  ["apiAccess", "Read-only API keys"],
-  ["accountingExport", "Accounting exports"],
-  ["receiptBranding", "Branded receipts"],
-  ["prioritySync", "Priority offline sync"], 
-  ["prioritySupport", "Priority support"],
-  ["creditSales", "Credit sales (customer debts)"],
-  ["auditLog", "Staff activity log"],
+// ---------- Config (warning-only: the app boots without M-Pesa credentials) ----------
+const REQUIRED_ENV = [
+  "MPESA_CONSUMER_KEY",
+  "MPESA_CONSUMER_SECRET",
+  "MPESA_SHORTCODE",
+  "MPESA_PASSKEY",
+  "MPESA_CALLBACK_BASE_URL",
+  "MPESA_CALLBACK_SECRET",
 ];
-const ERR = {
-  INSUFFICIENT_FUNDS: "Your wallet balance is too low for this upgrade.", UPGRADE_NOT_AVAILABLE: "That upgrade isn't available right now.",
-  PLAN_CHANGED_RETRY: "Your plan just changed. Refreshing.", TOO_MANY_REQUESTS: "You're going too fast. Wait a moment.",
-  NETWORK_ERROR: "Couldn't confirm the upgrade. Check your wallet before trying again: if it dropped, the upgrade went through.",
-};
 
-export default function UpgradeCard({ onChanged }) {
-  const { ent, refresh } = useEntitlements();
-  const [plans, setPlans] = useState([]);
-  const [built, setBuilt] = useState([]);
-  const [target, setTarget] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [done, setDone] = useState("");
-  const key = useRef(null);
+const missingEnv = REQUIRED_ENV.filter((key) => !process.env[key]);
 
-  useEffect(() => { apiClient.get("/membership/plans").then(({ data }) => { setPlans(data.plans || []); setBuilt(data.built || []); }).catch(() => {}); }, []);
-  useEffect(() => { key.current = null; }, [target]);
-  if (!ent || !ent.active || plans.length === 0) return null;
+if (
+  process.env.MPESA_CALLBACK_SECRET &&
+  process.env.MPESA_CALLBACK_SECRET.length < 24
+) {
+  missingEnv.push("MPESA_CALLBACK_SECRET (needs 24+ characters)");
+}
 
-  const upgrade = async () => {
-    if (busy || !target) return;
-    setBusy(true); setError("");
-    if (!key.current) key.current = crypto.randomUUID().replace(/-/g, "");
-    try {
-      await apiClient.post("/membership/upgrade", { plan: target.plan }, { headers: { "Idempotency-Key": key.current } });
-      key.current = null; setDone(target.name); setTarget(null);
-      await refresh(); onChanged?.();
-    } catch (e) {
-      if (e.response) key.current = null;
-      setError(e.response ? ERR[e.response.data?.error] || "Something went wrong. Please try again." : ERR.NETWORK_ERROR);
-    } finally { setBusy(false); }
-  };
+const MPESA_ENABLED = missingEnv.length === 0;
 
-  const cell = (p, f) => (p.features[f] ? <span className={built.includes(f) ? "font-black text-emerald-700" : "text-slate-400"}>{built.includes(f) ? "✓" : "soon"}</span> : <span className="text-slate-300">–</span>);
-
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="plans-compare">
-      <h2 id="plans-compare" className="text-sm font-black text-slate-800">Compare plans</h2>
-      <p className="mb-3 text-[11px] text-slate-500">You're on <b>{ent.name}</b>. Upgrade any time and pay only the difference for the days left. Downgrades happen when you renew. Features marked “soon” are being built.</p>
-      {done && <p role="status" className="mb-3 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">You're now on {done}.</p>}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] text-left text-xs">
-          <thead><tr className="text-[11px] text-slate-500"><th className="pb-2 pr-2 font-bold">&nbsp;</th>{plans.map((p) => <th key={p.key} className={`pb-2 text-center ${p.key === ent.planKey ? "text-emerald-800" : ""}`}>{p.name}<br /><span className="font-black text-slate-900">{fmt(p.fee)}</span></th>)}</tr></thead>
-          <tbody className="divide-y divide-slate-100">
-            <tr><td className="py-2 pr-2 font-semibold text-slate-700">Products</td>{plans.map((p) => <td key={p.key} className="text-center font-bold">{p.limits.products.toLocaleString("en-KE")}</td>)}</tr>
-            <tr><td className="py-2 pr-2 font-semibold text-slate-700">Network levels earned</td>{plans.map((p) => <td key={p.key} className="text-center font-bold">{p.earnDepth === 1 ? "Level 1" : `Levels 1–${p.earnDepth}`}</td>)}</tr>
-            <tr><td className="py-2 pr-2 font-semibold text-slate-700">SMS a month</td>{plans.map((p) => <td key={p.key} className="text-center font-bold">{p.limits.smsPerMonth || "–"}</td>)}</tr>
-            {FEATURES.map(([f, label]) => <tr key={f}><td className="py-2 pr-2 text-slate-700">{label}</td>{plans.map((p) => <td key={p.key} className="text-center">{cell(p, f)}</td>)}</tr>)}
-          </tbody>
-        </table>
-      </div>
-      {ent.upgrades.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {ent.upgrades.map((u) => <button key={u.plan} type="button" onClick={() => { setTarget(u); setError(""); }} className="min-h-11 rounded-xl bg-emerald-700 px-4 text-xs font-black text-white hover:bg-emerald-800">Upgrade to {u.name} · {fmt(u.amount)}</button>)}
-        </div>
-      )}
-      {target && (
-        <div className="fixed inset-0 z-[3000] flex items-end justify-center bg-slate-900/60 p-4 sm:items-center" role="dialog" aria-modal="true" aria-label="Confirm upgrade">
-          <div className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-5 shadow-xl">
-            <h3 className="text-base font-black text-slate-900">Upgrade to {target.name}</h3>
-            <p className="text-sm text-slate-600">Pay <b>{fmt(target.amount)}</b> from your wallet now: the difference for the rest of this billing period. Your next renewal is at the new plan's price.</p>
-            <p className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-500">Upgrade payments aren't refundable and don't earn network commissions for anyone.</p>
-            {error && <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{error} {error === ERR.INSUFFICIENT_FUNDS && <Link to={ROUTES.WALLET} className="underline">Top up</Link>}</p>}
-            <div className="flex gap-2">
-              <button type="button" onClick={() => setTarget(null)} disabled={busy} className="min-h-11 flex-1 rounded-xl bg-slate-100 text-sm font-bold text-slate-700">Cancel</button>
-              <button type="button" onClick={upgrade} disabled={busy} className="min-h-11 flex-1 rounded-xl bg-emerald-700 text-sm font-black text-white disabled:opacity-50">{busy ? "Upgrading…" : `Pay ${fmt(target.amount)}`}</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </section>
+if (!MPESA_ENABLED) {
+  console.warn(
+    `⚠️  M-Pesa is OFF. Missing: ${missingEnv.join(", ")}. Top-ups are disabled until these are set.`
   );
 }
+
+const PROD = process.env.MPESA_ENV === "production";
+const BASE = PROD
+  ? "https://api.safaricom.co.ke"
+  : "https://sandbox.safaricom.co.ke";
+
+const TXN_TYPE = process.env.MPESA_TXN_TYPE || "CustomerPayBillOnline";
+const MIN_TOPUP = 10;
+const MAX_TOPUP = 150000;
+
+const safeEq = (a, b) => {
+  const x = Buffer.from(String(a));
+  const y = Buffer.from(String(b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+};
+
+// Use the generated string ID (for example, "SDK-001001").
+// This must match the value stored in Wallet.userId and MpesaTopUp.userId.
+function getUserId(req) {
+  const userId = req.user?.userId;
+  return typeof userId === "string" && userId.length > 0 ? userId : null;
+}
+
+// ---------- Daraja client ----------
+async function darajaFetch(path, options = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+
+  try {
+    const response = await fetch(BASE + path, {
+      ...options,
+      signal: ctrl.signal,
+    });
+
+    const text = await response.text();
+    let data;
+
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { raw: text };
+    }
+
+    return { ok: response.ok, status: response.status, data };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+let tokenCache = { value: null, expires: 0 };
+
+async function getAccessToken() {
+  if (tokenCache.value && Date.now() < tokenCache.expires) {
+    return tokenCache.value;
+  }
+
+  const basic = Buffer.from(
+    `${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`
+  ).toString("base64");
+
+  const { ok, data } = await darajaFetch(
+    "/oauth/v1/generate?grant_type=client_credentials",
+    {
+      headers: { Authorization: `Basic ${basic}` },
+    }
+  );
+
+  if (!ok || !data.access_token) {
+    throw new Error("DARAJA_AUTH_FAILED");
+  }
+
+  tokenCache = {
+    value: data.access_token,
+    expires: Date.now() + (Number(data.expires_in) - 60) * 1000,
+  };
+
+  return tokenCache.value;
+}
+
+function darajaTimestamp() {
+  // YYYYMMDDHHmmss, Nairobi time (UTC+3)
+  return new Date(Date.now() + 3 * 3600 * 1000)
+    .toISOString()
+    .replace(/\D/g, "")
+    .slice(0, 14);
+}
+
+function stkPassword(timestamp) {
+  return Buffer.from(
+    `${process.env.MPESA_SHORTCODE}${process.env.MPESA_PASSKEY}${timestamp}`
+  ).toString("base64");
+}
+
+function normalizePhone(raw) {
+  const phone = String(raw || "").replace(/[\s+-]/g, "");
+
+  if (/^0[17]\d{8}$/.test(phone)) {
+    return "254" + phone.slice(1);
+  }
+
+  if (/^254[17]\d{8}$/.test(phone)) {
+    return phone;
+  }
+
+  return null;
+}
+
+async function stkPush({ phone, amount, accountRef }) {
+  const token = await getAccessToken();
+  const timestamp = darajaTimestamp();
+
+  // Keep "mpesa"/"safaricom" out of this URL path.
+  const callbackUrl =
+    `${process.env.MPESA_CALLBACK_BASE_URL}` +
+    `/api/wallet/pay-callback/${process.env.MPESA_CALLBACK_SECRET}`;
+
+  return darajaFetch("/mpesa/stkpush/v1/processrequest", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      BusinessShortCode: process.env.MPESA_SHORTCODE,
+      Password: stkPassword(timestamp),
+      Timestamp: timestamp,
+      TransactionType: TXN_TYPE,
+      Amount: amount,
+      PartyA: phone,
+      PartyB: process.env.MPESA_SHORTCODE,
+      PhoneNumber: phone,
+      CallBackURL: callbackUrl,
+      AccountReference: accountRef.slice(0, 12),
+      TransactionDesc: "Sokodigi wallet top-up",
+    }),
+  });
+}
+
+// Authoritative check: asks Safaricom directly.
+async function stkQuery(checkoutRequestId) {
+  const token = await getAccessToken();
+  const timestamp = darajaTimestamp();
+
+  const { data } = await darajaFetch("/mpesa/stkpushquery/v1/query", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      BusinessShortCode: process.env.MPESA_SHORTCODE,
+      Password: stkPassword(timestamp),
+      Timestamp: timestamp,
+      CheckoutRequestID: checkoutRequestId,
+    }),
+  });
+
+  if (data.errorCode) {
+    return { state: "PENDING", desc: data.errorMessage };
+  }
+
+  if (data.ResultCode === undefined) {
+    return { state: "PENDING", desc: "No result yet" };
+  }
+
+  if (String(data.ResultCode) === "0") {
+    return { state: "SUCCESS", desc: data.ResultDesc };
+  }
+
+  return {
+    state: "FAILED",
+    desc: String(data.ResultDesc || "Payment not completed").slice(0, 200),
+  };
+}
+
+// ---------- Crediting (exactly once) ----------
+async function creditTopUp(checkoutRequestId, receipt) {
+  return mongoose.connection.transaction(async (session) => {
+    // The status update ensures only one callback/request can credit this top-up.
+    const set = {
+      status: "COMPLETED",
+      completedAt: new Date(),
+    };
+
+    if (receipt) {
+      set.mpesaReceipt = receipt;
+    }
+
+    const topup = await MpesaTopUp.findOneAndUpdate(
+      { checkoutRequestId, status: "PENDING" },
+      { $set: set },
+      { new: true, session }
+    );
+
+    if (!topup) {
+      return null;
+    }
+
+    // Wallet.userId must be the generated string ID, e.g. "SDK-001001".
+    const wallet = await Wallet.findOneAndUpdate(
+      { userId: topup.userId },
+      {
+        $inc: { balance: topup.amount },
+        $push: {
+          transactions: {
+            amount: topup.amount,
+            type: "deposit",
+            status: "COMPLETED",
+            referenceId: receipt || checkoutRequestId,
+            description:
+              `M-Pesa top-up of Ksh ${topup.amount.toLocaleString()}` +
+              `${receipt ? ` (${receipt})` : ""}.`,
+          },
+        },
+      },
+      { session }
+    );
+
+    if (!wallet) {
+      throw new Error("WALLET_MISSING_FOR_TOPUP");
+    }
+
+    return topup;
+  });
+}
+
+// ---------- GET /api/wallet/my-balance ----------
+async function getMyWalletDetails(req, res) {
+  try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    }
+
+    const findWallet = () =>
+      Wallet.findOne({ userId })
+        .select({ transactions: { $slice: -30 } })
+        .lean();
+
+    let wallet = await findWallet();
+
+    if (!wallet) {
+      // Prefer creating the wallet during signup.
+      try {
+        await Wallet.create({
+          userId,
+          balance: 0,
+          escrowBalance: 0,
+          transactions: [],
+        });
+      } catch (error) {
+        if (error.code !== 11000) {
+          throw error;
+        }
+      }
+
+      wallet = await findWallet();
+    }
+
+    if (!wallet) {
+      return res.status(404).json({ error: "WALLET_NOT_FOUND" });
+    }
+
+    return res.status(200).json({
+      ok: true,
+      balance: wallet.balance,
+      escrowBalance: wallet.escrowBalance,
+      isFrozen: !!wallet.isFrozen,
+      transactions: [...(wallet.transactions || [])].reverse(),
+    });
+  } catch (error) {
+    console.error(
+      "❌ getMyWalletDetails:",
+      error.stack || error.message
+    );
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+}
+
+// ---------- POST /api/wallet/mpesa-topup ----------
+async function handleMpesaTopUp(req, res) {
+  try {
+    if (!MPESA_ENABLED) {
+      return res.status(503).json({ error: "MPESA_NOT_CONFIGURED" });
+    }
+
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    }
+
+    const amount = req.body?.amount;
+
+    if (!Number.isInteger(amount) || amount < MIN_TOPUP || amount > MAX_TOPUP) {
+      return res.status(400).json({
+        error: "INVALID_AMOUNT",
+        min: MIN_TOPUP,
+        max: MAX_TOPUP,
+      });
+    }
+
+    const phone = normalizePhone(req.body?.phone);
+
+    if (!phone) {
+      return res.status(400).json({ error: "INVALID_PHONE" });
+    }
+
+    const wallet = await Wallet.findOne({ userId })
+      .select("isFrozen")
+      .lean();
+
+    if (!wallet) {
+      return res.status(404).json({ error: "WALLET_NOT_FOUND" });
+    }
+
+    if (wallet.isFrozen) {
+      return res.status(403).json({ error: "WALLET_FROZEN" });
+    }
+
+    // Stop double-taps: one open request per minute.
+    const recent = await MpesaTopUp.exists({
+      userId,
+      status: "PENDING",
+      createdAt: { $gt: new Date(Date.now() - 60 * 1000) },
+    });
+
+    if (recent) {
+      return res.status(429).json({
+        error: "TOPUP_ALREADY_IN_PROGRESS",
+      });
+    }
+
+    const accountRef = `SKD${userId.slice(-6)}`;
+    const { data } = await stkPush({ phone, amount, accountRef });
+
+    if (String(data.ResponseCode) !== "0" || !data.CheckoutRequestID) {
+      console.error("❌ STK push rejected:", JSON.stringify(data));
+      return res.status(502).json({
+        error: "PAYMENT_PROVIDER_REJECTED",
+      });
+    }
+
+    await MpesaTopUp.create({
+      userId,
+      phone,
+      amount,
+      checkoutRequestId: data.CheckoutRequestID,
+      merchantRequestId: data.MerchantRequestID,
+    });
+
+    return res.status(202).json({
+      ok: true,
+      message: "Check your phone and enter your M-Pesa PIN.",
+      checkoutRequestId: data.CheckoutRequestID,
+    });
+  } catch (error) {
+    console.error(
+      "❌ handleMpesaTopUp:",
+      error.stack || error.message
+    );
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+}
+
+// ---------- POST /api/wallet/pay-callback/:secret ----------
+async function mpesaCallback(req, res) {
+  const ack = () =>
+    res.status(200).json({
+      ResultCode: 0,
+      ResultDesc: "Accepted",
+    });
+
+  try {
+    if (!MPESA_ENABLED) {
+      return res.sendStatus(404);
+    }
+
+    if (
+      !safeEq(
+        req.params.secret || "",
+        process.env.MPESA_CALLBACK_SECRET
+      )
+    ) {
+      return res.sendStatus(404);
+    }
+
+    const callback = req.body?.Body?.stkCallback;
+
+    if (
+      !callback ||
+      typeof callback.CheckoutRequestID !== "string"
+    ) {
+      return ack();
+    }
+
+    const topup = await MpesaTopUp.findOne({
+      checkoutRequestId: callback.CheckoutRequestID,
+    });
+
+    if (!topup) {
+      return ack();
+    }
+
+    const items = callback.CallbackMetadata?.Item || [];
+    const pick = (name) => items.find((item) => item.Name === name)?.Value;
+    const receipt = pick("MpesaReceiptNumber");
+
+    if (topup.status !== "PENDING") {
+      // Record a receipt if another process already completed the top-up.
+      if (
+        topup.status === "COMPLETED" &&
+        !topup.mpesaReceipt &&
+        typeof receipt === "string"
+      ) {
+        await MpesaTopUp.updateOne(
+          { _id: topup._id },
+          { $set: { mpesaReceipt: receipt } }
+        ).catch(() => {});
+      }
+
+      return ack();
+    }
+
+    if (Number(callback.ResultCode) !== 0) {
+      await MpesaTopUp.updateOne(
+        { _id: topup._id, status: "PENDING" },
+        {
+          $set: {
+            status: "FAILED",
+            failReason: String(
+              callback.ResultDesc || "Failed"
+            ).slice(0, 200),
+          },
+        }
+      );
+
+      return ack();
+    }
+
+    // Check the callback amount against the requested amount.
+    if (
+      Number(pick("Amount")) !== topup.amount ||
+      typeof receipt !== "string"
+    ) {
+      console.error("🚨 Top-up amount/receipt mismatch", topup._id);
+
+      await MpesaTopUp.updateOne(
+        { _id: topup._id, status: "PENDING" },
+        { $set: { status: "REVIEW" } }
+      );
+
+      return ack();
+    }
+
+    // Confirm with Safaricom before crediting.
+    const query = await stkQuery(topup.checkoutRequestId);
+
+    if (query.state === "SUCCESS") {
+      await creditTopUp(topup.checkoutRequestId, receipt);
+    }
+
+    return ack();
+  } catch (error) {
+    console.error("❌ mpesaCallback:", error.stack || error.message);
+    return ack();
+  }
+}
+
+// ---------- GET /api/wallet/topup/:checkoutRequestId/status ----------
+async function getTopUpStatus(req, res) {
+  try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    }
+
+    const checkoutRequestId = req.params.checkoutRequestId;
+
+    if (
+      typeof checkoutRequestId !== "string" ||
+      checkoutRequestId.length > 80
+    ) {
+      return res.status(400).json({ error: "INVALID_ID" });
+    }
+
+    let topup = await MpesaTopUp.findOne({
+      checkoutRequestId,
+      userId,
+    });
+
+    if (!topup) {
+      return res.status(404).json({ error: "TOPUP_NOT_FOUND" });
+    }
+
+    if (MPESA_ENABLED && topup.status === "PENDING") {
+      const query = await stkQuery(checkoutRequestId);
+
+      if (query.state === "SUCCESS") {
+        await creditTopUp(checkoutRequestId, null);
+      } else if (query.state === "FAILED") {
+        await MpesaTopUp.updateOne(
+          { _id: topup._id, status: "PENDING" },
+          {
+            $set: {
+              status: "FAILED",
+              failReason: query.desc,
+            },
+          }
+        );
+      }
+
+      topup = await MpesaTopUp.findById(topup._id);
+    }
+
+    return res.json({
+      ok: true,
+      status: topup.status,
+      amount: topup.amount,
+    });
+  } catch (error) {
+    console.error(
+      "❌ getTopUpStatus:",
+      error.stack || error.message
+    );
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+}
+
+// ---------- POST /api/wallet/dev-topup ----------
+async function devTopUp(req, res) {
+  try {
+    if (
+      process.env.NODE_ENV === "production" ||
+      process.env.ALLOW_DEV_TOPUP !== "true"
+    ) {
+      return res.sendStatus(404);
+    }
+
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
+    }
+
+    const amount = req.body?.amount;
+
+    if (!Number.isInteger(amount) || amount < 1 || amount > 20000) {
+      return res.status(400).json({ error: "INVALID_AMOUNT" });
+    }
+
+    const checkoutRequestId = `DEV-${crypto.randomUUID()}`;
+
+    await MpesaTopUp.create({
+      userId,
+      phone: "254700000000",
+      amount,
+      checkoutRequestId,
+    });
+
+    await creditTopUp(
+      checkoutRequestId,
+      `DEV${crypto.randomBytes(5).toString("hex").toUpperCase()}`
+    );
+
+    return res.json({ ok: true, credited: amount });
+  } catch (error) {
+    console.error("❌ devTopUp:", error.stack || error.message);
+    return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
+  }
+}
+
+// allocateEscrowFunds is handled by escrow.service.js (holdOrderFunds).
+module.exports = {
+  getMyWalletDetails,
+  handleMpesaTopUp,
+  mpesaCallback,
+  getTopUpStatus,
+  devTopUp,
+  darajaFetch,
+  getAccessToken,
+  normalizePhone,
+  safeEq,
+  MPESA_ENABLED,
+};
