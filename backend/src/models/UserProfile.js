@@ -55,10 +55,15 @@ const userProfileSchema = new Schema(
     },
     // Business address: stays off the public profile (the public controller whitelists fields)
     address: { type: String, trim: true, default: "", maxlength: 200 },
+  
+    
     identityChangedAt: { type: Date, default: null },
+    previousBrandName: { type: String, default: "", maxlength: 60 },
+    rebrandedAt: { type: Date, default: null },
     // Verification state. Written ONLY by the system or admins, never by the user.
     kycStatus: { type: String, enum: ["none", "submitted", "verified", "rejected"], default: "none" },
 
+    
     // Up to 5 shop-front products (limit enforced atomically, see featureProduct)
     featuredProducts: {
       type: [{ type: Schema.Types.ObjectId, ref: "Product" }],
@@ -66,6 +71,7 @@ const userProfileSchema = new Schema(
       validate: { validator: (a) => a.length <= 5, message: "Maximum 5 featured products" },
     },
 
+    
     // System-controlled
     marketerLevel: {
       type: String,
