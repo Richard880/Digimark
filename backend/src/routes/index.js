@@ -29,6 +29,7 @@ router.use("/customers", require("../modules/customers/customers.routes"));
 router.use("/supply", require("../modules/supply/supply.routes"));
 router.use("/shop", require("../modules/shop/shop.routes"));
 router.use("/v1", require("../modules/api/v1.routes"));
+router.use("/tracking", require("../modules/tracking/tracking.routes"));
 
 router.use("/couriers", require("../modules/couriers/couriers.routes"));
 
