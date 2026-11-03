@@ -6,6 +6,8 @@ import ROUTES from "../../../constants/routes";
 import { sizedImage } from "../../../utils/image";
 import ShareButton from "./ShareButton";
 import AddToListSheet from "../../lists/AddToListSheet";
+import { profilePath } from "../../../constants/routes"; 
+import GoldBadge from "../../../components/GoldBadge";
 
 const REF_RE = /^[A-Za-z0-9_-]{8,32}$/;
 const fmt = (n) => `Ksh ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -164,7 +166,11 @@ export default function ProductDetails() {
 
         {/* Details */}
         <div className="flex flex-col">
-          {product.brandName && <p className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700">{product.brandName}</p>}
+          
+          {product.brandName && (product.sellerUsername
+  ? <Link to={profilePath(product.sellerUsername)} className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700 hover:underline">{product.brandName}</Link>
+  : <p className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700">{product.brandName}</p>)}
+          
           <h1 className="mt-1 text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">{product.name}</h1>
 
           <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
