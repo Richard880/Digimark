@@ -5,7 +5,7 @@ const { perUser } = require("../../middleware/limits");
 const User = require("../../models/User");
 const MpesaTopUp = require("../../models/MpesaTopUp");
 const AdminAction = require("../../models/AdminAction");
-const { PLANS } = require("../../config/plans");
+const { PLANS } = require("../config/plans");
 const { creditTopUp } = require("../wallet/wallet.controller");
 
 const router = express.Router();
