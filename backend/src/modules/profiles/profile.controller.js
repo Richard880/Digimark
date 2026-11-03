@@ -3,6 +3,8 @@ const User = require("../../models/User");
 const Product = require("../../models/Product");
 const UserProfile = require("../../models/UserProfile");
 const { assertCanChange } = require("../../utils/profileLock");
+const Order = require("../../models/Order");
+const { notify } = require("../../services/notification.service");
 
 // =========================================================================
 // HELPERS
@@ -286,8 +288,23 @@ async function updateMyProfile(req, res) {
 
     if (stamp) set.identityChangedAt = new Date();
 
+    const rebranded = typeof set.brandName === "string" && set.brandName !== profile.brandName;
+    if (rebranded) { set.previousBrandName = profile.brandName || ""; set.rebrandedAt = new Date(); }
+
     if (Object.keys(set).length) {
       await UserProfile.updateOne(filter, { $set: set }, { runValidators: true });
+
+            if (rebranded && profile.username) {
+        try {
+          const rows = await Order.aggregate([
+            { $match: { sellerId: req.user._id, createdAt: { $gte: new Date(Date.now() - 365 * 86400000) } } },
+            { $sort: { createdAt: -1 } },
+            { $group: { _id: "$buyerId" } },
+            { $limit: 500 },
+          ]);
+          if (rows.length) await notify("SHOP_RENAMED", rows.map((r) => r._id), { oldName: profile.brandName || "A shop", newName: set.brandName, username: profile.username }, { actorId: req.user._id });
+        } catch (err) { console.error("❌ rebrand notice:", err.message); } // never fail the save because of this
+      }
     }
 
     const updatedProfile = await UserProfile.findOne(filter).lean();
