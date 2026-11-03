@@ -357,6 +357,16 @@ router.post("/users/:id/freeze", h(async (req, res) => {
   res.json({ ok: true, frozen: req.body.frozen });
 }));
 
+
+router.post("/users/:id/reset-profile-lock", h(async (req, res) => {
+  if (!isId(req.params.id)) throw E("INVALID_ID");
+  const note = reason(req.body?.note);
+  if (!note) throw E("NOTE_REQUIRED");
+  await UserProfile.updateOne({ userId: req.params.id }, { $set: { identityChangedAt: null } });
+  await audit(req, "profile_lock_reset", "user", req.params.id, note);
+  res.json({ ok: true });
+}));
+
 /* ───────── Orders: refund a buyer when the seller can't finish (for example, suspended) ───────── */
 router.post("/orders/:orderNumber/cancel", h(async (req, res) => {
   const note = reason(req.body?.note);
