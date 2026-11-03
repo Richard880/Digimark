@@ -252,6 +252,7 @@ router.get("/:id/messages", perUser(120), h(async (req, res) => {
     ok: true,
     hasMore,
     with: withInfo(prof),
+    peerId: other.userId,
     me: { version: currentOf(myKeys)?.version || 0 },
     peer: { current: peerCur?.version || null, keys: peerKeys.map((k) => ({ version: k.version, publicKey: k.publicKey })) },
     peerTyping: !!(other.typingAt && Date.now() - new Date(other.typingAt).getTime() < TYPING_MS),
