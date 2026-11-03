@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { productPath } from "../../../constants/routes";
 import ShareButton from "../ProductDetails/ShareButton";
+import { profilePath } from "../../../constants/routes";
+import GoldBadge from "../../../components/GoldBadge";
 
 const formatKsh = (v) => `KSh ${Number(v || 0).toLocaleString("en-KE")}`;
 
@@ -72,7 +74,13 @@ export default function ProductCard({ product }) {
 
       {/* Details */}
       <div className="flex flex-1 flex-col gap-2 p-3.5 sm:p-4">
-        <p className="truncate text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">{product?.brandName || "Sokodigi seller"}</p>
+     
+      <div className="relative z-10 flex items-center gap-1.5">
+          {product?.sellerUsername
+            ? <Link to={profilePath(product.sellerUsername)} className="truncate text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700 hover:underline">{product?.brandName || "Sokodigi seller"}</Link>
+            : <span className="truncate text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-700">{product?.brandName || "Sokodigi seller"}</span>}
+          {product?.goldShop && <GoldBadge small />}
+        </div>
 
         <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-extrabold leading-5 text-slate-800 transition-colors group-hover:text-emerald-800">
           {/* The stretched link makes the WHOLE card tappable */}
