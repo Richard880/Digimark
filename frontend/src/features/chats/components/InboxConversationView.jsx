@@ -5,6 +5,8 @@ import useAuth from "../../auth/hooks/useAuth";
 import ROUTES from "../../../constants/routes";
 import useChatIdentity from "../services/useChatIdentity";
 import { deriveKey, encryptPayload, decryptPayload, compressImage, encryptImage, uploadEncrypted, decryptImage, securityCode } from "../services/chatCrypto";
+import TrackingCard from "../../couriers/TrackingCard";
+
 
 const MAX = 1500;
 const THREAD_POLL_MS = 4000;
@@ -171,7 +173,17 @@ export default function InboxConversationView() {
   const [inboxLoading, setInboxLoading] = useState(true);
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [meta, setMeta] = useState({ with: null, peerTyping: false, peerReadAt: null, blockedByMe: false, peerReady: true, hasMore: false });
+ 
+  const [meta, setMeta] = useState({
+  with: null,
+  peerId: null,
+  peerTyping: false,
+  peerReadAt: null,
+  blockedByMe: false,
+  peerReady: true,
+  hasMore: false,
+});
+  
   const [code, setCode] = useState("");
   const [keyChanged, setKeyChanged] = useState(false);
   const [threadLoading, setThreadLoading] = useState(false);
@@ -257,7 +269,17 @@ export default function InboxConversationView() {
     const keys = data.peer?.keys || [];
     const cur = keys.find((k) => k.version === data.peer?.current) || null;
     peerRef.current = { keys, current: cur };
-    setMeta((m) => ({ ...m, with: data.with, peerTyping: data.peerTyping, peerReadAt: data.peerReadAt, blockedByMe: data.blockedByMe, peerReady: !!cur, hasMore: data.hasMore ?? m.hasMore }));
+    setMeta((m) => ({
+  ...m,
+  with: data.with,
+  peerId: data.peerId || m.peerId,
+  peerTyping: data.peerTyping,
+  peerReadAt: data.peerReadAt,
+  blockedByMe: data.blockedByMe,
+  peerReady: !!cur,
+  hasMore: data.hasMore ?? m.hasMore,
+}));
+    
     if (cur && idRef.current) {
       setCode(await securityCode(idRef.current.publicKey, cur.publicKey));
       try {
@@ -526,6 +548,8 @@ export default function InboxConversationView() {
                   <button type="button" onClick={acceptKeyChange} className="shrink-0 rounded-lg bg-amber-600 px-2 py-1 font-bold text-white">OK</button>
                 </div>
               )}
+
+              {meta.peerId && <TrackingCard sellerId={meta.peerId} />}
               {!meta.peerReady && <p className="bg-slate-50 px-4 py-2 text-[11px] font-semibold text-slate-600">{ERR.PEER_NO_KEYS}</p>}
 
               <div onScroll={(e) => { const el = e.currentTarget; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}
