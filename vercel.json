@@ -36,7 +36,7 @@
       "headers": {
         "cache-control": "no-cache, no-store, must-revalidate",
         "service-worker-allowed": "/",
-        "Permissions-Policy": "camera=(self)"
+        "Permissions-Policy": "camera=(self), geolocation=(self)"
       },
       "dest": "/frontend/sw.js"
     },
@@ -44,7 +44,7 @@
       "src": "/manifest.webmanifest",
       "headers": {
         "content-type": "application/manifest+json",
-        "Permissions-Policy": "camera=(self)"
+        "Permissions-Policy": "camera=(self), geolocation=(self)"
       },
       "dest": "/frontend/manifest.webmanifest"
     },
@@ -58,7 +58,7 @@
     {
       "src": "/(.*)",
       "headers": {
-        "Permissions-Policy": "camera=(self)"
+        "Permissions-Policy": "camera=(self), geolocation=(self)"
       },
       "dest": "/frontend/index.html"
     }
