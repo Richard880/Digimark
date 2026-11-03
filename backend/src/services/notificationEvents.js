@@ -41,7 +41,7 @@ const EVENTS = {
     nothing: `None of the items in "${c.listName}" could be ordered. Check the list.`,
   }[c.reason] || `Please check "${c.listName}".`), () => "/shopping-lists"),
   LIST_PLACED: E("ORDERS", "Shopping list ordered", (c) => `${c.placed} order${c.placed === 1 ? "" : "s"} placed from "${c.listName}"${c.skipped ? `, ${c.skipped} item${c.skipped === 1 ? "" : "s"} skipped` : ""}. Your money is held in escrow. Find your PINs under My orders.`, () => "/profile"),
-
+  TRIP_STARTED: E("ORDERS", "Your courier is on the way", (c) => `${c.courierName} has started delivering order #${c.orderRef}. Follow the trip in your orders or in your chat with the shop.`, () => "/profile"),
   
   // Messages
   NEW_MESSAGE: E("MESSAGES", "New message", (c) => `${c.senderName || "Someone"} sent you a message.`, URL.messages),
