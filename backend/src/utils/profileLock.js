@@ -1,6 +1,9 @@
 const DAYS = Number(process.env.IDENTITY_LOCK_DAYS) > 0 ? Number(process.env.IDENTITY_LOCK_DAYS) : 30;
 const FIELDS = ["displayName", "brandName", "brandCategory", "address"];
-const same = (a, b) => String(a ?? "").trim() === String(b ?? "").trim();
+
+const same = (a, b) =>
+  String(a ?? "").trim().replace(/\s+/g, " ") ===
+  String(b ?? "").trim().replace(/\s+/g, " ");
 
 // Returns true if the update changes a locked field and is allowed (the caller then stamps identityChangedAt).
 // Throws PROFILE_LOCKED while the cooldown runs.
