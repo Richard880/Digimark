@@ -31,8 +31,6 @@ const getUserCategory = (req) => req.userCategory || "guest";
 const isNetworkUser = (req) => getUserCategory(req) === "network";
 const isProductOwner = (p, user) => !!(p && user?._id && String(p.sellerId) === String(user._id));
 
-const UserProfile = require("../../models/UserProfile");
-
 const withShop = (p, out) => {
   const { shopScore, ...safe } = out || {};
   return {
@@ -43,13 +41,36 @@ const withShop = (p, out) => {
 };
 
 async function withShops(rows) {
-  const ids = [...new Set(rows.map((r) => String(r.sellerId)))];
-  const profs = await UserProfile.find({ userId: { $in: ids } }).select("userId brandName username").lean();
-  const m = new Map(profs.map((p) => [String(p.userId), p]));
-  return rows.map((r) => { const p = m.get(String(r.sellerId)); return { ...r, brandName: p?.brandName || r.brandName, sellerUsername: p?.username || "" }; });
+  const ids = [
+    ...new Set(
+      rows
+        .map((r) => r.sellerId && String(r.sellerId))
+        .filter(Boolean)
+    ),
+  ];
+
+  if (!ids.length) {
+    return rows.map((r) => ({ ...r, sellerUsername: "" }));
+  }
+
+  const profiles = await UserProfile.find({ userId: { $in: ids } })
+    .select("userId brandName username")
+    .lean();
+
+  const byUserId = new Map(
+    profiles.map((profile) => [String(profile.userId), profile])
+  );
+
+  return rows.map((row) => {
+    const profile = row.sellerId && byUserId.get(String(row.sellerId));
+
+    return {
+      ...row,
+      brandName: profile?.brandName || row.brandName,
+      sellerUsername: profile?.username || "",
+    };
+  });
 }
-
-
 
 // Whole numbers only. Accepts 500 or "500", rejects 99.99, "1e9", NaN.
 const toInt = (v) =>
@@ -210,8 +231,10 @@ async function listProducts(req, res) {
     ]);
 
     const rows = await withShops(products);
-    const feed = rows.map(({ rankingScore, ...p }) => withShop(p, shape(p, req)));
-    
+    const feed = rows.map(({ rankingScore, ...product }) =>
+      withShop(product, shape(product, req))
+    );
+
     return res.status(200).json({
       ok: true,
       page,
@@ -243,7 +266,8 @@ async function getPublicStoreProducts(req, res) {
       .limit(limit)
       .lean();
 
-    const safe = products.map((product) =>
+    const rows = await withShops(products);
+    const safe = rows.map((product) =>
       withShop(product, shape(product, req))
     );
 
@@ -277,9 +301,11 @@ async function getProductById(req, res) {
       return bad(res, "PRODUCT_NOT_FOUND", 404);
     }
 
+    const [named] = await withShops([product]);
+
     return res.status(200).json({
       ok: true,
-      product: withShop(product, shape(product, req)),
+      product: withShop(named, shape(named, req)),
     });
   } catch (error) {
     return sendServerError(res, error, "Get product by ID");
@@ -730,7 +756,8 @@ async function getSmartDiscoveries(req, res) {
     }
 
     const products = await Product.find(filter).sort(sort).limit(limit).lean();
-    const feed = products.map((product) =>
+    const rows = await withShops(products);
+    const feed = rows.map((product) =>
       withShop(product, shape(product, req))
     );
 
@@ -866,21 +893,21 @@ async function getHeroBannerFeed(req, res) {
           price: 1,
           imageUrl: 1,
           description: 1,
+          sellerId: 1,
           brandName: 1,
           goldShop: 1,
           sellerUsername: 1,
         },
       },
-    ]);  
-    
-    const [named] = await withShops([typeof product.toObject === "function" ? product.toObject() : product]);
-    res.json({ ok: true, product: withShop(named, shape(named, req)) });
-    
+    ]);
+
+    const rows = await withShops(banner);
+    const safeBanner = rows.map((product) => withShop(product, product));
+
     return res.status(200).json({
       ok: true,
-      banner: banner.map((product) => withShop(product, product)),
+      banner: safeBanner,
     });
-    
   } catch (error) {
     return sendServerError(res, error, "Hero banner feed");
   }
@@ -940,7 +967,7 @@ async function getSharedProducts(req, res) {
       quantity: { $gt: 0 },
     })
       .select(
-        "productCode name brandName category price quantity deliveryFee imageUrl goldShop sellerUsername"
+        "productCode name brandName sellerId category price quantity deliveryFee imageUrl goldShop sellerUsername"
       )
       .lean();
 
@@ -948,9 +975,11 @@ async function getSharedProducts(req, res) {
       links.map((link) => [String(link.productId), link.code])
     );
 
+    const rows = await withShops(products);
+
     return res.json({
       ok: true,
-      products: products.map((product) => ({
+      products: rows.map((product) => ({
         ...withShop(product, product),
         shareCode: codes.get(String(product._id)),
       })),
