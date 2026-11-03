@@ -868,6 +868,13 @@ function OrderCard({
             When the buyer has their item, enter the 6-digit PIN they give you.
             That releases your payment.
           </p>
+       
+          {o.courier?.name && (
+              <p className="rounded-xl bg-sky-50 px-3 py-2 text-[11px] font-semibold text-sky-900">
+                {o.courier.name} is assigned and will normally confirm delivery with
+                the buyer&apos;s PIN.
+              </p>
+            )}
           
           <div className="flex gap-2">
             <input
@@ -1284,7 +1291,6 @@ return (
               setTab("orders");
               setOrderFilter("DISPATCHED");
             },
-            {o.courier && <p className="rounded-xl bg-sky-50 px-3 py-2 text-[11px] font-semibold text-sky-900">{o.courier.name} is assigned and will normally confirm delivery with the buyer's PIN.</p>}
           ],
           [
             "Low or out of stock",
