@@ -2,12 +2,17 @@ const mongoose = require("mongoose");
 const User = require("../../models/User");
 const Product = require("../../models/Product");
 const UserProfile = require("../../models/UserProfile");
+const { assertCanChange } = require("../../utils/profileLock");
 
 // =========================================================================
 // HELPERS
 // =========================================================================
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
-const VISIBLE = { status: { $in: ["LISTED", "ACTIVE"] }, isShelved: true, quantity: { $gt: 0 } };
+const VISIBLE = {
+  status: { $in: ["LISTED", "ACTIVE"] },
+  isShelved: true,
+  quantity: { $gt: 0 },
+};
 
 const isId = (v) => typeof v === "string" && mongoose.isValidObjectId(v);
 const text = (v, min, max) => {
@@ -20,34 +25,53 @@ const normalizePhone = (raw) => {
   if (/^0[17]\d{8}$/.test(p)) return "254" + p.slice(1);
   return /^254[17]\d{8}$/.test(p) ? p : null;
 };
+
 // Photos must be images from YOUR Cloudinary profiles folder
 function cleanProfileImage(v) {
   if (v === "") return "";
   try {
     const u = new URL(v);
-    const cloud = (process.env.CLOUDINARY_CLOUD_NAME || "").replace(/[^\w-]/g, "");
-    const re = new RegExp(`^/${cloud}/image/upload/(v\\d+/)?sokodigi/profiles/[\\w-]{1,80}\\.(jpg|jpeg|png|webp)$`);
-    return u.protocol === "https:" && u.hostname === "res.cloudinary.com" && cloud && re.test(u.pathname) ? u.toString() : null;
+    const cloud = (process.env.CLOUDINARY_CLOUD_NAME || "").replace(
+      /[^\w-]/g,
+      ""
+    );
+    const re = new RegExp(
+      `^/${cloud}/image/upload/(v\\d+/)?sokodigi/profiles/[\\w-]{1,80}\\.(jpg|jpeg|png|webp)$`
+    );
+    return u.protocol === "https:" &&
+      u.hostname === "res.cloudinary.com" &&
+      cloud &&
+      re.test(u.pathname)
+      ? u.toString()
+      : null;
   } catch {
     return null;
   }
 }
-const fail = (res, error, status = 400, extra = {}) => res.status(status).json({ error, ...extra });
+
+const fail = (res, error, status = 400, extra = {}) =>
+  res.status(status).json({ error, ...extra });
+
 const serverError = (res, tag, e) => {
   console.error(`❌ ${tag}:`, e.stack || e.message);
   return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
 };
 
 // =========================================================================
-// GET /api/profiles/:username  (public, no login needed)
+// GET /api/profiles/:username (public, no login needed)
 // Only ACTIVE, paid network members have a public shop.
 // =========================================================================
 async function getPublicProfile(req, res) {
   try {
     const username = String(req.params.username || "").toLowerCase().trim();
-    if (!USERNAME_RE.test(username)) return fail(res, "PUBLIC_PROFILE_NOT_FOUND", 404);
+    if (!USERNAME_RE.test(username)) {
+      return fail(res, "PUBLIC_PROFILE_NOT_FOUND", 404);
+    }
 
-    const profile = await UserProfile.findOne({ username, publicProfile: true }).lean();
+    const profile = await UserProfile.findOne({
+      username,
+      publicProfile: true,
+    }).lean();
     if (!profile) return fail(res, "PUBLIC_PROFILE_NOT_FOUND", 404);
 
     const user = await User.findById(profile.userId)
@@ -60,7 +84,8 @@ async function getPublicProfile(req, res) {
       user.accountCategory === "network" &&
       user.membershipStatus === "active" &&
       (!user.membershipExpiresAt || user.membershipExpiresAt > new Date());
-    if (!shopIsLive) return fail(res, "PUBLIC_PROFILE_NOT_FOUND", 404); // same answer for every case
+
+    if (!shopIsLive) return fail(res, "PUBLIC_PROFILE_NOT_FOUND", 404);
 
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 20));
@@ -68,20 +93,26 @@ async function getPublicProfile(req, res) {
 
     const [products, total, featured] = await Promise.all([
       Product.find(filter)
-        .select("productCode name brandName category price quantity deliveryFee description imageUrl likesCount createdAt")
+        .select(
+          "productCode name brandName category price quantity deliveryFee description imageUrl likesCount createdAt"
+        )
         .sort({ createdAt: -1, _id: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
         .lean(),
       Product.countDocuments(filter),
       profile.featuredProducts?.length
-        ? Product.find({ _id: { $in: profile.featuredProducts }, sellerId: user._id, ...VISIBLE })
+        ? Product.find({
+            _id: { $in: profile.featuredProducts },
+            sellerId: user._id,
+            ...VISIBLE,
+          })
             .select("productCode name brandName price imageUrl")
             .lean()
         : [],
     ]);
 
-    res.set("Cache-Control", "public, max-age=60"); // lets browsers and CDNs absorb repeat visits
+    res.set("Cache-Control", "public, max-age=60");
     return res.json({
       profile: {
         username: profile.username,
@@ -90,7 +121,10 @@ async function getPublicProfile(req, res) {
         bio: profile.bio,
         profilePhoto: profile.profilePhoto || "",
         coverPhoto: profile.coverPhoto || "",
-        location: { county: profile.location?.county || "", country: profile.location?.country || "Kenya" }, // no sub-county or address
+        location: {
+          county: profile.location?.county || "",
+          country: profile.location?.country || "Kenya",
+        },
         marketerLevel: profile.marketerLevel || "starter",
         stats: { products: total },
       },
@@ -104,12 +138,13 @@ async function getPublicProfile(req, res) {
 }
 
 // =========================================================================
-// GET /api/profiles/me : the owner sees private fields (address, KYC state, phone)
+// GET /api/profiles/me: owner sees private fields
 // =========================================================================
 async function getMyProfile(req, res) {
   try {
     const profile = await UserProfile.findOne({ userId: req.user._id }).lean();
     if (!profile) return fail(res, "PROFILE_NOT_FOUND", 404);
+
     const { userId, ...rest } = profile;
     return res.json({ ok: true, profile: rest });
   } catch (e) {
@@ -118,7 +153,7 @@ async function getMyProfile(req, res) {
 }
 
 // =========================================================================
-// PATCH /api/profiles/me : WHITELIST only. Anything else in the body is ignored.
+// PATCH /api/profiles/me: whitelist only
 // =========================================================================
 async function updateMyProfile(req, res) {
   try {
@@ -138,11 +173,10 @@ async function updateMyProfile(req, res) {
     try {
       stamp = assertCanChange(profile, b);
     } catch (e) {
-      if (e?.code === "PROFILE_LOCKED" || e?.error === "PROFILE_LOCKED") {
-        return res.status(409).json({
-          error: "PROFILE_LOCKED",
-          until: e.until,
-        });
+      if (e?.message === "PROFILE_LOCKED") {
+        return res
+          .status(409)
+          .json({ error: "PROFILE_LOCKED", until: e.until });
       }
       throw e;
     }
@@ -195,12 +229,13 @@ async function updateMyProfile(req, res) {
       set.publicProfile = b.publicProfile;
     }
 
-    // These fields are intentionally not editable here:
+    // Intentionally not editable here:
     // marketerLevel, kycStatus, membershipNumber, userId, featuredProducts.
 
-    // Username: choose once. It is the shop URL, so changing it would break shared links.
+    // Username can be chosen once; changing it would break shared links.
     if (has("username")) {
-      const u = typeof b.username === "string" ? b.username.trim().toLowerCase() : "";
+      const u =
+        typeof b.username === "string" ? b.username.trim().toLowerCase() : "";
       if (!USERNAME_RE.test(u)) {
         return fail(res, "VALIDATION_ERROR", 400, { field: "username" });
       }
@@ -224,7 +259,7 @@ async function updateMyProfile(req, res) {
       }
     }
 
-    // Payout phone: can be set once. Changing it needs a verified flow.
+    // Payout phone can be set once; changing it needs a verified flow.
     if (has("phoneNumber")) {
       const p = normalizePhone(b.phoneNumber);
       if (!p) {
@@ -249,16 +284,10 @@ async function updateMyProfile(req, res) {
       }
     }
 
-    if (stamp) {
-      set.identityChangedAt = new Date();
-    }
+    if (stamp) set.identityChangedAt = new Date();
 
     if (Object.keys(set).length) {
-      await UserProfile.updateOne(
-        filter,
-        { $set: set },
-        { runValidators: true }
-      );
+      await UserProfile.updateOne(filter, { $set: set }, { runValidators: true });
     }
 
     const updatedProfile = await UserProfile.findOne(filter).lean();
@@ -278,31 +307,44 @@ async function updateMyProfile(req, res) {
     return serverError(res, "updateMyProfile", e);
   }
 }
+
 // =========================================================================
-// POST /api/profiles/me/featured  { productId }  (max 5, atomic)
+// POST /api/profiles/me/featured { productId } (max 5, atomic)
 // =========================================================================
 async function featureProduct(req, res) {
   try {
-    if (req.userCategory !== "network") return fail(res, "MARKETER_ACCOUNT_REQUIRED", 403);
+    if (req.userCategory !== "network") {
+      return fail(res, "MARKETER_ACCOUNT_REQUIRED", 403);
+    }
+
     const { productId } = req.body || {};
     if (!isId(productId)) return fail(res, "INVALID_PRODUCT_ID");
 
-    // Only the seller's own, listed products can be featured
     const owned = await Product.exists({
-      _id: productId, sellerId: req.user._id,
-      status: { $in: ["LISTED", "ACTIVE"] }, isShelved: true,
+      _id: productId,
+      sellerId: req.user._id,
+      status: { $in: ["LISTED", "ACTIVE"] },
+      isShelved: true,
     });
     if (!owned) return fail(res, "PRODUCT_NOT_FOUND", 404);
 
-    // "slot 5 is empty" and the add are ONE atomic step
     const r = await UserProfile.updateOne(
       { userId: req.user._id, "featuredProducts.4": { $exists: false } },
       { $addToSet: { featuredProducts: productId } }
     );
+
     if (r.matchedCount === 0) {
-      if (await UserProfile.exists({ userId: req.user._id, featuredProducts: productId })) return res.json({ ok: true });
+      if (
+        await UserProfile.exists({
+          userId: req.user._id,
+          featuredProducts: productId,
+        })
+      ) {
+        return res.json({ ok: true });
+      }
       return fail(res, "FEATURED_LIMIT_REACHED", 409, { max: 5 });
     }
+
     return res.json({ ok: true });
   } catch (e) {
     return serverError(res, "featureProduct", e);
@@ -313,11 +355,22 @@ async function featureProduct(req, res) {
 async function unfeatureProduct(req, res) {
   try {
     if (!isId(req.params.productId)) return fail(res, "INVALID_PRODUCT_ID");
-    await UserProfile.updateOne({ userId: req.user._id }, { $pull: { featuredProducts: req.params.productId } });
+
+    await UserProfile.updateOne(
+      { userId: req.user._id },
+      { $pull: { featuredProducts: req.params.productId } }
+    );
+
     return res.json({ ok: true });
   } catch (e) {
     return serverError(res, "unfeatureProduct", e);
   }
 }
 
-module.exports = { getPublicProfile, getMyProfile, updateMyProfile, featureProduct, unfeatureProduct };
+module.exports = {
+  getPublicProfile,
+  getMyProfile,
+  updateMyProfile,
+  featureProduct,
+  unfeatureProduct,
+};
