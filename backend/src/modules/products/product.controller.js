@@ -32,13 +32,6 @@ const isNetworkUser = (req) => getUserCategory(req) === "network";
 const isProductOwner = (p, user) => !!(p && user?._id && String(p.sellerId) === String(user._id));
 
 const UserProfile = require("../../models/UserProfile");
-const withShop = (p, out) => ({ ...out, goldShop: !!p.goldShop, sellerUsername: p.sellerUsername || "" });
-async function withShops(rows) {
-  const ids = [...new Set(rows.map((r) => String(r.sellerId)))];
-  const profs = await UserProfile.find({ userId: { $in: ids } }).select("userId brandName username").lean();
-  const m = new Map(profs.map((p) => [String(p.userId), p]));
-  return rows.map((r) => { const p = m.get(String(r.sellerId)); return { ...r, brandName: p?.brandName || r.brandName, sellerUsername: p?.username || "" }; });
-}
 
 const withShop = (p, out) => {
   const { shopScore, ...safe } = out || {};
@@ -48,6 +41,15 @@ const withShop = (p, out) => {
     sellerUsername: p?.sellerUsername || "",
   };
 };
+
+async function withShops(rows) {
+  const ids = [...new Set(rows.map((r) => String(r.sellerId)))];
+  const profs = await UserProfile.find({ userId: { $in: ids } }).select("userId brandName username").lean();
+  const m = new Map(profs.map((p) => [String(p.userId), p]));
+  return rows.map((r) => { const p = m.get(String(r.sellerId)); return { ...r, brandName: p?.brandName || r.brandName, sellerUsername: p?.username || "" }; });
+}
+
+
 
 // Whole numbers only. Accepts 500 or "500", rejects 99.99, "1e9", NaN.
 const toInt = (v) =>
@@ -207,10 +209,9 @@ async function listProducts(req, res) {
       { $limit: limit },
     ]);
 
-    const feed = products.map(({ rankingScore, ...product }) =>
-      withShop(product, shape(product, req))
-    );
-
+    const rows = await withShops(products);
+    const feed = rows.map(({ rankingScore, ...p }) => withShop(p, shape(p, req)));
+    
     return res.status(200).json({
       ok: true,
       page,
@@ -870,12 +871,16 @@ async function getHeroBannerFeed(req, res) {
           sellerUsername: 1,
         },
       },
-    ]);
-
+    ]);  
+    
+    const [named] = await withShops([typeof product.toObject === "function" ? product.toObject() : product]);
+    res.json({ ok: true, product: withShop(named, shape(named, req)) });
+    
     return res.status(200).json({
       ok: true,
       banner: banner.map((product) => withShop(product, product)),
     });
+    
   } catch (error) {
     return sendServerError(res, error, "Hero banner feed");
   }
