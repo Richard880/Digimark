@@ -15,6 +15,7 @@ import { uploadImageToCloudinary } from "../../../utils/cloudinaryUploader";
 import ShareButton from "../ProductDetails/ShareButton";
 import OrderDispute from "../../orders/OrderDispute";
 import CourierCard from "../../couriers/CourierCard";
+import TrackingCard from "../../couriers/TrackingCard";
 
 
 const money = (n) => `KSh ${Number(n || 0).toLocaleString("en-KE")}`;
@@ -318,6 +319,7 @@ function OrderCard({ order, myId, onChanged }) {
 
       {(role === "buyer" || role === "seller") && <OrderDispute order={order} role={role} onChanged={onChanged} />}
       
+      
       {role === "buyer" && open && (
         <div className="mt-3 space-y-2">
           <p className="text-[11px] leading-relaxed text-slate-500">
@@ -334,10 +336,15 @@ function OrderCard({ order, myId, onChanged }) {
               <button type="button" onClick={() => setPinData(null)} className="mt-2 text-[11px] font-bold text-emerald-700 underline">Hide</button>
             </div>
           )}
-
-          {role === "buyer" && status === "DISPATCHED" && order.courier && (
+          
+            {role === "buyer" && status === "DISPATCHED" && order.courier && (
+              <>
                 <CourierCard courier={order.courier} />
-          )}
+                <TrackingCard orderNumber={order.orderNumber} />
+              </>
+            )}
+
+          
         </div>
       )}
 
