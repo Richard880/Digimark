@@ -42,7 +42,7 @@ const EVENTS = {
   }[c.reason] || `Please check "${c.listName}".`), () => "/shopping-lists"),
   LIST_PLACED: E("ORDERS", "Shopping list ordered", (c) => `${c.placed} order${c.placed === 1 ? "" : "s"} placed from "${c.listName}"${c.skipped ? `, ${c.skipped} item${c.skipped === 1 ? "" : "s"} skipped` : ""}. Your money is held in escrow. Find your PINs under My orders.`, () => "/profile"),
   TRIP_STARTED: E("ORDERS", "Your courier is on the way", (c) => `${c.courierName} has started delivering order #${c.orderRef}. Follow the trip in your orders or in your chat with the shop.`, () => "/profile"),
-  
+  SHOP_RENAMED: E("ORDERS", "A shop you bought from has a new name", (c) => `${c.oldName} is now ${c.newName}. It's the same shop with a new name.`, (c) => `/profile/${c.username}`),
   // Messages
   NEW_MESSAGE: E("MESSAGES", "New message", (c) => `${c.senderName || "Someone"} sent you a message.`, URL.messages),
   CHAT_REQUEST: E("MESSAGES", "Chat request", (c) => `${c.senderName || "Someone"} wants to chat. Open Messages to turn on secure chat.`, URL.messages),
