@@ -3,7 +3,7 @@ const crypto = require("crypto");
 const Wallet = require("../../models/Wallet");
 const MpesaTopUp = require("../../models/MpesaTopUp");
 
-// ---------- Config (warning-only: the app boots without M-Pesa credentials) ----------
+// ---------- Config ----------
 const REQUIRED_ENV = [
   "MPESA_CONSUMER_KEY",
   "MPESA_CONSUMER_SECRET",
@@ -26,7 +26,7 @@ const MPESA_ENABLED = missingEnv.length === 0;
 
 if (!MPESA_ENABLED) {
   console.warn(
-    `⚠️  M-Pesa is OFF. Missing: ${missingEnv.join(", ")}. Top-ups are disabled until these are set.`
+    `⚠️ M-Pesa is OFF. Missing: ${missingEnv.join(", ")}. Top-ups are disabled until these are set.`
   );
 }
 
@@ -42,14 +42,37 @@ const MAX_TOPUP = 150000;
 const safeEq = (a, b) => {
   const x = Buffer.from(String(a));
   const y = Buffer.from(String(b));
+
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 };
 
-// Use the generated string ID (for example, "SDK-001001").
-// This must match the value stored in Wallet.userId and MpesaTopUp.userId.
-function getUserId(req) {
-  const userId = req.user?.userId;
-  return typeof userId === "string" && userId.length > 0 ? userId : null;
+/*
+ * Authentication ID: MongoDB User._id
+ * Generated/public ID: "SDK-001001"
+ *
+ * Keep these separate. Use mongoUserId only if your wallet/top-up
+ * schemas store MongoDB ObjectIds. Use generatedUserId if those
+ * schemas store strings like "SDK-001001".
+ */
+function getAuthenticatedUser(req) {
+  const mongoUserId = req.user?._id;
+  const generatedUserId = req.user?.userId;
+
+  if (!mongoUserId || !mongoose.isValidObjectId(mongoUserId)) {
+    return null;
+  }
+
+  if (
+    typeof generatedUserId !== "string" ||
+    generatedUserId.trim().length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    mongoUserId: new mongoose.Types.ObjectId(mongoUserId),
+    generatedUserId: generatedUserId.trim(),
+  };
 }
 
 // ---------- Daraja client ----------
@@ -109,7 +132,6 @@ async function getAccessToken() {
 }
 
 function darajaTimestamp() {
-  // YYYYMMDDHHmmss, Nairobi time (UTC+3)
   return new Date(Date.now() + 3 * 3600 * 1000)
     .toISOString()
     .replace(/\D/g, "")
@@ -140,7 +162,6 @@ async function stkPush({ phone, amount, accountRef }) {
   const token = await getAccessToken();
   const timestamp = darajaTimestamp();
 
-  // Keep "mpesa"/"safaricom" out of this URL path.
   const callbackUrl =
     `${process.env.MPESA_CALLBACK_BASE_URL}` +
     `/api/wallet/pay-callback/${process.env.MPESA_CALLBACK_SECRET}`;
@@ -167,7 +188,6 @@ async function stkPush({ phone, amount, accountRef }) {
   });
 }
 
-// Authoritative check: asks Safaricom directly.
 async function stkQuery(checkoutRequestId) {
   const token = await getAccessToken();
   const timestamp = darajaTimestamp();
@@ -207,7 +227,6 @@ async function stkQuery(checkoutRequestId) {
 // ---------- Crediting (exactly once) ----------
 async function creditTopUp(checkoutRequestId, receipt) {
   return mongoose.connection.transaction(async (session) => {
-    // The status update ensures only one callback/request can credit this top-up.
     const set = {
       status: "COMPLETED",
       completedAt: new Date(),
@@ -227,7 +246,7 @@ async function creditTopUp(checkoutRequestId, receipt) {
       return null;
     }
 
-    // Wallet.userId must be the generated string ID, e.g. "SDK-001001".
+    // Generated ID, e.g. SDK-001001, stored in Wallet.userId.
     const wallet = await Wallet.findOneAndUpdate(
       { userId: topup.userId },
       {
@@ -244,7 +263,7 @@ async function creditTopUp(checkoutRequestId, receipt) {
           },
         },
       },
-      { session }
+      { session, new: true }
     );
 
     if (!wallet) {
@@ -258,24 +277,26 @@ async function creditTopUp(checkoutRequestId, receipt) {
 // ---------- GET /api/wallet/my-balance ----------
 async function getMyWalletDetails(req, res) {
   try {
-    const userId = getUserId(req);
+    const user = getAuthenticatedUser(req);
 
-    if (!userId) {
+    if (!user) {
       return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
     }
 
+    // Wallet.userId stores the generated string ID, e.g. SDK-001001.
+    const generatedUserId = user.generatedUserId;
+
     const findWallet = () =>
-      Wallet.findOne({ userId })
+      Wallet.findOne({ userId: generatedUserId })
         .select({ transactions: { $slice: -30 } })
         .lean();
 
     let wallet = await findWallet();
 
     if (!wallet) {
-      // Prefer creating the wallet during signup.
       try {
         await Wallet.create({
-          userId,
+          userId: generatedUserId,
           balance: 0,
           escrowBalance: 0,
           transactions: [],
@@ -295,16 +316,14 @@ async function getMyWalletDetails(req, res) {
 
     return res.status(200).json({
       ok: true,
+      userId: generatedUserId,
       balance: wallet.balance,
       escrowBalance: wallet.escrowBalance,
       isFrozen: !!wallet.isFrozen,
       transactions: [...(wallet.transactions || [])].reverse(),
     });
   } catch (error) {
-    console.error(
-      "❌ getMyWalletDetails:",
-      error.stack || error.message
-    );
+    console.error("❌ getMyWalletDetails:", error.stack || error.message);
     return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   }
 }
@@ -316,12 +335,13 @@ async function handleMpesaTopUp(req, res) {
       return res.status(503).json({ error: "MPESA_NOT_CONFIGURED" });
     }
 
-    const userId = getUserId(req);
+    const user = getAuthenticatedUser(req);
 
-    if (!userId) {
+    if (!user) {
       return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
     }
 
+    const generatedUserId = user.generatedUserId;
     const amount = req.body?.amount;
 
     if (!Number.isInteger(amount) || amount < MIN_TOPUP || amount > MAX_TOPUP) {
@@ -338,7 +358,7 @@ async function handleMpesaTopUp(req, res) {
       return res.status(400).json({ error: "INVALID_PHONE" });
     }
 
-    const wallet = await Wallet.findOne({ userId })
+    const wallet = await Wallet.findOne({ userId: generatedUserId })
       .select("isFrozen")
       .lean();
 
@@ -350,31 +370,26 @@ async function handleMpesaTopUp(req, res) {
       return res.status(403).json({ error: "WALLET_FROZEN" });
     }
 
-    // Stop double-taps: one open request per minute.
     const recent = await MpesaTopUp.exists({
-      userId,
+      userId: generatedUserId,
       status: "PENDING",
       createdAt: { $gt: new Date(Date.now() - 60 * 1000) },
     });
 
     if (recent) {
-      return res.status(429).json({
-        error: "TOPUP_ALREADY_IN_PROGRESS",
-      });
+      return res.status(429).json({ error: "TOPUP_ALREADY_IN_PROGRESS" });
     }
 
-    const accountRef = `SKD${userId.slice(-6)}`;
+    const accountRef = generatedUserId;
     const { data } = await stkPush({ phone, amount, accountRef });
 
     if (String(data.ResponseCode) !== "0" || !data.CheckoutRequestID) {
       console.error("❌ STK push rejected:", JSON.stringify(data));
-      return res.status(502).json({
-        error: "PAYMENT_PROVIDER_REJECTED",
-      });
+      return res.status(502).json({ error: "PAYMENT_PROVIDER_REJECTED" });
     }
 
     await MpesaTopUp.create({
-      userId,
+      userId: generatedUserId,
       phone,
       amount,
       checkoutRequestId: data.CheckoutRequestID,
@@ -387,10 +402,7 @@ async function handleMpesaTopUp(req, res) {
       checkoutRequestId: data.CheckoutRequestID,
     });
   } catch (error) {
-    console.error(
-      "❌ handleMpesaTopUp:",
-      error.stack || error.message
-    );
+    console.error("❌ handleMpesaTopUp:", error.stack || error.message);
     return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   }
 }
@@ -409,20 +421,14 @@ async function mpesaCallback(req, res) {
     }
 
     if (
-      !safeEq(
-        req.params.secret || "",
-        process.env.MPESA_CALLBACK_SECRET
-      )
+      !safeEq(req.params.secret || "", process.env.MPESA_CALLBACK_SECRET)
     ) {
       return res.sendStatus(404);
     }
 
     const callback = req.body?.Body?.stkCallback;
 
-    if (
-      !callback ||
-      typeof callback.CheckoutRequestID !== "string"
-    ) {
+    if (!callback || typeof callback.CheckoutRequestID !== "string") {
       return ack();
     }
 
@@ -439,7 +445,6 @@ async function mpesaCallback(req, res) {
     const receipt = pick("MpesaReceiptNumber");
 
     if (topup.status !== "PENDING") {
-      // Record a receipt if another process already completed the top-up.
       if (
         topup.status === "COMPLETED" &&
         !topup.mpesaReceipt &&
@@ -460,9 +465,7 @@ async function mpesaCallback(req, res) {
         {
           $set: {
             status: "FAILED",
-            failReason: String(
-              callback.ResultDesc || "Failed"
-            ).slice(0, 200),
+            failReason: String(callback.ResultDesc || "Failed").slice(0, 200),
           },
         }
       );
@@ -470,11 +473,7 @@ async function mpesaCallback(req, res) {
       return ack();
     }
 
-    // Check the callback amount against the requested amount.
-    if (
-      Number(pick("Amount")) !== topup.amount ||
-      typeof receipt !== "string"
-    ) {
+    if (Number(pick("Amount")) !== topup.amount || typeof receipt !== "string") {
       console.error("🚨 Top-up amount/receipt mismatch", topup._id);
 
       await MpesaTopUp.updateOne(
@@ -485,7 +484,6 @@ async function mpesaCallback(req, res) {
       return ack();
     }
 
-    // Confirm with Safaricom before crediting.
     const query = await stkQuery(topup.checkoutRequestId);
 
     if (query.state === "SUCCESS") {
@@ -502,12 +500,13 @@ async function mpesaCallback(req, res) {
 // ---------- GET /api/wallet/topup/:checkoutRequestId/status ----------
 async function getTopUpStatus(req, res) {
   try {
-    const userId = getUserId(req);
+    const user = getAuthenticatedUser(req);
 
-    if (!userId) {
+    if (!user) {
       return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
     }
 
+    const generatedUserId = user.generatedUserId;
     const checkoutRequestId = req.params.checkoutRequestId;
 
     if (
@@ -519,7 +518,7 @@ async function getTopUpStatus(req, res) {
 
     let topup = await MpesaTopUp.findOne({
       checkoutRequestId,
-      userId,
+      userId: generatedUserId,
     });
 
     if (!topup) {
@@ -552,10 +551,7 @@ async function getTopUpStatus(req, res) {
       amount: topup.amount,
     });
   } catch (error) {
-    console.error(
-      "❌ getTopUpStatus:",
-      error.stack || error.message
-    );
+    console.error("❌ getTopUpStatus:", error.stack || error.message);
     return res.status(500).json({ error: "INTERNAL_SERVER_ERROR" });
   }
 }
@@ -570,12 +566,13 @@ async function devTopUp(req, res) {
       return res.sendStatus(404);
     }
 
-    const userId = getUserId(req);
+    const user = getAuthenticatedUser(req);
 
-    if (!userId) {
+    if (!user) {
       return res.status(401).json({ error: "AUTHENTICATION_REQUIRED" });
     }
 
+    const generatedUserId = user.generatedUserId;
     const amount = req.body?.amount;
 
     if (!Number.isInteger(amount) || amount < 1 || amount > 20000) {
@@ -585,7 +582,7 @@ async function devTopUp(req, res) {
     const checkoutRequestId = `DEV-${crypto.randomUUID()}`;
 
     await MpesaTopUp.create({
-      userId,
+      userId: generatedUserId,
       phone: "254700000000",
       amount,
       checkoutRequestId,
@@ -603,7 +600,6 @@ async function devTopUp(req, res) {
   }
 }
 
-// allocateEscrowFunds is handled by escrow.service.js (holdOrderFunds).
 module.exports = {
   getMyWalletDetails,
   handleMpesaTopUp,
