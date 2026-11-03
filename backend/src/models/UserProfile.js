@@ -55,7 +55,7 @@ const userProfileSchema = new Schema(
     },
     // Business address: stays off the public profile (the public controller whitelists fields)
     address: { type: String, trim: true, default: "", maxlength: 200 },
-
+    identityChangedAt: { type: Date, default: null },
     // Verification state. Written ONLY by the system or admins, never by the user.
     kycStatus: { type: String, enum: ["none", "submitted", "verified", "rejected"], default: "none" },
 
