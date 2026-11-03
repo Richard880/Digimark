@@ -123,6 +123,8 @@ async function getPublicProfile(req, res) {
         bio: profile.bio,
         profilePhoto: profile.profilePhoto || "",
         coverPhoto: profile.coverPhoto || "",
+        rebrand: profile.rebrandedAt && profile.previousBrandName && Date.now() - new Date(profile.rebrandedAt).getTime() < 30 * 86400000
+                  ? { previousName: profile.previousBrandName, at: profile.rebrandedAt } : null,
         location: {
           county: profile.location?.county || "",
           country: profile.location?.country || "Kenya",
