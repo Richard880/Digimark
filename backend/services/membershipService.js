@@ -15,8 +15,12 @@ const { PLANS, LEVELS, ROLLUP_MAX_STEPS, PERIOD_DAYS, RENEW_WINDOW_DAYS } = requ
 const PlanChange = require("../src/models/PlanChange");
 const { upgradeQuote } = require("../src/modules/membership/entitlements");
 
-
+const mongoose = require("mongoose");
 const PLATFORM_ID = process.env.PLATFORM_WALLET_USER_ID;
+if (!PLATFORM_ID || !mongoose.isValidObjectId(PLATFORM_ID)) {
+  throw new Error("PLATFORM_WALLET_USER_ID must be the 24-character _id of the company account, not its membership number");
+}
+
 if (!PLATFORM_ID) throw new Error("Missing env PLATFORM_WALLET_USER_ID");
 const DAY = 24 * 3600 * 1000;
 
